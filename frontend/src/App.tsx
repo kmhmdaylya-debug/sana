@@ -21,6 +21,7 @@ const Payroll = lazy(() => import('./pages/Payroll'));
 const Evaluations = lazy(() => import('./pages/Evaluations'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const Projects = lazy(() => import('./pages/Projects'));
+const EmployeePanel = lazy(() => import('./pages/EmployeePanel'));
 const Assets = lazy(() => import('./pages/Assets'));
 const Training = lazy(() => import('./pages/Training'));
 const Loans = lazy(() => import('./pages/Loans'));
@@ -53,6 +54,21 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * صفحهٔ خانه: مدیران داشبورد مدیریتی را می‌بینند و کارکنان عادی به پنل خودشان هدایت می‌شوند.
+ */
+function HomeRoute() {
+  const { user, hasPermission } = useAuth();
+  if (
+    !hasPermission('dashboard.view.management') &&
+    hasPermission('panel.view') &&
+    user?.employee
+  ) {
+    return <Navigate to="/panel" replace />;
+  }
+  return <Dashboard />;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<PageLoading />}>
@@ -66,7 +82,7 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<HomeRoute />} />
           <Route path="/approvals" element={<RequirePermission anyOf={['approvals.view']}><Approvals /></RequirePermission>} />
           <Route path="/employees" element={<RequirePermission anyOf={['employees.view']}><Employees /></RequirePermission>} />
           <Route path="/contracts" element={<RequirePermission anyOf={['contracts.view']}><Contracts /></RequirePermission>} />
@@ -79,6 +95,7 @@ export default function App() {
           <Route path="/evaluations" element={<RequirePermission anyOf={['evaluations.view']}><Evaluations /></RequirePermission>} />
           <Route path="/tasks" element={<RequirePermission anyOf={['tasks.view']}><Tasks /></RequirePermission>} />
           <Route path="/projects" element={<RequirePermission anyOf={['projects.view']}><Projects /></RequirePermission>} />
+          <Route path="/panel" element={<RequirePermission anyOf={['panel.view']}><EmployeePanel /></RequirePermission>} />
           <Route path="/assets" element={<RequirePermission anyOf={['assets.view']}><Assets /></RequirePermission>} />
           <Route path="/training" element={<RequirePermission anyOf={['training.view']}><Training /></RequirePermission>} />
           <Route path="/loans" element={<RequirePermission anyOf={['loans.view']}><Loans /></RequirePermission>} />

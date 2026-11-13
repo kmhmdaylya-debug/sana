@@ -1979,6 +1979,36 @@ async function main() {
   }
   console.log('✅ پروژه‌ها و گانت چارت آماده شد.');
 
+  // حضور پروژه‌ای نمونه (مراحلی که نیروها روی آن‌ها کار کرده‌اند)
+  const attendanceCount = await prisma.projectAttendance.count();
+  if (attendanceCount < 5) {
+    const stages = await prisma.projectTask.findMany({
+      where: { assigneeId: { in: Object.values(employees) } },
+      include: { project: { select: { id: true } } },
+      take: 20,
+    });
+    for (const stage of stages.slice(0, 6)) {
+      if (!stage.assigneeId) continue;
+      for (let d = 3; d >= 0; d--) {
+        const workDate = dateOnly(daysAgo(d));
+        const exists = await prisma.projectAttendance.findFirst({
+          where: { taskId: stage.id, employeeId: stage.assigneeId, workDate },
+        });
+        if (exists) continue;
+        await prisma.projectAttendance.create({
+          data: {
+            taskId: stage.id,
+            employeeId: stage.assigneeId,
+            workDate,
+            minutes: 420 + ((d * 37) % 120),
+            note: d === 0 ? 'پیشرفت کار امروز ثبت شد.' : null,
+          },
+        });
+      }
+    }
+  }
+  console.log('✅ حضور پروژه‌ای نمونه آماده شد.');
+
   // ------------------------------------------------------------------
   // ۲۲) گزارش نهایی
   // ------------------------------------------------------------------

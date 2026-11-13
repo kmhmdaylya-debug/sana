@@ -25,6 +25,7 @@ import { PayrollModule } from './payroll/payroll.module';
 import { EvaluationsModule } from './evaluations/evaluations.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ProjectsModule } from './projects/projects.module';
+import { EmployeePanelModule } from './employee-panel/employee-panel.module';
 import { AssetsModule } from './assets/assets.module';
 import { TrainingModule } from './training/training.module';
 import { RecruitmentModule } from './recruitment/recruitment.module';
@@ -72,6 +73,7 @@ import { BackupModule } from './backup/backup.module';
     EvaluationsModule,
     TasksModule,
     ProjectsModule,
+    EmployeePanelModule,
     AssetsModule,
     TrainingModule,
     RecruitmentModule,

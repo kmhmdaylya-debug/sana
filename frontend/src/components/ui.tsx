@@ -77,16 +77,18 @@ export function Field({ label, required, hint, error, children }: FieldProps) {
    کارت / سربرگ صفحه
    ========================================================================== */
 
-export function Card({ title, subtitle, actions, children, style }: {
+export function Card({ title, subtitle, actions, children, style, className }: {
   title?: string;
   subtitle?: string;
   actions?: ReactNode;
   children: ReactNode;
   style?: React.CSSProperties;
+  className?: string;
 }) {
-  if (!title && !actions) return <div className="card" style={style}><div className="card-body">{children}</div></div>;
+  const cls = className ? `card ${className}` : 'card';
+  if (!title && !actions) return <div className={cls} style={style}><div className="card-body">{children}</div></div>;
   return (
-    <div className="card" style={style}>
+    <div className={cls} style={style}>
       {(title || actions) && (
         <div className="card-header">
           <div>

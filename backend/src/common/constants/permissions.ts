@@ -87,6 +87,11 @@ export const PERMISSIONS = {
   PROJECTS_UPDATE: 'projects.update',
   PROJECTS_DELETE: 'projects.delete',
 
+  // پنل اختصاصی کارمند
+  PANEL_VIEW: 'panel.view',
+  PANEL_ATTENDANCE: 'panel.attendance',
+  PANEL_LEAVE_REQUEST: 'panel.leave.request',
+
   // دارایی
   ASSETS_VIEW: 'assets.view',
   ASSETS_MANAGE: 'assets.manage',
@@ -265,6 +270,11 @@ export const PERMISSION_GROUPS: { group: string; label: string; codes: Permissio
       PERMISSIONS.TASKS_DELETE,
       PERMISSIONS.TASKS_APPROVE,
     ],
+  },
+  {
+    group: 'panel',
+    label: 'پنل کارمند',
+    codes: [PERMISSIONS.PANEL_VIEW, PERMISSIONS.PANEL_ATTENDANCE, PERMISSIONS.PANEL_LEAVE_REQUEST],
   },
   {
     group: 'projects',

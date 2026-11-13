@@ -102,7 +102,9 @@ const ROLE_DEFS: {
       // خودکاری پروندهٔ شخصی (ABAC دسترسی را به رکورد خودِ کاربر محدود می‌کند)
       c === 'employees.view' ||
       c === 'contracts.view' ||
-      c === 'documents.view',
+      c === 'documents.view' ||
+      // پنل اختصاصی کارمند
+      c.startsWith('panel.'),
   },
 ];
 

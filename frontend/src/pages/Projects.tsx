@@ -81,12 +81,12 @@ const PRIORITY_LABELS: Record<string, string> = {
   CRITICAL: 'بحرانی',
 };
 const PRIORITY_COLORS: Record<string, string> = {
-  LOW: '#64748b',
-  MEDIUM: '#2563eb',
-  HIGH: '#ea580c',
-  CRITICAL: '#dc2626',
+  LOW: '#7d776b',
+  MEDIUM: '#3d5573',
+  HIGH: '#a8781c',
+  CRITICAL: '#b3443a',
 };
-const PALETTE = ['#059669', '#2563eb', '#7c3aed', '#dc2626', '#ca8a04', '#ea580c', '#0891b2', '#db2777'];
+const PALETTE = ['#3f7d52', '#3d5573', '#6f5490', '#b3443a', '#a8781c', '#a3a878', '#3f7a94', '#b06a8c'];
 
 const toDate = (v: string) => new Date(v);
 const dayDiff = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / DAY);

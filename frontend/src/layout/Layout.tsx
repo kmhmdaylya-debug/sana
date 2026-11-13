@@ -17,15 +17,18 @@ import {
   HandCoins,
   LayoutDashboard,
   LogOut,
+  Menu,
   Moon,
   NotebookPen,
   Receipt,
   ScrollText,
+  Search,
   Settings,
   ShieldCheck,
   Sun,
   UserCheck,
   UserPlus,
+  UserRound,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -39,12 +42,17 @@ interface MenuItem {
   icon: React.ReactNode;
   permission?: string;
   badgeUrl?: string;
+  /** شمارندهٔ کنار آیتم منو (مثلاً تعداد تأییدهای در انتظار) */
+  count?: number;
+  /** فقط برای کاربرانی که پروندهٔ پرسنلی دارند (مثل پنل کارمند) */
+  requiresEmployee?: boolean;
 }
 
 const MENU: { group: string; items: MenuItem[] }[] = [
   {
     group: 'اصلی',
     items: [
+      { to: '/panel', label: 'پنل کارمند', icon: <UserRound size={17} />, permission: 'panel.view', requiresEmployee: true },
       { to: '/', label: 'داشبورد', icon: <LayoutDashboard size={17} />, permission: 'dashboard.view' },
       { to: '/approvals', label: 'صندوق تأییدها', icon: <ClipboardCheck size={17} />, permission: 'approvals.view' },
     ],
@@ -139,6 +147,8 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('sana-theme') === 'dark');
   const [unread, setUnread] = useState(0);
+  const [search, setSearch] = useState('');
+  const [pendingApprovals, setPendingApprovals] = useState(0);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
@@ -154,6 +164,14 @@ export default function Layout() {
         if (active) setUnread(r?.data?.data?.unreadCount ?? 0);
       })
       .catch(() => {});
+    // شمارندهٔ صندوق تأییدها در کنار آیتم منو
+    api
+      .get('/approvals/inbox')
+      .then((r) => {
+        const rows = r?.data?.data ?? [];
+        if (active) setPendingApprovals(Array.isArray(rows) ? rows.length : (rows?.items?.length ?? 0));
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -163,9 +181,15 @@ export default function Layout() {
     () =>
       MENU.map((g) => ({
         ...g,
-        items: g.items.filter((i) => !i.permission || user?.isSuperAdmin || user?.permissions?.includes(i.permission)),
+        items: g.items
+          .filter(
+            (i) =>
+              (!i.permission || user?.isSuperAdmin || user?.permissions?.includes(i.permission)) &&
+              (!i.requiresEmployee || !!user?.employee),
+          )
+          .map((i) => (i.to === '/approvals' ? { ...i, count: pendingApprovals } : i)),
       })).filter((g) => g.items.length > 0),
-    [user],
+    [user, pendingApprovals],
   );
 
   const title = PAGE_TITLES[location.pathname] ?? 'سامانهٔ سنا';
@@ -175,10 +199,10 @@ export default function Layout() {
     <div className="app-shell">
       <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="sidebar-brand-logo">س</div>
+          <div className="sidebar-brand-logo">سنا</div>
           <div>
             <div>سنا</div>
-            <div style={{ fontSize: 10.5, fontWeight: 400, color: '#94a3b8' }}>مدیریت منابع انسانی</div>
+            <div style={{ fontSize: 10.5, fontWeight: 400, color: 'var(--text-soft)' }}>مدیریت منابع انسانی</div>
           </div>
         </div>
         <nav className="sidebar-nav">
@@ -189,77 +213,88 @@ export default function Layout() {
                 <NavLink key={i.to} to={i.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={i.to === '/'}>
                   {i.icon}
                   <span>{i.label}</span>
+                  {i.count !== undefined && <span className="sidebar-link-count">{toPersianDigits(i.count)}</span>}
                 </NavLink>
               ))}
             </div>
           ))}
         </nav>
+
+        <div className="sidebar-foot">
+          <div className="sidebar-user">
+            <div className="sidebar-user-avatar">{initials}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="sidebar-user-name">{user?.fullName ?? 'کاربر'}</div>
+              <div className="sidebar-user-role">{user?.employee?.position?.title ?? user?.roles?.[0]?.name ?? 'کاربر'}</div>
+            </div>
+            <button
+              className="header-icon-btn"
+              onClick={async () => {
+                await logout();
+                navigate('/login');
+              }}
+              aria-label="خروج"
+              title="خروج از حساب"
+            >
+              <LogOut size={17} />
+            </button>
+          </div>
+        </div>
       </aside>
 
       <div className="app-main">
         <header className="app-header">
           <button
-            className="btn btn-ghost btn-sm mobile-only"
+            className="header-icon-btn mobile-only"
             onClick={() => setSidebarOpen((v) => !v)}
-            style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer' }}
             aria-label="منو"
           >
-            ☰
+            <Menu size={18} />
           </button>
-          <div className="header-title">{title}</div>
+
+          <div className="search-box">
+            <Search size={16} />
+            <input
+              className="input"
+              placeholder="جست‌وجوی نیرو، پروژه، سند…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && search.trim()) {
+                  navigate(`/employees?search=${encodeURIComponent(search.trim())}`);
+                }
+              }}
+            />
+          </div>
+
           <div className="header-spacer" />
           <div className="header-actions">
             <button
-              className="btn btn-ghost btn-sm"
+              className="header-icon-btn"
               onClick={() => navigate('/notifications')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', position: 'relative', color: 'inherit' }}
               aria-label="اعلان‌ها"
               title="اعلان‌ها"
             >
               <Bell size={18} />
               {unread > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: -4,
-                    insetInlineEnd: -4,
-                    background: 'var(--red-600)',
-                    color: '#fff',
-                    borderRadius: 999,
-                    fontSize: 10,
-                    padding: '1px 5px',
-                    fontWeight: 700,
-                  }}
-                >
-                  {toPersianDigits(unread > 99 ? '99+' : unread)}
-                </span>
+                <span className="header-badge-dot">{toPersianDigits(unread > 99 ? '99+' : unread)}</span>
               )}
             </button>
             <button
-              className="btn btn-ghost btn-sm"
+              className="header-icon-btn"
               onClick={() => setDark((v) => !v)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}
               aria-label="تغییر پوسته"
               title={dark ? 'پوستهٔ روشن' : 'پوستهٔ تیره'}
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <div style={{ textAlign: 'left', lineHeight: 1.3 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{user?.fullName}</div>
-              <div className="text-muted text-xs">{user?.employee?.position?.title ?? user?.roles?.[0]?.name ?? 'کاربر'}</div>
-            </div>
-            <div className="avatar">{initials}</div>
             <button
-              className="btn btn-ghost btn-sm"
-              onClick={async () => {
-                await logout();
-                navigate('/login');
-              }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-600)' }}
-              aria-label="خروج"
-              title="خروج از حساب"
+              className="header-icon-btn"
+              onClick={() => navigate(user?.employee ? '/panel' : '/users')}
+              aria-label="حساب کاربری"
+              title={user?.fullName ?? 'حساب کاربری'}
             >
-              <LogOut size={17} />
+              <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials}</div>
             </button>
           </div>
         </header>
