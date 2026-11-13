@@ -1,0 +1,23 @@
+# وابستگی‌ها و خروجی‌ها
+node_modules/
+dist/
+build/
+*.log
+
+# اسرار و تنظیمات محلی — هرگز وارد مخزن نشوند
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# پشتیبان‌های پایگاه داده
+backups/
+*.json.enc
+*.dump
+
+# فایل‌های ویرایشگر و سیستم
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,71 @@
+# ==========================================================================
+# سامانه مدیریت منابع انسانی «سنا» — Docker Compose (تولید)
+#
+# قبل از اجرا، این متغیرها را در محیط (یا فایل .env کنار همین فایل) تنظیم کنید:
+#   POSTGRES_PASSWORD, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET,
+#   BACKUP_ENCRYPTION_KEY, ADMIN_PASSWORD
+# مقدارها را با scripts/generate-secrets.ps1 بسازید. اگر تنظیم نشده باشند،
+# docker compose با خطا متوقف می‌شود (هیچ مقدار پیش‌فرضی وجود ندارد).
+#
+# اجرای کامل: docker compose up -d --build
+# فقط پایگاه داده (توسعه): docker compose up -d db
+# ==========================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sana-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sana
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}
+      POSTGRES_DB: sana_hrms
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    # فقط روی میزبان محلی در دسترس است
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - sana-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sana -d sana_hrms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: sana-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4114
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://sana:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}@db:5432/sana_hrms?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET را تنظیم کنید}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET را تنظیم کنید}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY را تنظیم کنید}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD را تنظیم کنید}
+      SEED_DEMO_DATA: "false"
+      SWAGGER_ENABLED: "false"
+      CORS_ORIGINS: http://localhost:8080
+    # فقط از طریق nginx (فرانت) در دسترس است؛ پورت API روی میزبان باز نمی‌شود
+    expose:
+      - "4114"
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/main.js"
+
+  frontend:
+    build: ./frontend
+    container_name: sana-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    # nginx داخل کانتینر، /api را به backend پراکسی می‌کند
+
+volumes:
+  sana-pgdata:

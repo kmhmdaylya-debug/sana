@@ -1,0 +1,192 @@
+import { useState } from 'react';
+import { api, apiErrorMessage, downloadReport } from '../lib/api';
+import { useList } from '../lib/useList';
+import { useAuth } from '../lib/auth';
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  Field,
+  ListToolbar,
+  Modal,
+  PageHeader,
+  Pagination,
+  Select,
+  Textarea,
+  useToast,
+  type Column,
+} from '../components/ui';
+import { formatJalali, statusLabel, badgeKind, toPersianDigits, parseDateInput, ATTENDANCE_STATUS_LABELS } from '../lib/format';
+
+interface Record {
+  id: string;
+  workDate: string;
+  firstIn?: string | null;
+  lastOut?: string | null;
+  workMinutes: number;
+  overtimeMinutes: number;
+  lateMinutes: number;
+  status: string;
+  employee?: { code: string; firstName: string; lastName: string } | null;
+}
+
+interface Correction {
+  id: string;
+  workDate: string;
+  status: string;
+  reason?: string;
+  employee?: { code: string; firstName: string; lastName: string } | null;
+}
+
+const hhmm = (iso?: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return toPersianDigits(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+};
+
+export default function Attendance() {
+  const toast = useToast();
+  const { hasPermission } = useAuth();
+  const [tab, setTab] = useState<'records' | 'corrections'>('records');
+  const records = useList<Record>('/attendance/records');
+  const corrections = useList<Correction>('/attendance/corrections');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState({ employeeId: '', workDate: '', firstIn: '', lastOut: '', reason: '' });
+  const [saving, setSaving] = useState(false);
+
+  const canApprove = hasPermission('attendance.approve');
+  const canCreate = hasPermission('attendance.create');
+
+  const submitCorrection = async () => {
+    setSaving(true);
+    try {
+      const workDate = parseDateInput(form.workDate);
+      if (!workDate) throw new Error('قالب تاریخ کارکرد معتبر نیست (نمونه: ۱۴۰۴/۰۱/۰۱).');
+      await api.post('/attendance/corrections', { ...form, workDate });
+      toast('success', 'درخواست اصلاح ثبت شد.');
+      setCreateOpen(false);
+      corrections.reload();
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : apiErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const decide = async (id: string, decision: 'APPROVE' | 'REJECT') => {
+    try {
+      await api.post(`/attendance/corrections/${id}/decide`, { decision });
+      toast('success', decision === 'APPROVE' ? 'اصلاح تأیید شد.' : 'اصلاح رد شد.');
+      corrections.reload();
+    } catch (e) {
+      toast('error', apiErrorMessage(e));
+    }
+  };
+
+  const recordCols: Column<Record>[] = [
+    { key: 'employee', header: 'نیرو', render: (r) => (r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : '—') },
+    { key: 'workDate', header: 'تاریخ', render: (r) => formatJalali(r.workDate) },
+    { key: 'firstIn', header: 'ورود', render: (r) => hhmm(r.firstIn) },
+    { key: 'lastOut', header: 'خروج', render: (r) => hhmm(r.lastOut) },
+    { key: 'workMinutes', header: 'کارکرد', render: (r) => `${toPersianDigits(Math.floor(r.workMinutes / 60))}:${toPersianDigits(r.workMinutes % 60)}` },
+    { key: 'overtime', header: 'اضافه‌کاری', render: (r) => (r.overtimeMinutes ? toPersianDigits(r.overtimeMinutes) + ' د' : '—') },
+    { key: 'late', header: 'تأخیر', render: (r) => (r.lateMinutes ? toPersianDigits(r.lateMinutes) + ' د' : '—') },
+    { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status)}>{statusLabel(r.status)}</Badge> },
+  ];
+
+  const correctionCols: Column<Correction>[] = [
+    { key: 'employee', header: 'نیرو', render: (r) => (r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : '—') },
+    { key: 'workDate', header: 'تاریخ', render: (r) => formatJalali(r.workDate) },
+    { key: 'reason', header: 'دلیل' },
+    { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status)}>{statusLabel(r.status)}</Badge> },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        title="حضور و غیاب"
+        subtitle="کارت‌های حضور، کارکرد روزانه و اصلاحات"
+        actions={
+          <>
+            {hasPermission('attendance.export') && (
+              <Button variant="outline" onClick={() => downloadReport('/attendance/records?format=csv', 'attendance.csv').catch((e) => toast('error', apiErrorMessage(e)))}>
+                خروجی CSV
+              </Button>
+            )}
+            {canCreate && (
+              <Button onClick={() => setCreateOpen(true)}>درخواست اصلاح</Button>
+            )}
+          </>
+        }
+      />
+
+      <div className="tabs mb">
+        <button className={`tab${tab === 'records' ? ' active' : ''}`} onClick={() => setTab('records')}>کارت‌های حضور</button>
+        <button className={`tab${tab === 'corrections' ? ' active' : ''}`} onClick={() => setTab('corrections')}>اصلاحات</button>
+      </div>
+
+      <Card>
+        {tab === 'records' ? (
+          <>
+            <div style={{ padding: '14px 14px 0' }}>
+              <ListToolbar onSearch={(s) => records.setSearch(s)}>
+                <Select onChange={(e) => records.setFilter('status', e.target.value)} style={{ width: 170 }}>
+                  <option value="">همهٔ وضعیت‌ها</option>
+                  {Object.entries(ATTENDANCE_STATUS_LABELS).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </Select>
+              </ListToolbar>
+            </div>
+            <DataTable columns={recordCols} rows={records.rows} loading={records.loading} />
+            <div style={{ padding: '0 14px 14px' }}>
+              <Pagination page={records.page} totalPages={records.totalPages} total={records.total} onChange={records.setPage} />
+            </div>
+          </>
+        ) : (
+          <>
+            <DataTable
+              columns={correctionCols}
+              rows={corrections.rows}
+              loading={corrections.loading}
+              rowActions={(r) =>
+                canApprove && r.status === 'PENDING' ? (
+                  <>
+                    <Button size="sm" variant="success" onClick={() => decide(r.id, 'APPROVE')}>تأیید</Button>
+                    <Button size="sm" variant="danger" onClick={() => decide(r.id, 'REJECT')}>رد</Button>
+                  </>
+                ) : null
+              }
+            />
+            <div style={{ padding: '0 14px 14px' }}>
+              <Pagination page={corrections.page} totalPages={corrections.totalPages} total={corrections.total} onChange={corrections.setPage} />
+            </div>
+          </>
+        )}
+      </Card>
+
+      <Modal
+        open={createOpen}
+        title="درخواست اصلاح کارت حضور"
+        onClose={() => setCreateOpen(false)}
+        footer={
+          <>
+            <Button onClick={submitCorrection} loading={saving}>ثبت درخواست</Button>
+            <Button variant="secondary" onClick={() => setCreateOpen(false)}>انصراف</Button>
+          </>
+        }
+      >
+        <div className="col" style={{ gap: 14 }}>
+          <Field label="شناسهٔ نیرو (UUID)" required><input className="input ltr" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} /></Field>
+          <Field label="تاریخ کارکرد" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><input className="input ltr" value={form.workDate} onChange={(e) => setForm((f) => ({ ...f, workDate: e.target.value }))} placeholder="1404/01/01" /></Field>
+          <Field label="ساعت ورود صحیح (اختیاری)"><input className="input ltr" value={form.firstIn} onChange={(e) => setForm((f) => ({ ...f, firstIn: e.target.value }))} placeholder="08:30" /></Field>
+          <Field label="ساعت خروج صحیح (اختیاری)"><input className="input ltr" value={form.lastOut} onChange={(e) => setForm((f) => ({ ...f, lastOut: e.target.value }))} placeholder="17:00" /></Field>
+          <Field label="دلیل اصلاح" required><Textarea value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} /></Field>
+        </div>
+      </Modal>
+    </>
+  );
+}
