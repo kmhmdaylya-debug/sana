@@ -220,6 +220,7 @@ export class TasksService {
   }
 
   async create(dto: CreateTaskDto, user: AuthenticatedUser) {
+    if (!dto.title.trim()) throw new BadRequestException('عنوان کار را وارد کنید.');
     const resolved = await this.resolveAssignees(user, dto.assigneeUserIds, dto.assigneeIds);
     const assignees = resolved.length
       ? { create: resolved.map((a) => ({ employeeId: a.employeeId ?? null, userId: a.userId ?? null, role: 'ASSIGNEE', isResponsible: true })) }
@@ -278,6 +279,7 @@ export class TasksService {
 
   async update(id: string, dto: UpdateTaskDto, user: AuthenticatedUser) {
     await this.assertTaskAccess(id, user);
+    if (dto.title !== undefined && !dto.title.trim()) throw new BadRequestException('عنوان کار را وارد کنید.');
     const resolved = dto.assigneeIds !== undefined || dto.assigneeUserIds !== undefined
       ? await this.resolveAssignees(user, dto.assigneeUserIds, dto.assigneeIds) : undefined;
 
@@ -290,6 +292,8 @@ export class TasksService {
       where: { id },
       data: {
         ...(resolved ? { assignees: { deleteMany: {}, create: resolved.map((a) => ({ employeeId: a.employeeId ?? null, userId: a.userId ?? null, role: 'ASSIGNEE', isResponsible: true })) } } : {}),
+        ...(!resolved && dto.status && dto.status !== before?.status ? { assignees: { updateMany: { where: {}, data: { dismissedAt: null } } } } : {}),
+        ...((dto.status && dto.status !== before?.status) || resolved ? { comments: { create: { authorId: user.id, content: [dto.status && dto.status !== before?.status ? `وضعیت کار تغییر کرد: ${{ NEW: 'شروع نشده', IN_PROGRESS: 'در حال انجام', DONE: 'انجام‌شده', CANCELLED: 'لغوشده' }[dto.status]}` : '', resolved ? 'مسئولان کار به‌روزرسانی شدند.' : ''].filter(Boolean).join(' · ') } } } : {}),
         ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
@@ -300,7 +304,7 @@ export class TasksService {
         ...(dto.progress !== undefined ? { progress: dto.progress } : {}),
         ...(dto.slaHours !== undefined ? { slaHours: dto.slaHours } : {}),
         ...(dto.delayReason !== undefined ? { delayReason: dto.delayReason } : {}),
-        ...(dto.status === TaskStatus.DONE ? { completedAt: new Date(), progress: 100 } : {}),
+        ...(dto.status === TaskStatus.DONE ? { completedAt: before?.completedAt ?? new Date(), progress: 100, delayReason: null } : {}),
         ...(dto.status && dto.status !== TaskStatus.DONE ? { completedAt: null } : {}),
       },
       include: { assignees: { include: { employee: { select: { userId: true } } } } },

@@ -20,6 +20,7 @@ describe('Employee panel tasks', () => {
     await service.myTasks(new PaginationDto(), user);
     expect(prisma.task.findMany.mock.calls[0][0].where).toEqual({
       assignees: { some: { OR: [{ userId: 'user' }, { employeeId: 'employee' }] } },
+      OR: [{ status: { not: 'DONE' } }, { assignees: { some: { dismissedAt: null, OR: [{ userId: 'user' }, { employeeId: 'employee' }] } } }],
     });
   });
 
@@ -36,6 +37,26 @@ describe('Employee panel tasks', () => {
   it('requires an employee profile before querying tasks', async () => {
     await expect(service.myTasks(new PaginationDto(), { ...user, employeeId: null })).rejects.toThrow();
     expect(prisma.task.findMany).not.toHaveBeenCalled();
+  });
+
+  it('dismisses only completed work assigned to this employee without deleting the task', async () => {
+    await service.dismissTask('task', user);
+    expect(prisma.taskAssignee.updateMany).toHaveBeenCalledWith({
+      where: { taskId: 'task', OR: [{ userId: 'user' }, { employeeId: 'employee' }], task: { status: 'DONE' } },
+      data: { dismissedAt: expect.any(Date) },
+    });
+    expect(prisma.task.updateMany).not.toHaveBeenCalled();
+    expect(prisma.taskComment.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects dismissal of unfinished or unassigned work', async () => {
+    prisma.taskAssignee.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.dismissTask('task', user)).rejects.toThrow();
+  });
+
+  it('requires a profile before dismissing work', async () => {
+    await expect(service.dismissTask('task', { ...user, employeeId: null })).rejects.toThrow();
+    expect(prisma.taskAssignee.updateMany).not.toHaveBeenCalled();
   });
 
   it('requires a nonblank reason for an unable result before any write', async () => {
@@ -59,6 +80,35 @@ describe('Employee panel tasks', () => {
   it('stores a trimmed inability reason without marking the task done', async () => {
     await service.taskResult('task', { result: 'UNABLE', reason: '  Missing access  ' }, user);
     expect(prisma.task.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'IN_PROGRESS', delayReason: 'Missing access', completedAt: null } }));
+  });
+
+  it('starts a new task and records its author in history', async () => {
+    await service.taskResult('task', { result: 'START' }, user);
+    expect(prisma.task.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'NEW', delayReason: null }),
+      data: { status: 'IN_PROGRESS', delayReason: null, completedAt: null },
+    }));
+    expect(prisma.taskComment.create).toHaveBeenCalledWith({ data: { taskId: 'task', authorId: 'user', content: 'کار شروع شد.' } });
+  });
+
+  it('resumes blocked work without deleting its previous comments', async () => {
+    prisma.task.findFirst.mockResolvedValue({ status: 'IN_PROGRESS', delayReason: 'No access' });
+    await service.taskResult('task', { result: 'START' }, user);
+    expect(prisma.task.updateMany.mock.calls[0][0]).toMatchObject({ where: { status: 'IN_PROGRESS', delayReason: 'No access' }, data: { delayReason: null } });
+    expect(prisma.taskComment.create.mock.calls[0][0].data.content).toContain('از سر گرفته');
+  });
+
+  it('rejects a duplicate start without adding history', async () => {
+    prisma.task.findFirst.mockResolvedValue({ status: 'IN_PROGRESS', delayReason: null });
+    await expect(service.taskResult('task', { result: 'START' }, user)).rejects.toThrow();
+    expect(prisma.task.updateMany).not.toHaveBeenCalled();
+    expect(prisma.taskComment.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a concurrent start without adding history', async () => {
+    prisma.task.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.taskResult('task', { result: 'START' }, user)).rejects.toThrow();
+    expect(prisma.taskComment.create).not.toHaveBeenCalled();
   });
 
   it('rejects a stale result after the task has been finalized', async () => {

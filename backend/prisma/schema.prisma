@@ -1726,6 +1726,7 @@ model TaskAssignee {
   role          String   @default("ASSIGNEE") @db.VarChar(20)
   isResponsible Boolean  @default(true)
   completedAt   DateTime?
+  dismissedAt   DateTime?
   createdAt     DateTime @default(now())
 
   task     Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)

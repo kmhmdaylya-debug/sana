@@ -18,6 +18,30 @@ export class DashboardService {
     private readonly daily: DailyAttendanceService,
   ) {}
 
+  async teamWork(user: AuthenticatedUser) {
+    const scope = this.access.employeeWhereFor(user);
+    const employees = user.scope.unrestricted || user.isSuperAdmin ? [] : await this.prisma.employee.findMany({
+      where: { AND: [scope], deletedAt: null }, select: { id: true },
+    });
+    const where: Prisma.TaskWhereInput = user.scope.unrestricted || user.isSuperAdmin ? {} : {
+      OR: [
+        { createdById: user.id },
+        { assignees: { some: { OR: [{ userId: user.id }, { employeeId: { in: employees.map((employee) => employee.id) } }] } } },
+        ...(user.scope.companyIds.length ? [{ companyId: { in: user.scope.companyIds } }] : []),
+      ],
+    };
+    const data = await this.prisma.task.findMany({
+      where, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      select: {
+        id: true, title: true, description: true, status: true, dueDate: true, delayReason: true,
+        createdAt: true, completedAt: true, createdBy: { select: { fullName: true } },
+        assignees: { select: { user: { select: { fullName: true } }, employee: { select: { firstName: true, lastName: true } } } },
+        comments: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, content: true, createdAt: true, author: { select: { fullName: true } } } },
+      },
+    });
+    return { data, success: true };
+  }
+
   async todayAttendance(user: AuthenticatedUser) {
     const scope = this.access.employeeWhereFor(user);
     if (scope.id === '__none__') return this.daily.teamStatus([]);

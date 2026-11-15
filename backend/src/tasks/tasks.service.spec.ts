@@ -54,4 +54,11 @@ describe('Task assignments', () => {
     await service.update('task', { assigneeUserIds: [] }, actor);
     expect(prisma.task.update.mock.calls[0][0].data.assignees).toEqual({ deleteMany: {}, create: [] });
   });
+
+  it('records manager status changes in the same update', async () => {
+    prisma.task.findUnique.mockResolvedValue({ id: 'task', createdById: actor.id, status: 'NEW', assignees: [] });
+    prisma.task.update.mockResolvedValue({ id: 'task' });
+    await service.update('task', { status: 'DONE' as any }, actor);
+    expect(prisma.task.update.mock.calls[0][0].data).toMatchObject({ delayReason: null, comments: { create: { authorId: actor.id, content: 'وضعیت کار تغییر کرد: انجام‌شده' } } });
+  });
 });

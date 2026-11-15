@@ -13,9 +13,9 @@ import {
 } from 'class-validator';
 
 export class PanelTaskResultDto {
-  @ApiProperty({ enum: ['DONE', 'UNABLE'] })
-  @IsIn(['DONE', 'UNABLE'])
-  result: 'DONE' | 'UNABLE';
+  @ApiProperty({ enum: ['START', 'DONE', 'UNABLE'] })
+  @IsIn(['START', 'DONE', 'UNABLE'])
+  result: 'START' | 'DONE' | 'UNABLE';
 
   @ApiPropertyOptional({ maxLength: 500 })
   @IsOptional()

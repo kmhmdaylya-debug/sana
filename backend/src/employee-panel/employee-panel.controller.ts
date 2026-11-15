@@ -39,6 +39,13 @@ export class EmployeePanelController {
     return this.service.taskResult(taskId, dto, user);
   }
 
+  @Post('tasks/:taskId/dismiss')
+  @RequirePermissions(PERMISSIONS.PANEL_VIEW)
+  @ApiOperation({ summary: 'حذف کار انجام‌شده فقط از فهرست شخصی کارمند' })
+  dismissTask(@Param('taskId', ParseUUIDPipe) taskId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.dismissTask(taskId, user);
+  }
+
   @Get()
   @RequirePermissions(PERMISSIONS.PANEL_VIEW)
   @ApiOperation({ summary: 'خلاصهٔ پنل کارمند' })

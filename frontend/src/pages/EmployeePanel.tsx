@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarCheck, CheckCircle2, ClipboardList, Clock, FolderKanban, Receipt, Wallet, CircleAlert, CalendarDays, ChevronDown } from 'lucide-react';
+import { CalendarCheck, CheckCircle2, ClipboardList, Clock, FolderKanban, Receipt, Wallet, CircleAlert, CalendarDays, ChevronDown, Play, X } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
@@ -397,7 +397,18 @@ function MyTasks() {
   const [unableTask, setUnableTask] = useState<AssignedTask | null>(null);
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState('');
-  const report = async (task: AssignedTask, result: 'DONE' | 'UNABLE') => {
+  const dismiss = async (task: AssignedTask) => {
+    if (savingId) return;
+    setSavingId(task.id);
+    try {
+      await api.post(`/panel/tasks/${task.id}/dismiss`);
+      await list.reload();
+      toast('success', 'کار از فهرست شما حذف شد.');
+    } catch (e) {
+      toast('error', apiErrorMessage(e));
+    } finally { setSavingId(null); }
+  };
+  const report = async (task: AssignedTask, result: 'START' | 'DONE' | 'UNABLE') => {
     if (savingId) return;
     if (result === 'UNABLE' && !reason.trim()) {
       setReasonError('دلیل انجام نشدن کار را بنویسید.');
@@ -408,7 +419,7 @@ function MyTasks() {
       await api.post(`/panel/tasks/${task.id}/result`, { result, ...(result === 'UNABLE' ? { reason: reason.trim() } : {}) });
       setUnableTask(null);
       setReason('');
-      toast('success', result === 'DONE' ? 'کار انجام‌شده ثبت شد.' : 'دلیل انجام نشدن کار ثبت شد.');
+      toast('success', result === 'START' ? 'شروع کار ثبت شد.' : result === 'DONE' ? 'کار انجام‌شده ثبت شد.' : 'دلیل انجام نشدن کار ثبت شد.');
       await list.reload();
     } catch (e) {
       toast('error', apiErrorMessage(e));
@@ -431,10 +442,10 @@ function MyTasks() {
             const TaskContainer = task.status === 'DONE' ? 'details' : 'article';
             const heading = <div className="employee-task-title">
                 <h4>{task.title}</h4>
-                {task.status === 'DONE' ? <span className="employee-task-result employee-task-complete"><CheckCircle2 size={16} /> انجام شد</span> : task.status === 'CANCELLED' ? <span className="text-muted text-sm">لغو شده</span> : null}
+                {task.status === 'DONE' ? <span className="employee-task-result employee-task-complete"><CheckCircle2 size={16} /> انجام شد</span> : task.status === 'CANCELLED' ? <span className="text-muted text-sm">لغو شده</span> : task.status === 'IN_PROGRESS' && !task.delayReason ? <span className="text-muted text-sm"><Clock size={14} /> در حال انجام</span> : null}
               </div>;
             return <TaskContainer key={task.id} className={`employee-task-row${task.status === 'DONE' ? ' is-complete' : task.status === 'CANCELLED' ? ' is-cancelled' : task.delayReason || overdue ? ' is-blocked' : ''}`}>
-              {task.status === 'DONE' ? <summary className="employee-task-summary">{heading}<ChevronDown className="employee-task-chevron" size={18} /></summary> : heading}
+              {task.status === 'DONE' ? <summary className="employee-task-summary">{heading}<ChevronDown className="employee-task-chevron" size={18} /><button type="button" className="employee-task-dismiss" title="حذف از فهرست من" aria-label={`حذف ${task.title} از فهرست من`} disabled={!!savingId} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void dismiss(task); }}><X size={16} /></button></summary> : heading}
               <div className="employee-task-details">
               {task.description && <p className="employee-task-description">{task.description}</p>}
               <div className="employee-task-meta text-xs">
@@ -444,6 +455,7 @@ function MyTasks() {
               </div>
               {task.delayReason && <div className="employee-task-reason"><strong>دلیل انجام نشدن:</strong> {task.delayReason}</div>}
               {!['DONE', 'CANCELLED'].includes(task.status) && <div className="employee-task-actions">
+                {(task.status === 'NEW' || task.delayReason) && <Button className="employee-task-start" disabled={!!savingId} onClick={() => report(task, 'START')}><Play size={17} /> {task.delayReason ? 'ادامه می‌دهم' : 'شروع کردم'}</Button>}
                 <Button variant="success" loading={savingId === task.id && !unableTask} disabled={!!savingId} onClick={() => report(task, 'DONE')}><CheckCircle2 size={17} /> انجام شد</Button>
                 <Button variant="outline" disabled={!!savingId} onClick={() => { setUnableTask(task); setReason(task.delayReason ?? ''); setReasonError(''); }}><CircleAlert size={17} /> نتوانستم انجام بدهم</Button>
               </div>}
@@ -451,7 +463,7 @@ function MyTasks() {
             </TaskContainer>;
           })}
         </div>
-      </> : <div className="empty-state">هنوز وظیفه‌ای به شما واگذار نشده است.</div>}
+      </> : <div className="empty-state">وظیفه‌ای برای نمایش نیست.</div>}
       <Modal open={!!unableTask} title="دلیل انجام نشدن کار" onClose={() => { if (!savingId) setUnableTask(null); }} footer={<>
         <Button loading={!!savingId} onClick={() => unableTask && report(unableTask, 'UNABLE')}>ثبت دلیل</Button>
         <Button variant="secondary" disabled={!!savingId} onClick={() => setUnableTask(null)}>انصراف</Button>

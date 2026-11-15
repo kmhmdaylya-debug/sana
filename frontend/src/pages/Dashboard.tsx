@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { Badge, Card, PageHeader, useToast } from '../components/ui';
 import { toPersianDigits, statusLabel, badgeKind, formatJalali } from '../lib/format';
 import TeamPresence from '../components/TeamPresence';
+import TeamWork from '../components/TeamWork';
 
 interface MyDashboard {
   unreadNotifications: number;
@@ -56,6 +57,11 @@ const fmtMinutes = (m: number) => {
 };
 
 export default function Dashboard() {
+  const { hasPermission } = useAuth();
+  return hasPermission('dashboard.view.management') ? <TeamWork /> : <PersonalDashboard />;
+}
+
+function PersonalDashboard() {
   const { user, hasPermission } = useAuth();
   const toast = useToast();
   const [my, setMy] = useState<MyDashboard | null>(null);

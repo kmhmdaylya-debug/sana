@@ -1654,6 +1654,10 @@ html[data-theme='dark'] .employee-day-status.is-present { color: #86c79a; }
 .employee-task-row.is-complete .employee-task-chevron { width: 15px; height: 15px; }
 .employee-task-summary { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; min-height: 32px; }
 .employee-task-summary::-webkit-details-marker { display: none; }
+.employee-task-dismiss { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; color: var(--text-muted); background: transparent; cursor: pointer; }
+.employee-task-dismiss:hover { color: #bd3a3a; background: rgba(189,58,58,.08); }
+.employee-task-dismiss:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; }
+.employee-task-dismiss:disabled { cursor: wait; opacity: .5; }
 .employee-task-summary > .employee-task-title { flex: 1; min-width: 0; }
 .employee-task-summary:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 5px; border-radius: 4px; }
 .employee-task-chevron { flex-shrink: 0; color: var(--text-muted); transition: transform 0.15s; }
@@ -1996,6 +2000,41 @@ html[data-theme='dark'] .employee-task-priority { color: #edaaa1; }
   .data-table td {
     padding: 8px;
   }
+}
+
+.team-work-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 4px 18px; border-bottom: 2px solid var(--border); margin-bottom: 18px; }
+.team-work-toolbar select { width: 210px; max-width: 100%; }
+.team-work-list { display: grid; gap: 14px; }
+.team-work-row { border: 1px solid var(--border); border-inline-start: 4px solid #5984b7; border-radius: 8px; padding: 16px 18px; background: var(--surface); min-width: 0; }
+.team-work-row.state-blocked { border-inline-start-color: #c28420; }
+.team-work-row.state-done { border-inline-start-color: #29966e; }
+.team-work-row.state-cancelled { border-inline-start-color: #8a8d91; }
+.team-work-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.team-work-title h3 { font-size: 15px; line-height: 1.8; margin: 0; overflow-wrap: anywhere; }
+.team-work-state { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; flex-shrink: 0; }
+.state-blocked .team-work-state { color: #aa7014; }
+.state-done .team-work-state { color: #25805d; }
+.team-work-meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+.team-work-meta > span { display: inline-flex; align-items: center; gap: 5px; overflow-wrap: anywhere; }
+.team-work-problem { border-inline-start: 3px solid #c28420; padding: 10px 12px; background: rgba(194,132,32,.09); margin-block: 14px 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.team-work-history { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+.team-work-history summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 12px; list-style: none; min-height: 28px; }
+.team-work-history summary::-webkit-details-marker { display: none; }
+.team-work-history[open] summary svg { transform: rotate(180deg); }
+.team-work-description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.team-work-history ol { list-style: none; padding: 0; margin-block: 12px 0; border-inline-start: 2px solid var(--border); }
+.team-work-history li { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.team-work-history li span { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.team-work-history small, .team-work-people small { display: block; font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.team-work-history time { flex-shrink: 0; color: var(--text-muted); font-size: 11px; }
+.team-work-presence { margin-top: 28px; border-top: 2px solid var(--border); padding-top: 22px; }
+.team-work-people { margin-top: 10px; max-height: 220px; overflow-y: auto; }
+.team-work-people label { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+@media (max-width: 560px) {
+  .employee-task-actions .employee-task-start { grid-column: 1 / -1; }
+  .team-work-row { padding: 12px; }
+  .team-work-title { flex-wrap: wrap; gap: 4px; }
+  .team-work-history li { flex-direction: column; gap: 5px; padding: 10px; }
 }
 
 /* ------------------------------ چاپ ------------------------------ */

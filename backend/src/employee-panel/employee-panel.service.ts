@@ -49,6 +49,10 @@ export class EmployeePanelService {
     const employeeId = await this.requireEmployee(user);
     const where: Prisma.TaskWhereInput = {
       assignees: { some: { OR: [{ userId: user.id }, { employeeId }] } },
+      OR: [
+        { status: { not: 'DONE' } },
+        { assignees: { some: { dismissedAt: null, OR: [{ userId: user.id }, { employeeId }] } } },
+      ],
       ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
     };
     const data = await this.prisma.task.findMany({
@@ -69,19 +73,34 @@ export class EmployeePanelService {
       const before = await tx.task.findFirst({ where: { id: taskId, assignees: { some: assignment } } });
       if (!before) throw new ForbiddenException('این وظیفه به شما واگذار نشده است.');
       if (['CANCELLED', 'DONE'].includes(before.status)) throw new BadRequestException('نتیجهٔ این وظیفه قبلاً نهایی شده است.');
+      if (dto.result === 'START' && before.status === 'IN_PROGRESS' && !before.delayReason) {
+        throw new BadRequestException('این کار قبلاً شروع شده است.');
+      }
       const updated = await tx.task.updateMany({
-        where: { id: taskId, status: { notIn: ['CANCELLED', 'DONE'] }, assignees: { some: assignment } },
-        data: { status: completed ? 'DONE' : 'IN_PROGRESS', delayReason: completed ? null : reason, completedAt: completed ? new Date() : null, ...(completed ? { progress: 100 } : {}) },
+        where: { id: taskId, status: before.status, delayReason: before.delayReason ?? null, assignees: { some: assignment } },
+        data: { status: completed ? 'DONE' : 'IN_PROGRESS', delayReason: dto.result === 'UNABLE' ? reason : null, completedAt: completed ? new Date() : null, ...(completed ? { progress: 100 } : {}) },
       });
       if (!updated.count) throw new BadRequestException('وظیفه تغییر کرده است؛ صفحه را تازه کنید.');
       await tx.taskAssignee.updateMany({ where: assignment, data: { completedAt: completed ? new Date() : null } });
-      await tx.taskComment.create({ data: { taskId, authorId: user.id, content: completed ? 'کار انجام شد.' : `کار انجام نشد: ${reason}` } });
+      if (completed) await tx.taskAssignee.updateMany({ where: { taskId }, data: { dismissedAt: null } });
+      const content = dto.result === 'START' ? (before.delayReason ? 'مشکل برطرف شد؛ کار از سر گرفته شد.' : 'کار شروع شد.') : completed ? 'کار انجام شد.' : `کار انجام نشد: ${reason}`;
+      await tx.taskComment.create({ data: { taskId, authorId: user.id, content } });
       return before;
     });
-    await this.audit.record(user.id, { action: AuditAction.UPDATE, entity: 'Task', entityId: taskId, before: { status: task.status }, after: { status: completed ? 'DONE' : 'IN_PROGRESS', result: dto.result, reason: completed ? null : reason } });
-    if (task.createdById && task.createdById !== user.id) {
+    await this.audit.record(user.id, { action: AuditAction.UPDATE, entity: 'Task', entityId: taskId, before: { status: task.status, reason: task.delayReason }, after: { status: completed ? 'DONE' : 'IN_PROGRESS', result: dto.result, reason: dto.result === 'UNABLE' ? reason : null } });
+    if (dto.result !== 'START' && task.createdById && task.createdById !== user.id) {
       await this.notifications.notify(task.createdById, { title: completed ? 'وظیفه انجام شد' : 'دلیل انجام نشدن وظیفه ثبت شد', body: `${task.title}${completed ? '' : `: ${reason}`}`, link: '/tasks' });
     }
+    return { success: true };
+  }
+
+  async dismissTask(taskId: string, user: AuthenticatedUser) {
+    const employeeId = await this.requireEmployee(user);
+    const updated = await this.prisma.taskAssignee.updateMany({
+      where: { taskId, OR: [{ userId: user.id }, { employeeId }], task: { status: 'DONE' } },
+      data: { dismissedAt: new Date() },
+    });
+    if (!updated.count) throw new BadRequestException('فقط کار انجام‌شده و واگذارشده به خودتان قابل حذف از فهرست است.');
     return { success: true };
   }
 
