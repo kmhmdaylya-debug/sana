@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Field, Input, useToast } from '../components/ui';
 import { useAuth } from '../lib/auth';
@@ -17,6 +17,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [theme, setTheme] = useState(readTheme);
+  useEffect(() => { document.title = 'ورود | سنا'; }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

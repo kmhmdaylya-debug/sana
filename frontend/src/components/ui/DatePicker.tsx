@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import jalaali from 'jalaali-js';
-import { Input } from '../ui';
+import { Input } from './base';
 import { parseDateInput, toPersianDigits } from '../../lib/format';
 
 const months = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];

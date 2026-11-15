@@ -56,6 +56,7 @@ interface MenuItem {
   count?: number;
   /** فقط برای کاربرانی که پروندهٔ پرسنلی دارند (مثل پنل کارمند) */
   requiresEmployee?: boolean;
+  requiresManagement?: boolean;
 }
 
 const MENU: { group: string; items: MenuItem[] }[] = [
@@ -73,7 +74,7 @@ const MENU: { group: string; items: MenuItem[] }[] = [
       { to: '/users', label: 'کاربران و پرسنل', icon: <Users size={17} />, permission: 'users.view' },
       { to: '/contracts', label: 'قراردادها', icon: <FileText size={17} />, permission: 'contracts.view' },
       { to: '/documents', label: 'مدارک پرسنلی', icon: <FolderOpen size={17} />, permission: 'documents.view' },
-      { to: '/attendance', label: 'حضور و غیاب', icon: <CalendarCheck size={17} />, permission: 'attendance.view' },
+      { to: '/attendance', label: 'حضور و غیاب', icon: <CalendarCheck size={17} />, permission: 'attendance.view', requiresManagement: true },
       { to: '/shifts', label: 'شیفت‌ها', icon: <CalendarRange size={17} />, permission: 'shifts.view' },
       { to: '/leaves', label: 'مرخصی‌ها', icon: <CalendarDays size={17} />, permission: 'leaves.view' },
       { to: '/missions', label: 'مأموریت‌ها', icon: <Briefcase size={17} />, permission: 'missions.view' },
@@ -182,7 +183,7 @@ export default function Layout() {
     const previous = document.activeElement as HTMLElement | null;
     const old = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    aside.current?.querySelector<HTMLElement>('button,a')?.focus();
+    const focusFrame = requestAnimationFrame(() => aside.current?.querySelector<HTMLElement>('button,a')?.focus());
     const trap = (event: KeyboardEvent) => {
       if (event.key !== 'Tab') return;
       const controls = Array.from(aside.current?.querySelectorAll<HTMLElement>('a[href],button:not(:disabled)') ?? []).filter(el => el.getClientRects().length > 0);
@@ -191,7 +192,7 @@ export default function Layout() {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
     document.addEventListener('keydown', trap);
-    return () => { document.body.style.overflow = old; document.removeEventListener('keydown', trap); (previous?.isConnected ? previous : menuButton.current)?.focus(); };
+    return () => { cancelAnimationFrame(focusFrame); document.body.style.overflow = old; document.removeEventListener('keydown', trap); (previous?.isConnected ? previous : menuButton.current)?.focus(); };
   }, [sidebarOpen]);
   useEffect(() => {
     setSidebarOpen(false);
@@ -210,7 +211,7 @@ export default function Layout() {
 
   const visibleMenu = useMemo(() => MENU.map(g => ({
     ...g,
-    items: g.items.filter(i => (!i.permission || hasPermission(i.permission)) && (!i.requiresEmployee || !!user?.employee))
+    items: g.items.filter(i => (!i.permission || hasPermission(i.permission)) && (!i.requiresEmployee || !!user?.employee) && (!i.requiresManagement || hasPermission('dashboard.view.management')))
       .map(i => i.to === '/approvals' ? { ...i, count:pendingApprovals } : i),
   })).filter(g => g.items.length > 0), [user, pendingApprovals, hasPermission]);
   const currentGroup = visibleMenu.find(group => group.items.some(item => item.to === location.pathname));
@@ -244,7 +245,7 @@ export default function Layout() {
         <div className="sidebar-user"><span className="sidebar-user-avatar">{initials}</span><div className="sidebar-user-copy"><div className="sidebar-user-name">{user?.fullName}</div><div className="sidebar-user-role">{role}</div></div><button type="button" className="header-icon-btn" onClick={() => void signOut()} aria-label="خروج" title="خروج از حساب"><LogOut size={17} /></button></div>
       </div>
     </aside>
-    <div className="app-main">
+    <div className="app-main" {...(sidebarOpen ? { inert: '' } : {})}>
       <header className="app-header">
         <button ref={menuButton} type="button" className="header-icon-btn mobile-only" onClick={() => setSidebarOpen(v => !v)} aria-label="منو" aria-expanded={sidebarOpen} aria-controls="main-sidebar"><Menu size={20} /></button>
         <nav className="header-breadcrumb" aria-label="مسیر صفحه"><span>{currentGroup?.group ?? 'سنا'}</span><ChevronLeft size={13} /><strong>{title}</strong></nav>

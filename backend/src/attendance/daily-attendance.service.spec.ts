@@ -6,6 +6,7 @@ describe('Daily attendance', () => {
   const company: any = { id: 'company', timezone: 'Asia/Tehran', calendars: [{ weekendDays: '5', holidays: [] }] };
   let db: any;
   let service: DailyAttendanceService;
+  let access: any;
   const employee = (id: string, overrides = {}) => ({ id, attendanceRecords: [], attendances: [], projectAttendances: [], shiftAssignments: [], leaveRequests: [], missions: [], ...overrides });
 
   beforeEach(() => {
@@ -22,7 +23,8 @@ describe('Daily attendance', () => {
       $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
     };
     db.$transaction = jest.fn((fn) => fn(db));
-    service = new DailyAttendanceService(db);
+    access = { canAccessEmployee: jest.fn().mockResolvedValue(true) };
+    service = new DailyAttendanceService(db, access);
   });
 
   it('uses Tehran midnight independently of the server timezone', () => {
@@ -114,24 +116,24 @@ describe('Daily attendance', () => {
     expect(db.employee.findMany).not.toHaveBeenCalled();
   });
 
-  it('uses the first successful login of the company day without manual confirmation', async () => {
+  it('does not infer presence from a successful login', async () => {
     const first = new Date('2026-11-14T21:00:00Z');
     db.employee.findUniqueOrThrow = jest.fn().mockResolvedValue({ id: 'logged-in', companyId: company.id });
     db.employee.findMany.mockResolvedValue([employee('logged-in', { user: { lastLoginAt: now, sessions: [{ createdAt: first }] } })]);
     const result = await service.status({ employeeId: 'logged-in' } as any, now);
-    expect(result.data).toMatchObject({ status: 'PRESENT', firstIn: first, canConfirm: false, day: '2026-11-15' });
-    expect(db.employee.findMany.mock.calls[0][0].include.user.select.sessions.where.createdAt).toEqual({ gte: new Date('2026-11-14T20:30:00Z'), lt: new Date('2026-11-15T20:30:00Z') });
+    expect(result.data).toMatchObject({ status: 'PENDING', firstIn: null, canConfirm: false, day: '2026-11-15' });
+    expect(db.employee.findMany.mock.calls[0][0].include.user).toBeUndefined();
   });
 
-  it('does not treat a previous-day login or physical attendance as a login today', async () => {
+  it('recognizes actual attendance independently of login', async () => {
     db.employee.findUniqueOrThrow = jest.fn().mockResolvedValue({ id: 'not-logged-in', companyId: company.id });
     db.employee.findMany.mockResolvedValue([employee('not-logged-in', { user: { lastLoginAt: new Date('2026-11-14T10:00:00Z'), sessions: [] }, attendanceRecords: [{ firstIn: now, status: 'INCOMPLETE' }] })]);
-    expect((await service.status({ employeeId: 'not-logged-in' } as any, now)).data).toMatchObject({ status: 'PENDING', firstIn: null, canConfirm: false });
+    expect((await service.status({ employeeId: 'not-logged-in' } as any, now)).data).toMatchObject({ status: 'PRESENT', firstIn: now, canConfirm: false });
   });
 
-  it('limits the manager list to scoped employee IDs and returns login states', async () => {
+  it('limits the manager list to scoped employees and returns recorded attendance', async () => {
     db.employee.findMany.mockResolvedValueOnce([{ companyId: company.id }]).mockResolvedValueOnce([
-      employee('yes', { firstName: 'A', lastName: 'B', user: { lastLoginAt: now, sessions: [] } }),
+      employee('yes', { firstName: 'A', lastName: 'B', attendanceRecords: [{ firstIn: now, status: 'INCOMPLETE' }] }),
       employee('no', { firstName: 'C', lastName: 'D', user: { lastLoginAt: null, sessions: [] } }),
     ]);
     const result = await service.teamStatus(['yes', 'no'], now);
@@ -139,9 +141,61 @@ describe('Daily attendance', () => {
     expect(result.data.map((row) => row.status)).toEqual(['PRESENT', 'PENDING']);
   });
 
-  it('does not mark an employee absent for a day they logged in', async () => {
+  it('does not count login alone when closing an unrecorded workday', async () => {
     db.employee.findMany.mockResolvedValue([employee('logged-in', { user: { lastLoginAt: new Date('2026-11-14T05:00:00Z'), sessions: [] } })]);
     await service.closeFinishedDays(now);
-    expect(db.attendanceRecord.createMany).not.toHaveBeenCalled();
+    expect(db.attendanceRecord.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  describe('manager manual attendance', () => {
+    const manager: any = { id:'manager', permissions:['dashboard.view.management','attendance.create'], isSuperAdmin:false };
+    const dto: any = { day:'2026-11-15', status:'PRESENT', firstIn:'02:30', note:'checked by manager' };
+    beforeEach(() => {
+      db.employee.findUniqueOrThrow = jest.fn().mockResolvedValue({ id:'staff', companyId:company.id, status:'ACTIVE', deletedAt:null, hireDate:new Date('2026-01-01') });
+      db.attendanceRecord.findUnique = jest.fn().mockResolvedValue(null);
+      db.attendanceRecord.upsert = jest.fn().mockImplementation(({create,update}) => ({id:'record',...create,...update}));
+    });
+
+    it('writes a single daily record and its audit atomically using the company timezone', async () => {
+      const result = await service.setToday('staff', dto, manager, now);
+      expect(result.data).toMatchObject({ employeeId:'staff', status:'INCOMPLETE', firstIn:new Date('2026-11-14T23:00:00Z') });
+      expect(db.attendanceRecord.upsert.mock.calls[0][0].where).toEqual({employeeId_workDate:{employeeId:'staff',workDate:new Date('2026-11-15T00:00:00Z')}});
+      expect(db.auditLog.create).toHaveBeenCalledWith({data:expect.objectContaining({userId:'manager',entity:'DailyAttendance',action:'CREATE'})});
+      expect(db.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects an ordinary employee even for their own record', async () => {
+      await expect(service.setToday('staff',dto,{...manager,permissions:['panel.attendance'],employeeId:'staff'},now)).rejects.toThrow('فقط برای مدیر');
+      expect(db.attendanceRecord.upsert).not.toHaveBeenCalled();
+    });
+
+    it('rejects a manager without attendance write permission', async () => {
+      await expect(service.setToday('staff',dto,{...manager,permissions:['dashboard.view.management']},now)).rejects.toThrow('فقط برای مدیر');
+    });
+
+    it('rejects employees outside the manager scope', async () => {
+      access.canAccessEmployee.mockResolvedValue(false);
+      await expect(service.setToday('staff',dto,manager,now)).rejects.toThrow('خارج از حوزه');
+      expect(db.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects stale-day submissions and future arrival times', async () => {
+      await expect(service.setToday('staff',{...dto,day:'2026-11-14'},manager,now)).rejects.toThrow('تاریخ تغییر');
+      await expect(service.setToday('staff',{...dto,firstIn:'23:00'},manager,now)).rejects.toThrow('آینده');
+      expect(db.attendanceRecord.upsert).not.toHaveBeenCalled();
+    });
+
+    it.each([{lockedAt:now},{lastOut:now},{workMinutes:60},{overtimeMinutes:30}])('preserves locked or calculated attendance: %p', async record => {
+      db.attendanceRecord.findUnique.mockResolvedValue(record);
+      await expect(service.setToday('staff',dto,manager,now)).rejects.toThrow('اصلاحیه');
+      expect(db.attendanceRecord.upsert).not.toHaveBeenCalled();
+    });
+
+    it('updates the same daily key when correcting a manually entered status', async () => {
+      db.attendanceRecord.findUnique.mockResolvedValue({id:'record',status:'INCOMPLETE',firstIn:now});
+      await service.setToday('staff',{...dto,status:'ABSENT'},manager,now);
+      expect(db.attendanceRecord.upsert.mock.calls[0][0].update).toMatchObject({firstIn:null,status:'ABSENT',absenceType:'MANUAL_ABSENT'});
+      expect(db.auditLog.create.mock.calls[0][0].data.action).toBe('UPDATE');
+    });
   });
 });

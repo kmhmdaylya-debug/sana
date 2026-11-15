@@ -148,7 +148,7 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
     if (firstIn && firstIn > now) throw new BadRequestException('زمان ورود نمی‌تواند در آینده باشد.');
     const row = await this.prisma.$transaction(async tx => {
       // Serialize with daily closing and concurrent edits; keep the record and audit atomic.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(7341, 2411)`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(7341, 2411)::text AS locked`;
       const before = await tx.attendanceRecord.findUnique({ where: { employeeId_workDate: { employeeId, workDate } } });
       if (before?.lockedAt || before?.lastOut || before?.workMinutes || before?.overtimeMinutes) throw new BadRequestException('این رکورد دارای کارکرد یا قفل است؛ از بخش اصلاحیهٔ حضور استفاده کنید.');
       const data = {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarCheck, CheckCircle2, ClipboardList, Clock, FolderKanban, Receipt, Wallet, CircleAlert, CalendarDays, ChevronDown, Play, X } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Clock, FolderKanban, Receipt, Wallet, CircleAlert, CalendarDays, ChevronDown, Play, X } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
@@ -9,7 +9,6 @@ import { DatePicker,
   Card,
   DataTable,
   Field,
-  Input,
   Modal,
   PageHeader,
   Select,
@@ -167,7 +166,7 @@ const toDate = (v: string) => new Date(v);
 export default function EmployeePanel() {
   const toast = useToast();
   const { user } = useAuth();
-  const [tab, setTab] = useState<'tasks' | 'projects' | 'leaves' | 'missions' | 'payroll' | 'attendance' | 'profile'>('tasks');
+  const [tab, setTab] = useState<'tasks' | 'projects' | 'leaves' | 'missions' | 'payroll' | 'profile'>('tasks');
   const [summary, setSummary] = useState<PanelSummary | null>(null);
   const [projects, setProjects] = useState<PanelProject[]>([]);
   const [leaves, setLeaves] = useState<PanelLeave[]>([]);
@@ -175,14 +174,11 @@ export default function EmployeePanel() {
   const [missions, setMissions] = useState<PanelMission[]>([]);
   const [payslips, setPayslips] = useState<PanelPayslip[]>([]);
   const [profile, setProfile] = useState<PanelProfile | null>(null);
-  const [attendance, setAttendance] = useState<{ records: any[]; projectAttendance: any[] }>({ records: [], projectAttendance: [] });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
-  const [checkInFor, setCheckInFor] = useState<PanelStage | null>(null);
   const [leaveForm, setLeaveForm] = useState({ leaveTypeId: '', startDate: '', endDate: '', reason: '' });
-  const [checkInForm, setCheckInForm] = useState({ minutes: 480, note: '' });
   const loadController = useRef<AbortController | null>(null);
 
   const load = async () => {
@@ -210,8 +206,6 @@ export default function EmployeePanel() {
         setPayslips(ps.data.data ?? []);
       } else if (tab === 'profile') {
         setProfile((await get('/panel/profile')).data.data ?? null);
-      } else {
-        setAttendance((await get('/panel/attendance')).data.data ?? { records: [], projectAttendance: [] });
       }
     } catch (e) {
       if (!controller.signal.aborted) setLoadError(apiErrorMessage(e));
@@ -249,25 +243,6 @@ export default function EmployeePanel() {
     }
   };
 
-  const submitCheckIn = async () => {
-    if (!checkInFor) return;
-    setSaving(true);
-    try {
-      await api.post(`/panel/tasks/${checkInFor.id}/check-in`, {
-        minutes: Number(checkInForm.minutes),
-        note: checkInForm.note || undefined,
-      });
-      toast('success', 'حضور شما روی این مرحله ثبت شد.');
-      setCheckInFor(null);
-      setCheckInForm({ minutes: 480, note: '' });
-      void load();
-    } catch (e) {
-      toast('error', e instanceof Error ? e.message : apiErrorMessage(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <>
       <PageHeader
@@ -282,7 +257,6 @@ export default function EmployeePanel() {
           <option value="leaves">مرخصی‌ها</option>
           <option value="missions">مأموریت‌ها</option>
           <option value="payroll">حقوق من</option>
-          <option value="attendance">حضور و غیاب</option>
           <option value="profile">پروندهٔ من</option>
         </Select>
       </div>
@@ -290,7 +264,7 @@ export default function EmployeePanel() {
       {tab === 'tasks' ? <MyTasks /> : tab === 'projects' ? (
           <section className="employee-work-section" aria-labelledby="my-projects-heading">
             <h3 id="my-projects-heading" className="employee-work-heading"><FolderKanban size={18} /> پروژه‌های من {!loading && !loadError && <Badge kind="gray">{toPersianDigits(projects.length)}</Badge>}</h3>
-            {loading ? <div className="skeleton" style={{ height: 180 }} /> : loadError ? <div className="alert alert-danger" role="alert">{loadError} <Button variant="secondary" onClick={load}>تلاش دوباره</Button></div> : <ProjectsTab projects={projects} onCheckIn={(t) => setCheckInFor(t)} />}
+            {loading ? <div className="skeleton" style={{ height: 180 }} /> : loadError ? <div className="alert alert-danger" role="alert">{loadError} <Button variant="secondary" onClick={load}>تلاش دوباره</Button></div> : <ProjectsTab projects={projects} />}
           </section>
       ) : loading ? (
         <Card><div className="skeleton" style={{ height: 220 }} /></Card>
@@ -306,8 +280,6 @@ export default function EmployeePanel() {
         <MissionsTab missions={missions} />
       ) : tab === 'payroll' ? (
         <PayrollTab payslips={payslips} summary={summary} />
-      ) : tab === 'attendance' ? (
-        <AttendanceTab attendance={attendance} />
       ) : (
         <ProfileTab profile={profile} />
       )}
@@ -347,30 +319,6 @@ export default function EmployeePanel() {
         </div>
       </Modal>
 
-      {/* مودال ثبت حضور */}
-      <Modal
-        open={!!checkInFor}
-        title={`ثبت حضور — ${checkInFor?.title ?? ''}`}
-        onClose={() => setCheckInFor(null)}
-        footer={
-          <>
-            <Button onClick={submitCheckIn} loading={saving}>ثبت حضور</Button>
-            <Button variant="secondary" onClick={() => setCheckInFor(null)}>انصراف</Button>
-          </>
-        }
-      >
-        <div className="col" style={{ gap: 14 }}>
-          <div className="text-muted text-xs">
-            بازهٔ مرحله: {checkInFor && formatJalali(toDate(checkInFor.startDate))} تا {checkInFor && formatJalali(toDate(checkInFor.endDate))}
-          </div>
-          <Field label="مدت کارکرد (دقیقه)" required>
-            <Input type="number" min={0} max={1440} value={checkInForm.minutes} onChange={(e) => setCheckInForm((f) => ({ ...f, minutes: Number(e.target.value) }))} />
-          </Field>
-          <Field label="توضیح کار انجام‌شده">
-            <Textarea value={checkInForm.note} onChange={(e) => setCheckInForm((f) => ({ ...f, note: e.target.value }))} placeholder="مثلاً: گزارش ماهانه آماده شد." />
-          </Field>
-        </div>
-      </Modal>
     </>
   );
 }
@@ -477,7 +425,7 @@ function MyTasks() {
   );
 }
 
-function ProjectsTab({ projects, onCheckIn }: { projects: PanelProject[]; onCheckIn: (t: PanelStage) => void }) {
+function ProjectsTab({ projects }: { projects: PanelProject[] }) {
   if (!projects.length) {
     return <div className="empty-state">هنوز پروژه‌ای به شما واگذار نشده است.</div>;
   }
@@ -517,11 +465,6 @@ function ProjectsTab({ projects, onCheckIn }: { projects: PanelProject[]; onChec
                     <div className="flex" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <span className="fw-600">{t.title}</span>
                       {t.phase && <Badge kind="gray">{t.phase}</Badge>}
-                      {t.attendedToday ? (
-                        <Badge kind="green">حضور امروز ثبت شد</Badge>
-                      ) : (
-                        <Badge kind="amber">حضور امروز ثبت نشده</Badge>
-                      )}
                     </div>
                     <div className="text-muted text-xs">
                       {formatJalali(toDate(t.startDate))} تا {formatJalali(toDate(t.endDate))}
@@ -531,9 +474,6 @@ function ProjectsTab({ projects, onCheckIn }: { projects: PanelProject[]; onChec
                   </div>
                   <div className="panel-stage-actions">
                     <span className="text-muted text-xs">{toPersianDigits(t.progress)}٪</span>
-                    <Button size="sm" variant={t.attendedToday ? 'outline' : 'primary'} onClick={() => onCheckIn(t)}>
-                      <CalendarCheck size={13} /> {t.attendedToday ? 'اصلاح حضور' : 'ثبت حضور'}
-                    </Button>
                   </div>
                 </div>
               ))}
@@ -720,96 +660,6 @@ function PayrollTab({ payslips, summary }: { payslips: PanelPayslip[]; summary: 
           )}
         </Card>
       ))}
-    </div>
-  );
-}
-
-/* ==========================================================================
-   تب حضور و غیاب
-   ========================================================================== */
-
-function AttendanceTab({ attendance }: { attendance: { records: any[]; projectAttendance: any[] } }) {
-  const total = attendance.records.reduce((s, r) => s + (r.workMinutes ?? 0), 0);
-  const overtime = attendance.records.reduce((s, r) => s + (r.overtimeMinutes ?? 0), 0);
-  const late = attendance.records.reduce((s, r) => s + (r.lateMinutes ?? 0), 0);
-
-  return (
-    <div className="col" style={{ gap: 12 }}>
-      <div className="stat-grid">
-        <div className="stat-card stat-blue">
-          <div className="stat-icon"><Clock size={17} /></div>
-          <div>
-            <div className="stat-value">{fmtMinutes(total)}</div>
-            <div className="stat-label">کارکرد این ماه</div>
-          </div>
-        </div>
-        <div className="stat-card stat-green">
-          <div className="stat-icon"><CheckCircle2 size={17} /></div>
-          <div>
-            <div className="stat-value">{fmtMinutes(overtime)}</div>
-            <div className="stat-label">اضافه‌کاری</div>
-          </div>
-        </div>
-        <div className="stat-card stat-amber">
-          <div className="stat-icon"><CalendarCheck size={17} /></div>
-          <div>
-            <div className="stat-value">{fmtMinutes(late)}</div>
-            <div className="stat-label">تأخیر</div>
-          </div>
-        </div>
-      </div>
-
-      <Card title="حضور پروژه‌ای" subtitle="ثبت حضور روی مراحل پروژه">
-        {attendance.projectAttendance.length === 0 ? (
-          <div className="text-muted text-sm">هنوز حضوری روی مراحل پروژه ثبت نشده است.</div>
-        ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr><th>تاریخ</th><th>مرحله</th><th>پروژه</th><th>مدت</th><th>توضیح</th></tr>
-              </thead>
-              <tbody>
-                {attendance.projectAttendance.map((a) => (
-                  <tr key={a.id}>
-                    <td className="ltr">{formatJalali(a.workDate)}</td>
-                    <td>{a.task.title}</td>
-                    <td>{a.task.project.title}</td>
-                    <td>{fmtMinutes(a.minutes)}</td>
-                    <td>{a.note ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <Card title="حضور و غیاب ماه جاری" subtitle="ثبت‌شده توسط دستگاه">
-        {attendance.records.length === 0 ? (
-          <div className="text-muted text-sm">رکوردی برای این ماه ثبت نشده است.</div>
-        ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr><th>تاریخ</th><th>ورود</th><th>خروج</th><th>کارکرد</th><th>تأخیر</th><th>اضافه‌کاری</th><th>وضعیت</th></tr>
-              </thead>
-              <tbody>
-                {attendance.records.map((r) => (
-                  <tr key={r.id}>
-                    <td className="ltr">{formatJalali(r.workDate)}</td>
-                    <td className="ltr">{r.firstIn ? new Date(r.firstIn).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                    <td className="ltr">{r.lastOut ? new Date(r.lastOut).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                    <td>{fmtMinutes(r.workMinutes ?? 0)}</td>
-                    <td>{r.lateMinutes ? fmtMinutes(r.lateMinutes) : '—'}</td>
-                    <td>{r.overtimeMinutes ? fmtMinutes(r.overtimeMinutes) : '—'}</td>
-                    <td><Badge kind={r.status === 'COMPLETE' ? 'green' : r.status === 'ABSENT' ? 'red' : 'amber'}>{statusLabel(r.status)}</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, Search, UserRound } from 'lucide-react';
 import { useList } from '../../lib/useList';
-import { Button, Field, Input, Modal, Pagination } from '../ui';
+import { Button, Field, Input, Modal, Pagination } from './base';
 
 export function EntityPicker({ value, onValueChange, endpoint = '/employees', title = 'انتخاب کارمند' }: {
   value: string; onValueChange: (value: string) => void; endpoint?: string; title?: string;
