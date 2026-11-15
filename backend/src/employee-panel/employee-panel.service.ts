@@ -9,10 +9,12 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
 import { NotificationService } from '../common/notifications/notification.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import {
   CheckInDto,
   PanelLeaveRequestDto,
   PanelMissionExpenseDto,
+  PanelTaskResultDto,
 } from './dto/employee-panel.dto';
 
 const DAY = 86_400_000;
@@ -41,6 +43,46 @@ export class EmployeePanelService {
     const x = new Date(d);
     x.setHours(0, 0, 0, 0);
     return x;
+  }
+
+  async myTasks(query: PaginationDto, user: AuthenticatedUser) {
+    const employeeId = await this.requireEmployee(user);
+    const where: Prisma.TaskWhereInput = {
+      assignees: { some: { OR: [{ userId: user.id }, { employeeId }] } },
+      ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
+    };
+    const data = await this.prisma.task.findMany({
+        where,
+        orderBy: [{ status: 'asc' }, { dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
+        select: { id: true, title: true, description: true, status: true, priority: true, dueDate: true, projectName: true, delayReason: true },
+    });
+    return { data, meta: { total: data.length, page: 1, limit: data.length, totalPages: 1 }, success: true };
+  }
+
+  async taskResult(taskId: string, dto: PanelTaskResultDto, user: AuthenticatedUser) {
+    const employeeId = await this.requireEmployee(user);
+    const reason = dto.reason?.trim();
+    if (dto.result === 'UNABLE' && !reason) throw new BadRequestException('دلیل انجام نشدن کار را بنویسید.');
+    const assignment = { taskId, OR: [{ userId: user.id }, { employeeId }] };
+    const completed = dto.result === 'DONE';
+    const task = await this.prisma.$transaction(async (tx) => {
+      const before = await tx.task.findFirst({ where: { id: taskId, assignees: { some: assignment } } });
+      if (!before) throw new ForbiddenException('این وظیفه به شما واگذار نشده است.');
+      if (['CANCELLED', 'DONE'].includes(before.status)) throw new BadRequestException('نتیجهٔ این وظیفه قبلاً نهایی شده است.');
+      const updated = await tx.task.updateMany({
+        where: { id: taskId, status: { notIn: ['CANCELLED', 'DONE'] }, assignees: { some: assignment } },
+        data: { status: completed ? 'DONE' : 'IN_PROGRESS', delayReason: completed ? null : reason, completedAt: completed ? new Date() : null, ...(completed ? { progress: 100 } : {}) },
+      });
+      if (!updated.count) throw new BadRequestException('وظیفه تغییر کرده است؛ صفحه را تازه کنید.');
+      await tx.taskAssignee.updateMany({ where: assignment, data: { completedAt: completed ? new Date() : null } });
+      await tx.taskComment.create({ data: { taskId, authorId: user.id, content: completed ? 'کار انجام شد.' : `کار انجام نشد: ${reason}` } });
+      return before;
+    });
+    await this.audit.record(user.id, { action: AuditAction.UPDATE, entity: 'Task', entityId: taskId, before: { status: task.status }, after: { status: completed ? 'DONE' : 'IN_PROGRESS', result: dto.result, reason: completed ? null : reason } });
+    if (task.createdById && task.createdById !== user.id) {
+      await this.notifications.notify(task.createdById, { title: completed ? 'وظیفه انجام شد' : 'دلیل انجام نشدن وظیفه ثبت شد', body: `${task.title}${completed ? '' : `: ${reason}`}`, link: '/tasks' });
+    }
+    return { success: true };
   }
 
   // =========================================================================
@@ -530,18 +572,4 @@ export class EmployeePanelService {
     return { data: rows, success: true, timestamp: new Date().toISOString() };
   }
 
-  /** وظایف من (Tasks) */
-  async myTasks(user: AuthenticatedUser) {
-    const employeeId = await this.requireEmployee(user);
-    const rows = await this.prisma.task.findMany({
-      where: { assignees: { some: { employeeId } } },
-      orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
-      include: {
-        assignees: {
-          include: { employee: { select: { id: true, firstName: true, lastName: true } } },
-        },
-      },
-    });
-    return { data: rows, success: true, timestamp: new Date().toISOString() };
-  }
 }

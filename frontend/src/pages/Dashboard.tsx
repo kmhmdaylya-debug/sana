@@ -5,6 +5,7 @@ import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Card, PageHeader, useToast } from '../components/ui';
 import { toPersianDigits, statusLabel, badgeKind, formatJalali } from '../lib/format';
+import TeamPresence from '../components/TeamPresence';
 
 interface MyDashboard {
   unreadNotifications: number;
@@ -141,6 +142,8 @@ export default function Dashboard() {
         subtitle="خلاصهٔ وضعیت سازمان و کارهای در جریان"
       />
 
+      {canMgmt && <TeamPresence />}
+
       {/* ---------- پنل تحلیلی ---------- */}
       <div className="hero-panel mb">
         <div className="hero-chart">
@@ -183,8 +186,8 @@ export default function Dashboard() {
 
       {/* ---------- کارت‌های خلاصه ---------- */}
       <div className="grid grid-4 mb">
-        <StatCard label="کل نیروها" value={toPersianDigits(mgmt?.employees.total ?? 0)} link="/employees" />
-        <StatCard label="نیروهای فعال" value={toPersianDigits(mgmt?.employees.active ?? 0)} link="/employees" />
+        <StatCard label="کل کاربران" value={toPersianDigits(mgmt?.employees.total ?? 0)} link="/users" />
+        <StatCard label="کاربران فعال" value={toPersianDigits(mgmt?.employees.active ?? 0)} link="/users" />
         <StatCard label="غایب امروز" value={toPersianDigits(mgmt?.absentToday ?? 0)} link="/attendance" />
         <StatCard label="قراردادهای رو به انقضا" value={toPersianDigits(mgmt?.expiringContracts ?? 0)} link="/contracts" />
       </div>

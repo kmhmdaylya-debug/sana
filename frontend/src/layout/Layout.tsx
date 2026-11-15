@@ -31,10 +31,13 @@ import {
   UserRound,
   Users,
   Wallet,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { toPersianDigits } from '../lib/format';
+import ChangePassword from '../components/ChangePassword';
+import DailyAttendance from '../components/DailyAttendance';
 
 interface MenuItem {
   to: string;
@@ -53,14 +56,14 @@ const MENU: { group: string; items: MenuItem[] }[] = [
     group: 'اصلی',
     items: [
       { to: '/panel', label: 'پنل کارمند', icon: <UserRound size={17} />, permission: 'panel.view', requiresEmployee: true },
-      { to: '/', label: 'داشبورد', icon: <LayoutDashboard size={17} />, permission: 'dashboard.view' },
+      { to: '/', label: 'داشبورد', icon: <LayoutDashboard size={17} />, permission: 'dashboard.view.management' },
       { to: '/approvals', label: 'صندوق تأییدها', icon: <ClipboardCheck size={17} />, permission: 'approvals.view' },
     ],
   },
   {
     group: 'منابع انسانی',
     items: [
-      { to: '/employees', label: 'نیروها', icon: <Users size={17} />, permission: 'employees.view' },
+      { to: '/users', label: 'کاربران و پرسنل', icon: <Users size={17} />, permission: 'users.view' },
       { to: '/contracts', label: 'قراردادها', icon: <FileText size={17} />, permission: 'contracts.view' },
       { to: '/documents', label: 'مدارک پرسنلی', icon: <FolderOpen size={17} />, permission: 'documents.view' },
       { to: '/attendance', label: 'حضور و غیاب', icon: <CalendarCheck size={17} />, permission: 'attendance.view' },
@@ -100,7 +103,6 @@ const MENU: { group: string; items: MenuItem[] }[] = [
     group: 'گزارش و سیستم',
     items: [
       { to: '/reports', label: 'گزارش‌ها', icon: <Receipt size={17} />, permission: 'reports.view' },
-      { to: '/users', label: 'کاربران', icon: <Users size={17} />, permission: 'users.view' },
       { to: '/roles', label: 'نقش‌ها و مجوزها', icon: <ShieldCheck size={17} />, permission: 'roles.view' },
       { to: '/org', label: 'ساختار سازمانی', icon: <Building2 size={17} />, permission: 'org.view' },
       { to: '/audit', label: 'لاگ ممیزی', icon: <ScrollText size={17} />, permission: 'audit.view' },
@@ -113,7 +115,7 @@ const MENU: { group: string; items: MenuItem[] }[] = [
 const PAGE_TITLES: Record<string, string> = {
   '/': 'داشبورد',
   '/approvals': 'صندوق تأییدها',
-  '/employees': 'نیروها',
+  '/users': 'کاربران و پرسنل',
   '/contracts': 'قراردادها',
   '/documents': 'مدارک پرسنلی',
   '/attendance': 'حضور و غیاب',
@@ -132,7 +134,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/announcements': 'اعلامیه‌ها',
   '/notifications': 'اعلان‌های من',
   '/reports': 'گزارش‌ها',
-  '/users': 'کاربران',
   '/roles': 'نقش‌ها و مجوزها',
   '/org': 'ساختار سازمانی',
   '/audit': 'لاگ ممیزی',
@@ -204,6 +205,7 @@ export default function Layout() {
             <div>سنا</div>
             <div style={{ fontSize: 10.5, fontWeight: 400, color: 'var(--text-soft)' }}>مدیریت منابع انسانی</div>
           </div>
+          <button className="header-icon-btn mobile-only" style={{ marginInlineStart: 'auto' }} aria-label="بستن منو" title="بستن منو" onClick={() => setSidebarOpen(false)}><X size={18} /></button>
         </div>
         <nav className="sidebar-nav">
           {visibleMenu.map((g) => (
@@ -248,6 +250,7 @@ export default function Layout() {
             className="header-icon-btn mobile-only"
             onClick={() => setSidebarOpen((v) => !v)}
             aria-label="منو"
+            aria-expanded={sidebarOpen}
           >
             <Menu size={18} />
           </button>
@@ -261,7 +264,7 @@ export default function Layout() {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && search.trim()) {
-                  navigate(`/employees?search=${encodeURIComponent(search.trim())}`);
+                  navigate(`/users?search=${encodeURIComponent(search.trim())}`);
                 }
               }}
             />
@@ -269,6 +272,7 @@ export default function Layout() {
 
           <div className="header-spacer" />
           <div className="header-actions">
+            <ChangePassword />
             <button
               className="header-icon-btn"
               onClick={() => navigate('/notifications')}
@@ -299,6 +303,7 @@ export default function Layout() {
           </div>
         </header>
         <main className="app-content">
+          {user && <DailyAttendance key={user.id} attendance={!!user.employee} />}
           <Outlet />
         </main>
       </div>

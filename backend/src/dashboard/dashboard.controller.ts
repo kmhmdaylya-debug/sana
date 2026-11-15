@@ -10,6 +10,13 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 export class DashboardController {
   constructor(private readonly service: DashboardService) {}
 
+  @Get('attendance-today')
+  @RequirePermissions(PERMISSIONS.DASHBOARD_VIEW_MANAGEMENT)
+  @ApiOperation({ summary: 'وضعیت حضور امروز کارکنان در حوزهٔ دسترسی مدیر' })
+  todayAttendance(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.todayAttendance(user);
+  }
+
   @Get('me')
   @RequirePermissions(PERMISSIONS.DASHBOARD_VIEW)
   @ApiOperation({ summary: 'داشبورد شخصی کاربر' })

@@ -8,13 +8,22 @@ import {
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AccessService } from '../common/access/access.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { DailyAttendanceService } from '../attendance/daily-attendance.service';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly daily: DailyAttendanceService,
   ) {}
+
+  async todayAttendance(user: AuthenticatedUser) {
+    const scope = this.access.employeeWhereFor(user);
+    if (scope.id === '__none__') return this.daily.teamStatus([]);
+    const employees = await this.prisma.employee.findMany({ where: { AND: [scope], deletedAt: null, status: 'ACTIVE' }, select: { id: true } });
+    return this.daily.teamStatus(employees.map((employee) => employee.id));
+  }
 
   /** داشبورد شخصی هر کاربر */
   async myDashboard(user: AuthenticatedUser) {

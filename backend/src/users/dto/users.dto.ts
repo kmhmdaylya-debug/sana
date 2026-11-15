@@ -3,15 +3,18 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEmail,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
-import { ScopeType, UserStatus } from '@prisma/client';
+import { ScopeType, UserStatus, EmploymentType } from '@prisma/client';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class ScopeAssignmentDto {
@@ -91,6 +94,66 @@ export class CreateUserDto {
   @IsBoolean()
   @Type(() => Boolean)
   mustChangePassword?: boolean;
+
+  // ---- پروندهٔ شخصی (هم‌زمان با ساخت کاربر) ----
+
+  @ApiPropertyOptional({ example: '1013', description: 'کد پرسنلی — با این فیلد پروندهٔ پرسنلی ساخته می‌شود' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  employeeCode?: string;
+
+  @ApiPropertyOptional({ example: '0123456789' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  nationalId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'سمت سازمانی' })
+  @IsOptional()
+  @IsUUID('4')
+  positionId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'واحد سازمانی' })
+  @IsOptional()
+  @IsUUID('4')
+  orgUnitId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'شعبه' })
+  @IsOptional()
+  @IsUUID('4')
+  branchId?: string;
+
+  @ApiPropertyOptional({ example: '2026-11-01' })
+  @IsOptional()
+  @IsDateString({}, { message: 'قالب تاریخ استخدام معتبر نیست.' })
+  hireDate?: string;
+
+  @ApiPropertyOptional({ example: 450000000, description: 'حقوق پایهٔ ماهانه (ریال)' })
+  @IsOptional()
+  @IsInt({ message: 'حقوق پایه باید عدد صحیح باشد.' })
+  @Min(0, { message: 'حقوق پایه نمی‌تواند منفی باشد.' })
+  monthlyBaseSalary?: number;
+
+  @ApiPropertyOptional({ enum: ['MALE', 'FEMALE', 'OTHER'] })
+  @IsOptional()
+  @IsEnum(['MALE', 'FEMALE', 'OTHER'], { message: 'جنسیت معتبر نیست.' })
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+
+  @ApiPropertyOptional({ enum: ['SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED'] })
+  @IsOptional()
+  @IsEnum(['SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED'], { message: 'وضعیت تأهل معتبر نیست.' })
+  maritalStatus?: 'SINGLE' | 'MARRIED' | 'DIVORCED' | 'WIDOWED';
+
+  @ApiPropertyOptional({ example: '1995-04-12' })
+  @IsOptional()
+  @IsDateString({}, { message: 'قالب تاریخ تولد معتبر نیست.' })
+  birthDate?: string;
+
+  @ApiPropertyOptional({ enum: EmploymentType, default: EmploymentType.PERMANENT })
+  @IsOptional()
+  @IsEnum(EmploymentType, { message: 'نوع استخدام معتبر نیست.' })
+  employmentType?: EmploymentType;
 }
 
 export class UpdateUserDto {

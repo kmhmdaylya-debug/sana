@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
+import { DailyAttendanceService } from './daily-attendance.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import {
   AttendanceRecordQueryDto,
@@ -23,7 +24,12 @@ import { Public } from '../common/decorators/public.decorator';
 @ApiTags('attendance')
 @Controller('attendance')
 export class AttendanceController {
-  constructor(private readonly service: AttendanceService) {}
+  constructor(private readonly service: AttendanceService, private readonly daily: DailyAttendanceService) {}
+
+  @Get('daily')
+  dailyStatus(@CurrentUser() user: AuthenticatedUser) {
+    return this.daily.status(user);
+  }
 
   // =========================================================================
   // دستگاه‌ها

@@ -13,15 +13,31 @@ import {
   CheckInDto,
   PanelLeaveRequestDto,
   PanelMissionExpenseDto,
+  PanelTaskResultDto,
 } from './dto/employee-panel.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('employee-panel')
 @Controller('panel')
 export class EmployeePanelController {
   constructor(private readonly service: EmployeePanelService) {}
+
+  @Get('tasks')
+  @RequirePermissions(PERMISSIONS.PANEL_VIEW)
+  @ApiOperation({ summary: 'وظایف واگذارشده به من' })
+  myTasks(@Query() query: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.myTasks(query, user);
+  }
+
+  @Post('tasks/:taskId/result')
+  @RequirePermissions(PERMISSIONS.PANEL_VIEW)
+  @ApiOperation({ summary: 'ثبت نتیجهٔ وظیفهٔ واگذارشده به من' })
+  taskResult(@Param('taskId', ParseUUIDPipe) taskId: string, @Body() dto: PanelTaskResultDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.taskResult(taskId, dto, user);
+  }
 
   @Get()
   @RequirePermissions(PERMISSIONS.PANEL_VIEW)
@@ -115,10 +131,4 @@ export class EmployeePanelController {
     return this.service.myProfile(user);
   }
 
-  @Get('tasks')
-  @RequirePermissions(PERMISSIONS.PANEL_VIEW)
-  @ApiOperation({ summary: 'وظایف من' })
-  myTasks(@CurrentUser() user: AuthenticatedUser) {
-    return this.service.myTasks(user);
-  }
 }

@@ -115,6 +115,12 @@ export class UsersService {
     const existing = await this.prisma.user.findUnique({ where: { username: dto.username.trim() } });
     if (existing) throw new BadRequestException('این نام کاربری قبلاً ثبت شده است.');
 
+    // «کاربر = نیرو»: اگر اطلاعات پرسنلی داده شده، پروندهٔ پرسنلی هم ساخته می‌شود
+    let employeeId = dto.employeeId ?? null;
+    if (!employeeId && (dto.employeeCode || dto.positionId || dto.orgUnitId || dto.hireDate)) {
+      employeeId = await this.createEmployeeProfile(dto);
+    }
+
     const user = await this.prisma.user.create({
       data: {
         username: dto.username.trim(),
@@ -122,7 +128,7 @@ export class UsersService {
         passwordHash: await hashPassword(dto.password),
         email: dto.email ?? null,
         mobile: dto.mobile ?? null,
-        employeeId: dto.employeeId ?? null,
+        employeeId,
         mustChangePassword: dto.mustChangePassword ?? true,
         passwordChangedAt: new Date(),
         userRoles: dto.roleIds?.length
@@ -139,10 +145,57 @@ export class UsersService {
       action: AuditAction.CREATE,
       entity: 'User',
       entityId: user.id,
-      after: { username: user.username, fullName: user.fullName },
+      after: { username: user.username, fullName: user.fullName, employeeId },
     });
 
     return this.toPublic(user);
+  }
+
+  /** ساخت پروندهٔ پرسنلی برای کاربر جدید (کاربر = نیرو) */
+  private async createEmployeeProfile(dto: CreateUserDto): Promise<string> {
+    const companyId = await this.resolveCompany();
+    const code =
+      dto.employeeCode?.trim() ||
+      `U${String((await this.prisma.employee.count({ where: { companyId } })) + 1).padStart(4, '0')}`;
+
+    const duplicate = await this.prisma.employee.findFirst({ where: { companyId, code } });
+    if (duplicate) throw new BadRequestException(`کد پرسنلی «${code}» قبلاً ثبت شده است.`);
+
+    const [firstName, ...rest] = dto.fullName.trim().split(' ');
+    const employee = await this.prisma.employee.create({
+      data: {
+        companyId,
+        branchId: dto.branchId ?? null,
+        orgUnitId: dto.orgUnitId ?? null,
+        positionId: dto.positionId ?? null,
+        code,
+        nationalId: dto.nationalId ?? null,
+        firstName,
+        lastName: rest.join(' ') || '—',
+        gender: dto.gender ?? null,
+        maritalStatus: dto.maritalStatus ?? null,
+        birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
+        mobile: dto.mobile ?? null,
+        email: dto.email ?? null,
+        employmentType: dto.employmentType ?? 'PERMANENT',
+        hireDate: dto.hireDate ? new Date(dto.hireDate) : new Date(),
+        monthlyBaseSalary: BigInt(dto.monthlyBaseSalary ?? 0),
+        status: 'ACTIVE',
+      },
+    });
+
+    return employee.id;
+  }
+
+  /** شرکت پیش‌فرض برای پروندهٔ پرسنلی */
+  private async resolveCompany(): Promise<string> {
+    const company = await this.prisma.company.findFirst({
+      where: { deletedAt: null, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (!company) throw new BadRequestException('هیچ شرکت فعالی ثبت نشده است؛ ابتدا شرکت بسازید.');
+    return company.id;
   }
 
   async update(id: string, dto: UpdateUserDto, actorId: string) {

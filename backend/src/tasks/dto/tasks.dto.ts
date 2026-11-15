@@ -77,6 +77,12 @@ export class CreateTaskDto {
   @IsArray()
   @IsUUID('4', { each: true })
   assigneeIds?: string[];
+
+  @ApiPropertyOptional({ type: [String], format: 'uuid', description: 'کاربران مسئول (کاربر = نیرو)' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  assigneeUserIds?: string[];
 }
 
 export class UpdateTaskDto {
@@ -104,7 +110,7 @@ export class UpdateTaskDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString({})
-  dueDate?: string;
+  dueDate?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -129,7 +135,7 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  slaHours?: number;
+  slaHours?: number | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -142,6 +148,12 @@ export class UpdateTaskDto {
   @IsArray()
   @IsUUID('4', { each: true })
   assigneeIds?: string[];
+
+  @ApiPropertyOptional({ type: [String], format: 'uuid', description: 'کاربران مسئول (کاربر = نیرو)' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  assigneeUserIds?: string[];
 }
 
 export class TaskQueryDto extends PaginationDto {

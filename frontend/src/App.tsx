@@ -84,7 +84,6 @@ export default function App() {
         >
           <Route path="/" element={<HomeRoute />} />
           <Route path="/approvals" element={<RequirePermission anyOf={['approvals.view']}><Approvals /></RequirePermission>} />
-          <Route path="/employees" element={<RequirePermission anyOf={['employees.view']}><Employees /></RequirePermission>} />
           <Route path="/contracts" element={<RequirePermission anyOf={['contracts.view']}><Contracts /></RequirePermission>} />
           <Route path="/documents" element={<RequirePermission anyOf={['documents.view']}><Documents /></RequirePermission>} />
           <Route path="/attendance" element={<RequirePermission anyOf={['attendance.view']}><Attendance /></RequirePermission>} />

@@ -22,6 +22,12 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 export class TasksController {
   constructor(private readonly service: TasksService) {}
 
+  @Get('assignees')
+  @RequirePermissions(PERMISSIONS.TASKS_VIEW)
+  assignees(@Query() query: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.assigneeOptions(query, user);
+  }
+
   @Get()
   @RequirePermissions(PERMISSIONS.TASKS_VIEW)
   @ApiOperation({ summary: 'فهرست وظایف' })

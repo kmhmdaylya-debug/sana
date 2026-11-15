@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, CheckCircle2, Clock, FolderKanban, Plane, Receipt, Wallet } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { CalendarCheck, CheckCircle2, ClipboardList, Clock, FolderKanban, Receipt, Wallet, CircleAlert, CalendarDays, ChevronDown } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useList } from '../lib/useList';
 import {
   Badge,
   Button,
@@ -166,7 +167,7 @@ const toDate = (v: string) => new Date(v);
 export default function EmployeePanel() {
   const toast = useToast();
   const { user } = useAuth();
-  const [tab, setTab] = useState<'projects' | 'leaves' | 'missions' | 'payroll' | 'attendance' | 'profile'>('projects');
+  const [tab, setTab] = useState<'tasks' | 'projects' | 'leaves' | 'missions' | 'payroll' | 'attendance' | 'profile'>('tasks');
   const [summary, setSummary] = useState<PanelSummary | null>(null);
   const [projects, setProjects] = useState<PanelProject[]>([]);
   const [leaves, setLeaves] = useState<PanelLeave[]>([]);
@@ -176,44 +177,54 @@ export default function EmployeePanel() {
   const [profile, setProfile] = useState<PanelProfile | null>(null);
   const [attendance, setAttendance] = useState<{ records: any[]; projectAttendance: any[] }>({ records: [], projectAttendance: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [checkInFor, setCheckInFor] = useState<PanelStage | null>(null);
   const [leaveForm, setLeaveForm] = useState({ leaveTypeId: '', startDate: '', endDate: '', reason: '' });
   const [checkInForm, setCheckInForm] = useState({ minutes: 480, note: '' });
+  const loadController = useRef<AbortController | null>(null);
 
   const load = async () => {
+    loadController.current?.abort();
+    const controller = new AbortController();
+    loadController.current = controller;
+    const get = (path: string) => api.get(path, { signal: controller.signal });
     setLoading(true);
+    setLoadError('');
     try {
-      const [s, p, l, lt, m, ps, pr, at] = await Promise.all([
-        api.get('/panel'),
-        api.get('/panel/projects'),
-        api.get('/panel/leaves'),
-        api.get('/panel/leave-types'),
-        api.get('/panel/missions'),
-        api.get('/panel/payslips'),
-        api.get('/panel/profile'),
-        api.get('/panel/attendance'),
-      ]);
-      setSummary(s?.data?.data ?? null);
-      setProjects(p?.data?.data ?? []);
-      setLeaves(l?.data?.data ?? []);
-      setLeaveTypes(lt?.data?.data ?? []);
-      setMissions(m?.data?.data ?? []);
-      setPayslips(ps?.data?.data ?? []);
-      setProfile(pr?.data?.data ?? null);
-      setAttendance(at?.data?.data ?? { records: [], projectAttendance: [] });
+      if (tab === 'tasks') {
+        return;
+      } else if (tab === 'projects') {
+        const p = await get('/panel/projects');
+        setProjects(p.data.data ?? []);
+      } else if (tab === 'leaves') {
+        const [l, lt] = await Promise.all([get('/panel/leaves'), get('/panel/leave-types')]);
+        setLeaves(l.data.data ?? []);
+        setLeaveTypes(lt.data.data ?? []);
+      } else if (tab === 'missions') {
+        setMissions((await get('/panel/missions')).data.data ?? []);
+      } else if (tab === 'payroll') {
+        const [s, ps] = await Promise.all([get('/panel'), get('/panel/payslips')]);
+        setSummary(s.data.data ?? null);
+        setPayslips(ps.data.data ?? []);
+      } else if (tab === 'profile') {
+        setProfile((await get('/panel/profile')).data.data ?? null);
+      } else {
+        setAttendance((await get('/panel/attendance')).data.data ?? { records: [], projectAttendance: [] });
+      }
     } catch (e) {
-      toast('error', apiErrorMessage(e));
+      if (!controller.signal.aborted) setLoadError(apiErrorMessage(e));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
     void load();
+    return () => loadController.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tab]);
 
   const submitLeave = async () => {
     setSaving(true);
@@ -257,77 +268,34 @@ export default function EmployeePanel() {
     }
   };
 
-  const statCards = useMemo(
-    () => [
-      { label: 'پروژه‌های من', value: toPersianDigits(summary?.myProjects ?? 0), icon: <FolderKanban size={17} />, tone: 'blue' },
-      { label: 'مراحل باز', value: toPersianDigits(summary?.openStages ?? 0), icon: <CheckCircle2 size={17} />, tone: 'green' },
-      { label: 'حضور امروز', value: summary?.attendedToday ? 'ثبت شد' : 'ثبت نشده', icon: <CalendarCheck size={17} />, tone: summary?.attendedToday ? 'green' : 'amber' },
-      { label: 'مرخصی در انتظار', value: toPersianDigits(summary?.pendingLeaves ?? 0), icon: <Clock size={17} />, tone: 'amber' },
-      { label: 'مأموریت جاری', value: toPersianDigits(summary?.myMissions ?? 0), icon: <Plane size={17} />, tone: 'violet' },
-      { label: 'مانده مرخصی', value: fmtMinutes(summary?.leaveBalanceMinutes ?? 0), icon: <Clock size={17} />, tone: 'gray' },
-    ],
-    [summary],
-  );
-
   return (
     <>
       <PageHeader
         title="پنل کارمند"
-        subtitle={`${user?.fullName ?? ''} — ${profile?.position?.title ?? 'کارمند'} · ${profile?.orgUnit?.name ?? ''}`}
+        subtitle={[user?.fullName, user?.employee?.position?.title, user?.employee?.orgUnit?.name].filter(Boolean).join(' · ')}
       />
 
-      {/* کارت‌های خلاصه */}
-      <div className="stat-grid mb">
-        {statCards.map((c) => (
-          <div key={c.label} className={`stat-card stat-${c.tone}`}>
-            <div className="stat-icon">{c.icon}</div>
-            <div>
-              <div className="stat-value">{c.value}</div>
-              <div className="stat-label">{c.label}</div>
-            </div>
-          </div>
-        ))}
+      <div className="employee-panel-nav mb">
+        <Select aria-label="خدمات پرسنلی" value={tab} onChange={(e) => setTab(e.target.value as typeof tab)}>
+          <option value="tasks">وظایف</option>
+          <option value="projects">پروژه‌های من</option>
+          <option value="leaves">مرخصی‌ها</option>
+          <option value="missions">مأموریت‌ها</option>
+          <option value="payroll">حقوق من</option>
+          <option value="attendance">حضور و غیاب</option>
+          <option value="profile">پروندهٔ من</option>
+        </Select>
       </div>
 
-      {/* خلاصهٔ حقوق */}
-      {summary?.lastPayslip && (
-        <Card title="آخرین حقوق دریافتی" subtitle={`دورهٔ ${toPersianDigits(summary.lastPayslip.period.year)}/${toPersianDigits(summary.lastPayslip.period.month)}`}>
-          <div className="flex" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-            <div>
-              <div className="text-muted text-xs">ناخالص</div>
-              <div className="fw-600">{formatRial(summary.lastPayslip.grossAmount)}</div>
-            </div>
-            <div>
-              <div className="text-muted text-xs">کسورات</div>
-              <div className="fw-600">{formatRial(summary.lastPayslip.deductionAmount)}</div>
-            </div>
-            <div>
-              <div className="text-muted text-xs">خالص پرداختی</div>
-              <div className="fw-600" style={{ color: 'var(--green-700)' }}>{formatRial(summary.lastPayslip.netAmount)}</div>
-            </div>
-            <div>
-              <div className="text-muted text-xs">زمان پرداخت</div>
-              <div className="fw-600">
-                {summary.lastPayslip.publishedAt ? formatJalali(summary.lastPayslip.publishedAt) : 'منتشر نشده'}
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <div className="tabs mb">
-        <button className={`tab${tab === 'projects' ? ' active' : ''}`} onClick={() => setTab('projects')}>کارهای من</button>
-        <button className={`tab${tab === 'leaves' ? ' active' : ''}`} onClick={() => setTab('leaves')}>مرخصی‌ها</button>
-        <button className={`tab${tab === 'missions' ? ' active' : ''}`} onClick={() => setTab('missions')}>مأموریت‌ها</button>
-        <button className={`tab${tab === 'payroll' ? ' active' : ''}`} onClick={() => setTab('payroll')}>حقوق من</button>
-        <button className={`tab${tab === 'attendance' ? ' active' : ''}`} onClick={() => setTab('attendance')}>حضور و غیاب</button>
-        <button className={`tab${tab === 'profile' ? ' active' : ''}`} onClick={() => setTab('profile')}>پروندهٔ من</button>
-      </div>
-
-      {loading ? (
+      {tab === 'tasks' ? <MyTasks /> : tab === 'projects' ? (
+          <section className="employee-work-section" aria-labelledby="my-projects-heading">
+            <h3 id="my-projects-heading" className="employee-work-heading"><FolderKanban size={18} /> پروژه‌های من {!loading && !loadError && <Badge kind="gray">{toPersianDigits(projects.length)}</Badge>}</h3>
+            {loading ? <div className="skeleton" style={{ height: 180 }} /> : loadError ? <div className="alert alert-danger" role="alert">{loadError} <Button variant="secondary" onClick={load}>تلاش دوباره</Button></div> : <ProjectsTab projects={projects} onCheckIn={(t) => setCheckInFor(t)} />}
+          </section>
+      ) : loading ? (
         <Card><div className="skeleton" style={{ height: 220 }} /></Card>
-      ) : tab === 'projects' ? (
-        <ProjectsTab projects={projects} onCheckIn={(t) => setCheckInFor(t)} />
+      ) : loadError ? (
+        <div className="alert alert-danger" role="alert">{loadError} <Button variant="secondary" onClick={load}>تلاش دوباره</Button></div>
       ) : tab === 'leaves' ? (
         <LeavesTab
           leaves={leaves}
@@ -411,14 +379,100 @@ export default function EmployeePanel() {
    تب کارهای من (پروژه‌ها)
    ========================================================================== */
 
+interface AssignedTask {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  dueDate?: string | null;
+  projectName?: string | null;
+  delayReason?: string | null;
+}
+
+function MyTasks() {
+  const list = useList<AssignedTask>('/panel/tasks');
+  const toast = useToast();
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [unableTask, setUnableTask] = useState<AssignedTask | null>(null);
+  const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState('');
+  const report = async (task: AssignedTask, result: 'DONE' | 'UNABLE') => {
+    if (savingId) return;
+    if (result === 'UNABLE' && !reason.trim()) {
+      setReasonError('دلیل انجام نشدن کار را بنویسید.');
+      return;
+    }
+    setSavingId(task.id);
+    try {
+      await api.post(`/panel/tasks/${task.id}/result`, { result, ...(result === 'UNABLE' ? { reason: reason.trim() } : {}) });
+      setUnableTask(null);
+      setReason('');
+      toast('success', result === 'DONE' ? 'کار انجام‌شده ثبت شد.' : 'دلیل انجام نشدن کار ثبت شد.');
+      await list.reload();
+    } catch (e) {
+      toast('error', apiErrorMessage(e));
+    } finally {
+      setSavingId(null);
+    }
+  };
+  return (
+    <section className="employee-work-section employee-tasks" aria-labelledby="my-tasks-heading">
+      <div className="employee-tasks-header">
+        <h3 id="my-tasks-heading" className="employee-work-heading"><ClipboardList size={18} /> وظایف من</h3>
+        {!list.loading && !list.error && <span className="employee-tasks-count">{toPersianDigits(list.total)} وظیفه</span>}
+      </div>
+      {list.loading ? <div className="skeleton" style={{ height: 180, marginTop: 12 }} /> : list.error ? (
+        <div className="alert alert-danger" role="alert">{list.error} <Button variant="secondary" onClick={list.reload}>تلاش دوباره</Button></div>
+      ) : list.rows.length ? <>
+        <div className="employee-task-list">
+          {list.rows.map((task) => {
+            const overdue = task.dueDate && new Date(task.dueDate).getTime() < Date.now() && !['DONE', 'CANCELLED'].includes(task.status);
+            const TaskContainer = task.status === 'DONE' ? 'details' : 'article';
+            const heading = <div className="employee-task-title">
+                <h4>{task.title}</h4>
+                {task.status === 'DONE' ? <span className="employee-task-result employee-task-complete"><CheckCircle2 size={16} /> انجام شد</span> : task.status === 'CANCELLED' ? <span className="text-muted text-sm">لغو شده</span> : null}
+              </div>;
+            return <TaskContainer key={task.id} className={`employee-task-row${task.status === 'DONE' ? ' is-complete' : task.status === 'CANCELLED' ? ' is-cancelled' : task.delayReason || overdue ? ' is-blocked' : ''}`}>
+              {task.status === 'DONE' ? <summary className="employee-task-summary">{heading}<ChevronDown className="employee-task-chevron" size={18} /></summary> : heading}
+              <div className="employee-task-details">
+              {task.description && <p className="employee-task-description">{task.description}</p>}
+              <div className="employee-task-meta text-xs">
+                <span className={`employee-task-date${overdue ? ' is-overdue' : ''}`}><CalendarDays size={15} />{task.dueDate ? `مهلت: ${formatJalali(task.dueDate)}${overdue ? ' · عقب‌افتاده' : ''}` : 'بدون مهلت'}</span>
+                {['HIGH', 'CRITICAL'].includes(task.priority) && <span className="employee-task-priority">اولویت: {statusLabel(task.priority)}</span>}
+                {task.projectName && <span className="text-muted">{task.projectName}</span>}
+              </div>
+              {task.delayReason && <div className="employee-task-reason"><strong>دلیل انجام نشدن:</strong> {task.delayReason}</div>}
+              {!['DONE', 'CANCELLED'].includes(task.status) && <div className="employee-task-actions">
+                <Button variant="success" loading={savingId === task.id && !unableTask} disabled={!!savingId} onClick={() => report(task, 'DONE')}><CheckCircle2 size={17} /> انجام شد</Button>
+                <Button variant="outline" disabled={!!savingId} onClick={() => { setUnableTask(task); setReason(task.delayReason ?? ''); setReasonError(''); }}><CircleAlert size={17} /> نتوانستم انجام بدهم</Button>
+              </div>}
+              </div>
+            </TaskContainer>;
+          })}
+        </div>
+      </> : <div className="empty-state">هنوز وظیفه‌ای به شما واگذار نشده است.</div>}
+      <Modal open={!!unableTask} title="دلیل انجام نشدن کار" onClose={() => { if (!savingId) setUnableTask(null); }} footer={<>
+        <Button loading={!!savingId} onClick={() => unableTask && report(unableTask, 'UNABLE')}>ثبت دلیل</Button>
+        <Button variant="secondary" disabled={!!savingId} onClick={() => setUnableTask(null)}>انصراف</Button>
+      </>}>
+        <p className="fw-600">{unableTask?.title}</p>
+        <Field label="دلیل" required error={reasonError}>
+          <Textarea aria-label="دلیل انجام نشدن کار" rows={4} maxLength={500} value={reason} onChange={(e) => { setReason(e.target.value); setReasonError(''); }} />
+        </Field>
+      </Modal>
+    </section>
+  );
+}
+
 function ProjectsTab({ projects, onCheckIn }: { projects: PanelProject[]; onCheckIn: (t: PanelStage) => void }) {
   if (!projects.length) {
-    return <Card><div className="empty-state">هنوز در هیچ پروژه‌ای عضویت ندارید.</div></Card>;
+    return <div className="empty-state">هنوز پروژه‌ای به شما واگذار نشده است.</div>;
   }
   return (
     <div className="col" style={{ gap: 14 }}>
       {projects.map((p) => {
-        const myStages = p.tasks.filter((t) => t.isMine || p.tasks.length === 1);
+        const myStages = p.tasks.filter((t) => t.isMine);
         return (
           <Card
             key={p.id}
@@ -442,7 +496,9 @@ function ProjectsTab({ projects, onCheckIn }: { projects: PanelProject[]; onChec
               پیشرفت کل پروژه: {toPersianDigits(p.progress)}٪ · مدیر: {p.manager ? `${p.manager.firstName} ${p.manager.lastName}` : '—'}
             </div>
 
-            <div className="col" style={{ gap: 8 }}>
+            {myStages.length > 0 && <details>
+              <summary className="employee-stage-summary">مراحل من ({toPersianDigits(myStages.length)})</summary>
+            <div className="col" style={{ gap: 8, marginTop: 10 }}>
               {myStages.map((t) => (
                 <div key={t.id} className="panel-stage">
                   <div className="panel-stage-main">
@@ -470,6 +526,7 @@ function ProjectsTab({ projects, onCheckIn }: { projects: PanelProject[]; onChec
                 </div>
               ))}
             </div>
+            </details>}
           </Card>
         );
       })}

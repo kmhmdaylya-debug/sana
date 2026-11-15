@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsInt,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -10,6 +11,18 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
+export class PanelTaskResultDto {
+  @ApiProperty({ enum: ['DONE', 'UNABLE'] })
+  @IsIn(['DONE', 'UNABLE'])
+  result: 'DONE' | 'UNABLE';
+
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
 
 export class CheckInDto {
   @ApiPropertyOptional({ example: '2026-11-20', description: 'تاریخ ثبت (پیش‌فرض: امروز)' })

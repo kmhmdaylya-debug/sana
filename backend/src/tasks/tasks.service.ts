@@ -22,6 +22,35 @@ export class TasksService {
     private readonly notifications: NotificationService,
   ) {}
 
+  private assigneeWhere(user: AuthenticatedUser): Prisma.UserWhereInput {
+    const scoped = user.scope;
+    const hasEmployeeScope = user.employeeId || scoped.companyIds.length || scoped.branchIds.length || scoped.orgUnitIds.length || scoped.employeeIds.length;
+    return {
+      status: 'ACTIVE', deletedAt: null,
+      ...(!user.isSuperAdmin && !scoped.unrestricted ? {
+        OR: [
+          { id: user.id },
+          ...(hasEmployeeScope ? [{ employee: { is: { deletedAt: null, status: 'ACTIVE' as const, ...this.access.employeeWhereFor(user) } } }] : []),
+        ],
+      } : {}),
+    };
+  }
+
+  async assigneeOptions(query: PaginationDto, user: AuthenticatedUser) {
+    const where: Prisma.UserWhereInput = {
+      AND: [this.assigneeWhere(user), ...(query.search ? [{ OR: [
+        { fullName: { contains: query.search, mode: 'insensitive' as const } },
+        { username: { contains: query.search, mode: 'insensitive' as const } },
+      ] }] : [])],
+    };
+    const [total, data] = await Promise.all([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({ where, skip: query.skip, take: query.limit, orderBy: { fullName: 'asc' },
+        select: { id: true, fullName: true, username: true } }),
+    ]);
+    return { data, meta: { total, page: query.page, limit: query.limit, totalPages: Math.max(1, Math.ceil(total / query.limit)) }, success: true };
+  }
+
   /** آیا کاربر روی این وظیفه دسترسی دارد (مسئول/ایجادکننده/حوزه دسترسی) */
   private async assertTaskAccess(taskId: string, user: AuthenticatedUser) {
     const task = await this.prisma.task.findUnique({
@@ -35,6 +64,7 @@ export class TasksService {
 
     if (user.isSuperAdmin || user.scope.unrestricted) return task;
     if (task.createdById === user.id) return task;
+    if (task.assignees.some((a) => a.userId === user.id)) return task;
     if (task.assignees.some((a) => a.employeeId && a.employeeId === user.employeeId)) return task;
     if (task.companyId && user.scope.companyIds.length && user.scope.companyIds.includes(task.companyId)) {
       // دسترسی سطح شرکت مجاز است
@@ -73,11 +103,12 @@ export class TasksService {
 
     // محدودسازی حوزه: اگر کاربر unrestricted نیست فقط وظایف خودش/واحدش
     if (!user.isSuperAdmin && !user.scope.unrestricted) {
-      where.OR = [
+      where.AND = [{ OR: [
         { createdById: user.id },
-        { assignees: { some: { employeeId: user.employeeId ?? '' } } },
+        { assignees: { some: { userId: user.id } } },
+        ...(user.employeeId ? [{ assignees: { some: { employeeId: user.employeeId } } }] : []),
         { companyId: { in: user.scope.companyIds.length ? user.scope.companyIds : [] } },
-      ];
+      ] }];
     }
 
     const page = pagination.page ?? 1;
@@ -91,7 +122,10 @@ export class TasksService {
         orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
         include: {
           assignees: {
-            include: { employee: { select: { id: true, code: true, firstName: true, lastName: true } } },
+            include: {
+              employee: { select: { id: true, code: true, firstName: true, lastName: true } },
+              user: { select: { id: true, fullName: true, username: true } },
+            },
           },
           createdBy: { select: { id: true, fullName: true } },
           orgUnit: { select: { id: true, name: true } },
@@ -120,7 +154,12 @@ export class TasksService {
     const full = await this.prisma.task.findUnique({
       where: { id },
       include: {
-        assignees: { include: { employee: { select: { id: true, code: true, firstName: true, lastName: true } } } },
+        assignees: {
+          include: {
+            employee: { select: { id: true, code: true, firstName: true, lastName: true } },
+            user: { select: { id: true, fullName: true, username: true } },
+          },
+        },
         comments: {
           orderBy: { createdAt: 'asc' },
           include: { author: { select: { id: true, fullName: true } } },
@@ -140,9 +179,50 @@ export class TasksService {
     };
   }
 
+  /**
+   * مسئولان وظیفه از روی «کاربر» و/یا «نیرو» مشخص می‌شوند.
+   * چون «کاربر = نیرو» است، شناسهٔ کاربر به پروندهٔ پرسنلی او نگاشت می‌شود
+   * تا هم افرادِ دارای پرونده و هم حساب‌های صرفاً کاربری قابل انتخاب باشند.
+   */
+  private async resolveAssignees(user: AuthenticatedUser, userIds?: string[], employeeIds?: string[]) {
+    const rows: { userId?: string; employeeId?: string }[] = [];
+
+    if (userIds?.length) {
+      const users = await this.prisma.user.findMany({
+        where: { AND: [this.assigneeWhere(user), { id: { in: userIds } }] },
+        select: { id: true, employeeId: true },
+      });
+      if (users.length !== new Set(userIds).size) throw new BadRequestException('یک یا چند کاربر مسئول فعال یا در دسترس نیستند.');
+      for (const u of users) {
+        rows.push({ userId: u.id, employeeId: u.employeeId ?? undefined });
+      }
+    }
+
+    if (employeeIds?.length) {
+      const employees = await this.prisma.employee.findMany({
+        where: { AND: [{ id: { in: employeeIds }, deletedAt: null, status: 'ACTIVE' }, this.access.employeeWhereFor(user)] },
+        select: { id: true, user: { select: { id: true } } },
+      });
+      if (employees.length !== new Set(employeeIds).size) throw new BadRequestException('یک یا چند نیروی مسئول فعال یا در دسترس نیستند.');
+      for (const e of employees) {
+        rows.push({ employeeId: e.id, userId: e.user?.id });
+      }
+    }
+
+    // حذف تکراری‌ها (یک فرد ممکن است از هر دو راه معرفی شده باشد)
+    const seen = new Set<string>();
+    return rows.filter((r) => {
+      const key = `${r.userId ?? ''}|${r.employeeId ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   async create(dto: CreateTaskDto, user: AuthenticatedUser) {
-    const assignees = dto.assigneeIds?.length
-      ? { create: dto.assigneeIds.map((employeeId) => ({ employeeId, role: 'ASSIGNEE', isResponsible: true })) }
+    const resolved = await this.resolveAssignees(user, dto.assigneeUserIds, dto.assigneeIds);
+    const assignees = resolved.length
+      ? { create: resolved.map((a) => ({ employeeId: a.employeeId ?? null, userId: a.userId ?? null, role: 'ASSIGNEE', isResponsible: true })) }
       : undefined;
 
     const task = await this.prisma.task.create({
@@ -161,7 +241,14 @@ export class TasksService {
         createdById: user.id,
         assignees,
       },
-      include: { assignees: { include: { employee: { select: { userId: true, firstName: true } } } } },
+      include: {
+        assignees: {
+          include: {
+            employee: { select: { id: true, code: true, firstName: true, lastName: true } },
+            user: { select: { id: true, fullName: true, username: true } },
+          },
+        },
+      },
     });
 
     await this.audit.record(user.id, {
@@ -172,12 +259,12 @@ export class TasksService {
     });
 
     for (const a of task.assignees) {
-      if (a.employee?.userId && a.employee.userId !== user.id) {
-        await this.notifications.notify(a.employee.userId, {
+      if (a.userId && a.userId !== user.id) {
+        await this.notifications.notify(a.userId, {
           type: NotificationType.TASK_ASSIGNED,
           title: 'وظیفه جدید به شما واگذار شد',
           body: task.title,
-          link: `/tasks/${task.id}`,
+          link: '/tasks',
         });
       }
     }
@@ -191,6 +278,8 @@ export class TasksService {
 
   async update(id: string, dto: UpdateTaskDto, user: AuthenticatedUser) {
     await this.assertTaskAccess(id, user);
+    const resolved = dto.assigneeIds !== undefined || dto.assigneeUserIds !== undefined
+      ? await this.resolveAssignees(user, dto.assigneeUserIds, dto.assigneeIds) : undefined;
 
     const before = await this.prisma.task.findUnique({ where: { id } });
     if (before?.status === TaskStatus.DONE && dto.status && dto.status !== TaskStatus.DONE) {
@@ -200,6 +289,7 @@ export class TasksService {
     const task = await this.prisma.task.update({
       where: { id },
       data: {
+        ...(resolved ? { assignees: { deleteMany: {}, create: resolved.map((a) => ({ employeeId: a.employeeId ?? null, userId: a.userId ?? null, role: 'ASSIGNEE', isResponsible: true })) } } : {}),
         ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
@@ -216,25 +306,16 @@ export class TasksService {
       include: { assignees: { include: { employee: { select: { userId: true } } } } },
     });
 
-    if (dto.assigneeIds) {
-      await this.prisma.taskAssignee.deleteMany({ where: { taskId: id } });
-      if (dto.assigneeIds.length) {
-        await this.prisma.taskAssignee.createMany({
-          data: dto.assigneeIds.map((employeeId) => ({ taskId: id, employeeId, role: 'ASSIGNEE' })),
-        });
-      }
+    if (resolved) {
       // اطلاع به مسئولان جدید
-      const employees = await this.prisma.employee.findMany({
-        where: { id: { in: dto.assigneeIds } },
-        select: { userId: true },
-      });
-      for (const e of employees) {
-        if (e.userId && e.userId !== user.id) {
-          await this.notifications.notify(e.userId, {
+      const notifyIds = [...new Set(resolved.map((a) => a.userId).filter(Boolean))] as string[];
+      for (const uid of notifyIds) {
+        if (uid !== user.id) {
+          await this.notifications.notify(uid, {
             type: NotificationType.TASK_ASSIGNED,
             title: 'وظیفه به شما واگذار شد',
             body: task.title,
-            link: `/tasks/${id}`,
+            link: '/tasks',
           });
         }
       }
