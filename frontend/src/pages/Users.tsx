@@ -26,7 +26,7 @@ interface UserRow {
   fullName: string;
   email?: string;
   mobile?: string;
-  isActive: boolean;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED';
   isSuperAdmin?: boolean;
   lastLoginAt?: string | null;
   employee?: { id: string; code: string; firstName: string; lastName: string } | null;
@@ -50,13 +50,15 @@ interface EmployeeOption {
   position?: { title: string } | null;
 }
 
+const USER_STATUS_LABELS = { ACTIVE: 'فعال', INACTIVE: 'غیرفعال', SUSPENDED: 'تعلیق‌شده', ARCHIVED: 'بایگانی‌شده' };
+
 export default function Users() {
   const toast = useToast();
   const list = useList<UserRow>('/users');
   const roles = useList<RoleOption>('/roles');
   const employees = useList<EmployeeOption>('/employees', { limit: 200 });
   const [editing, setEditing] = useState<UserRow | null>(null);
-  const [form, setForm] = useState({ fullName: '', email: '', mobile: '', isActive: true, employeeId: '', roleIds: [] as string[] });
+  const [form, setForm] = useState({ fullName: '', email: '', mobile: '', status: 'ACTIVE' as UserRow['status'], employeeId: '', roleIds: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ username: '', fullName: '', email: '', mobile: '', password: '', employeeId: '', roleIds: [] as string[], mustChangePassword: true });
@@ -71,7 +73,7 @@ export default function Users() {
       fullName: u.fullName ?? '',
       email: u.email ?? '',
       mobile: u.mobile ?? '',
-      isActive: u.isActive,
+      status: u.status,
       employeeId: u.employee?.id ?? '',
       roleIds: (u.roles ?? []).map((r) => r.id),
     });
@@ -85,7 +87,7 @@ export default function Users() {
         fullName: form.fullName,
         email: form.email || undefined,
         mobile: form.mobile || undefined,
-        isActive: form.isActive,
+        status: form.status,
         employeeId: form.employeeId || undefined,
         roleIds: form.roleIds,
       });
@@ -171,9 +173,9 @@ export default function Users() {
     { key: 'roles', header: 'نقش‌ها', render: (r) => ((r.roles ?? []).length ? (r.roles ?? []).map((x) => <Badge key={x.id} kind="blue">{x.name}</Badge>) : <span className="text-muted">—</span>) },
     { key: 'lastLoginAt', header: 'آخرین ورود', render: (r) => (r.lastLoginAt ? formatJalali(r.lastLoginAt) : '—') },
     {
-      key: 'isActive',
+      key: 'status',
       header: 'وضعیت',
-      render: (r) => (r.isSuperAdmin ? <Badge kind="violet">مدیر ارشد</Badge> : r.isActive ? <Badge kind="green">فعال</Badge> : <Badge kind="gray">غیرفعال</Badge>),
+      render: (r) => <Badge kind={r.status === 'ACTIVE' ? 'green' : 'gray'}>{USER_STATUS_LABELS[r.status] ?? r.status}</Badge>,
     },
   ];
 
@@ -185,10 +187,10 @@ export default function Users() {
         actions={<Button onClick={() => setCreateOpen(true)}><Plus size={15} /> کاربر جدید</Button>}
       />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)} />
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)} />
         </div>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
@@ -201,14 +203,14 @@ export default function Users() {
               <Button size="sm" variant="outline" onClick={() => revokeSessions(r.id)} title="ابطال نشست‌ها">
                 <LogOut size={13} />
               </Button>
-              {r.isActive && !r.isSuperAdmin && (
+              {r.status === 'ACTIVE' && !r.isSuperAdmin && (
                 <Button size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>حذف</Button>
               )}
             </>
           )}
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 
@@ -257,10 +259,11 @@ export default function Users() {
               ))}
             </Select>
           </Field>
-          <label className="checkbox-row">
-            <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} />
-            <span>حساب فعال است</span>
-          </label>
+          <Field label="وضعیت حساب">
+            <Select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as UserRow['status'] }))}>
+              {Object.entries(USER_STATUS_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+            </Select>
+          </Field>
         </div>
       </Modal>
 

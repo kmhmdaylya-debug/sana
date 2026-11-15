@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage, downloadReport } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker, DatePicker, Input, Tabs,
   Badge,
   Button,
   Card,
@@ -123,16 +123,16 @@ export default function Attendance() {
         }
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'records' ? ' active' : ''}`} onClick={() => setTab('records')}>کارت‌های حضور</button>
         <button className={`tab${tab === 'corrections' ? ' active' : ''}`} onClick={() => setTab('corrections')}>اصلاحات</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'records' ? (
           <>
-            <div style={{ padding: '14px 14px 0' }}>
-              <ListToolbar onSearch={(s) => records.setSearch(s)}>
+            <div className="list-toolbar-wrap">
+              <ListToolbar search={records.search} onSearch={(s) => records.setSearch(s)}>
                 <Select onChange={(e) => records.setFilter('status', e.target.value)} style={{ width: 170 }}>
                   <option value="">همهٔ وضعیت‌ها</option>
                   {Object.entries(ATTENDANCE_STATUS_LABELS).map(([v, l]) => (
@@ -141,14 +141,14 @@ export default function Attendance() {
                 </Select>
               </ListToolbar>
             </div>
-            <DataTable columns={recordCols} rows={records.rows} loading={records.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={records.page} totalPages={records.totalPages} total={records.total} onChange={records.setPage} />
+            <DataTable error={records.error} onRetry={records.reload} columns={recordCols} rows={records.rows} loading={records.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={records.pageSize} onPageSizeChange={records.setPageSize} page={records.page} totalPages={records.totalPages} total={records.total} onChange={records.setPage} />
             </div>
           </>
         ) : (
           <>
-            <DataTable
+            <DataTable error={corrections.error} onRetry={corrections.reload}
               columns={correctionCols}
               rows={corrections.rows}
               loading={corrections.loading}
@@ -161,8 +161,8 @@ export default function Attendance() {
                 ) : null
               }
             />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={corrections.page} totalPages={corrections.totalPages} total={corrections.total} onChange={corrections.setPage} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={corrections.pageSize} onPageSizeChange={corrections.setPageSize} page={corrections.page} totalPages={corrections.totalPages} total={corrections.total} onChange={corrections.setPage} />
             </div>
           </>
         )}
@@ -180,10 +180,10 @@ export default function Attendance() {
         }
       >
         <div className="col" style={{ gap: 14 }}>
-          <Field label="شناسهٔ نیرو (UUID)" required><input className="input ltr" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} /></Field>
-          <Field label="تاریخ کارکرد" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><input className="input ltr" value={form.workDate} onChange={(e) => setForm((f) => ({ ...f, workDate: e.target.value }))} placeholder="1404/01/01" /></Field>
-          <Field label="ساعت ورود صحیح (اختیاری)"><input className="input ltr" value={form.firstIn} onChange={(e) => setForm((f) => ({ ...f, firstIn: e.target.value }))} placeholder="08:30" /></Field>
-          <Field label="ساعت خروج صحیح (اختیاری)"><input className="input ltr" value={form.lastOut} onChange={(e) => setForm((f) => ({ ...f, lastOut: e.target.value }))} placeholder="17:00" /></Field>
+          <Field label="کارمند" required><EntityPicker value={form.employeeId} onValueChange={(value) => setForm((f) => ({ ...f, employeeId: value }))} endpoint="/employees" title="انتخاب کارمند" /></Field>
+          <Field label="تاریخ کارکرد" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><DatePicker className="input ltr" value={form.workDate} onValueChange={(value) => setForm((f) => ({ ...f, workDate: value }))} placeholder="1404/01/01" /></Field>
+          <Field label="ساعت ورود صحیح (اختیاری)"><Input className="input ltr" value={form.firstIn} onChange={(e) => setForm((f) => ({ ...f, firstIn: e.target.value }))} placeholder="08:30" /></Field>
+          <Field label="ساعت خروج صحیح (اختیاری)"><Input className="input ltr" value={form.lastOut} onChange={(e) => setForm((f) => ({ ...f, lastOut: e.target.value }))} placeholder="17:00" /></Field>
           <Field label="دلیل اصلاح" required><Textarea value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} /></Field>
         </div>
       </Modal>

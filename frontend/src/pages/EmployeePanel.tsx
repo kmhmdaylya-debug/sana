@@ -3,7 +3,7 @@ import { CalendarCheck, CheckCircle2, ClipboardList, Clock, FolderKanban, Receip
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
-import {
+import { DatePicker,
   Badge,
   Button,
   Card,
@@ -17,7 +17,7 @@ import {
   useToast,
   type Column,
 } from '../components/ui';
-import { formatJalali, toPersianDigits, parseDateInput, formatRial, statusLabel } from '../lib/format';
+import { formatJalali, toPersianDigits, parseDateInput, formatRial, statusLabel, isPastDueDate } from '../lib/format';
 
 interface PanelSummary {
   myProjects: number;
@@ -335,10 +335,10 @@ export default function EmployeePanel() {
           </Field>
           <div className="form-grid">
             <Field label="تاریخ شروع" required hint="شمسی یا میلادی">
-              <Input className="ltr" value={leaveForm.startDate} onChange={(e) => setLeaveForm((f) => ({ ...f, startDate: e.target.value }))} placeholder="1404/11/20" />
+              <DatePicker className="ltr" value={leaveForm.startDate} onValueChange={(value) => setLeaveForm((f) => ({ ...f, startDate: value }))} placeholder="1404/11/20" />
             </Field>
             <Field label="تاریخ پایان" required hint="شمسی یا میلادی">
-              <Input className="ltr" value={leaveForm.endDate} onChange={(e) => setLeaveForm((f) => ({ ...f, endDate: e.target.value }))} placeholder="1404/11/22" />
+              <DatePicker className="ltr" value={leaveForm.endDate} onValueChange={(value) => setLeaveForm((f) => ({ ...f, endDate: value }))} placeholder="1404/11/22" />
             </Field>
           </div>
           <Field label="دلیل">
@@ -438,7 +438,7 @@ function MyTasks() {
       ) : list.rows.length ? <>
         <div className="employee-task-list">
           {list.rows.map((task) => {
-            const overdue = task.dueDate && new Date(task.dueDate).getTime() < Date.now() && !['DONE', 'CANCELLED'].includes(task.status);
+            const overdue = isPastDueDate(task.dueDate) && !['DONE', 'CANCELLED'].includes(task.status);
             const TaskContainer = task.status === 'DONE' ? 'details' : 'article';
             const heading = <div className="employee-task-title">
                 <h4>{task.title}</h4>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
 import { useList } from '../lib/useList';
-import {
+import { Tabs,
   Badge,
   Button,
   Card,
@@ -145,16 +145,16 @@ export default function Settings() {
     <>
       <PageHeader title="تنظیمات" subtitle="تنظیمات سیستمی و فیلدهای سفارشی" />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>تنظیمات سیستمی</button>
         <button className={`tab${tab === 'fields' ? ' active' : ''}`} onClick={() => setTab('fields')}>فیلدهای سفارشی</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'settings' && (
           <>
-            <div style={{ padding: '14px 14px 0' }}>
-              <ListToolbar onSearch={(s) => list.setSearch(s)}>
+            <div className="list-toolbar-wrap">
+              <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
                 <Select onChange={(e) => list.setFilter('group', e.target.value)} style={{ width: 200 }}>
                   <option value="">همهٔ گروه‌ها</option>
                   {groups.map((g) => (
@@ -163,7 +163,7 @@ export default function Settings() {
                 </Select>
               </ListToolbar>
             </div>
-            <DataTable
+            <DataTable error={list.error} onRetry={list.reload}
               columns={settingCols}
               rows={list.rows}
               loading={list.loading}
@@ -171,8 +171,8 @@ export default function Settings() {
                 <Button size="sm" variant="outline" onClick={() => openEdit(r)}>تغییر مقدار</Button>
               )}
             />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
             </div>
           </>
         )}
@@ -183,7 +183,7 @@ export default function Settings() {
               <span className="text-muted text-sm">{toPersianDigits(fields.total)} فیلد سفارشی</span>
               <Button onClick={() => setFieldOpen(true)}>فیلد جدید</Button>
             </div>
-            <DataTable
+            <DataTable error={fields.error} onRetry={fields.reload}
               columns={fieldCols}
               rows={fields.rows}
               loading={fields.loading}
@@ -191,8 +191,8 @@ export default function Settings() {
                 <Button size="sm" variant="danger" onClick={() => setDeleteField(r)}>حذف</Button>
               )}
             />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={fields.page} totalPages={fields.totalPages} total={fields.total} onChange={fields.setPage} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={fields.pageSize} onPageSizeChange={fields.setPageSize} page={fields.page} totalPages={fields.totalPages} total={fields.total} onChange={fields.setPage} />
             </div>
           </>
         )}

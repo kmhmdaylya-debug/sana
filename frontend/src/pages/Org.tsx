@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
 import { useList } from '../lib/useList';
-import {
+import { Tabs,
   Badge,
   Button,
   Card,
@@ -191,43 +191,43 @@ export default function Org() {
         </Button>}
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'companies' ? ' active' : ''}`} onClick={() => setTab('companies')}>شرکت‌ها</button>
         <button className={`tab${tab === 'branches' ? ' active' : ''}`} onClick={() => setTab('branches')}>شعب</button>
         <button className={`tab${tab === 'units' ? ' active' : ''}`} onClick={() => setTab('units')}>واحدهای سازمانی</button>
         <button className={`tab${tab === 'positions' ? ' active' : ''}`} onClick={() => setTab('positions')}>سمت‌ها</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'companies' && (
           <>
-            <DataTable columns={companyCols} rows={companies.rows} loading={companies.loading} rowActions={actions('companies')} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={companies.page} totalPages={companies.totalPages} total={companies.total} onChange={companies.setPage} />
+            <DataTable error={companies.error} onRetry={companies.reload} columns={companyCols} rows={companies.rows} loading={companies.loading} rowActions={actions('companies')} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={companies.pageSize} onPageSizeChange={companies.setPageSize} page={companies.page} totalPages={companies.totalPages} total={companies.total} onChange={companies.setPage} />
             </div>
           </>
         )}
         {tab === 'branches' && (
           <>
-            <DataTable columns={branchCols} rows={branches.rows} loading={branches.loading} rowActions={actions('branches')} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={branches.page} totalPages={branches.totalPages} total={branches.total} onChange={branches.setPage} />
+            <DataTable error={branches.error} onRetry={branches.reload} columns={branchCols} rows={branches.rows} loading={branches.loading} rowActions={actions('branches')} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={branches.pageSize} onPageSizeChange={branches.setPageSize} page={branches.page} totalPages={branches.totalPages} total={branches.total} onChange={branches.setPage} />
             </div>
           </>
         )}
         {tab === 'units' && (
           <>
-            <DataTable columns={unitCols} rows={units.rows} loading={units.loading} rowActions={actions('units')} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={units.page} totalPages={units.totalPages} total={units.total} onChange={units.setPage} />
+            <DataTable error={units.error} onRetry={units.reload} columns={unitCols} rows={units.rows} loading={units.loading} rowActions={actions('units')} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={units.pageSize} onPageSizeChange={units.setPageSize} page={units.page} totalPages={units.totalPages} total={units.total} onChange={units.setPage} />
             </div>
           </>
         )}
         {tab === 'positions' && (
           <>
-            <DataTable columns={positionCols} rows={positions.rows} loading={positions.loading} rowActions={actions('positions')} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={positions.page} totalPages={positions.totalPages} total={positions.total} onChange={positions.setPage} />
+            <DataTable error={positions.error} onRetry={positions.reload} columns={positionCols} rows={positions.rows} loading={positions.loading} rowActions={actions('positions')} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={positions.pageSize} onPageSizeChange={positions.setPageSize} page={positions.page} totalPages={positions.totalPages} total={positions.total} onChange={positions.setPage} />
             </div>
           </>
         )}

@@ -77,8 +77,8 @@ export default function Contracts() {
     <>
       <PageHeader title="قراردادها" subtitle="قراردادهای کاری نیروها و نسخه‌های آن‌ها" actions={expiring} />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
             <Select value={status} onChange={(e) => { setStatus(e.target.value); list.setFilter('status', e.target.value); }} style={{ width: 180 }}>
               <option value="">همهٔ وضعیت‌ها</option>
               {Object.entries(CONTRACT_STATUS_LABELS).map(([v, l]) => (
@@ -87,9 +87,9 @@ export default function Contracts() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable columns={columns} rows={list.rows} loading={list.loading} />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <DataTable error={list.error} onRetry={list.reload} columns={columns} rows={list.rows} loading={list.loading} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
     </>

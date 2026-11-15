@@ -75,8 +75,8 @@ export default function Audit() {
     <>
       <PageHeader title="لاگ ممیزی" subtitle={`ثبت کامل رخدادهای حساس سامانه — ${toPersianDigits(list.total)} رکورد`} />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
             <Select onChange={(e) => list.setFilter('action', e.target.value)} style={{ width: 200 }}>
               <option value="">همهٔ عملیات</option>
               {ACTIONS.map((a) => (
@@ -85,9 +85,9 @@ export default function Audit() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable columns={cols} rows={list.rows} loading={list.loading} emptyMessage="رخدادی ثبت نشده است." />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <DataTable error={list.error} onRetry={list.reload} columns={cols} rows={list.rows} loading={list.loading} emptyMessage="رخدادی ثبت نشده است." />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
     </>

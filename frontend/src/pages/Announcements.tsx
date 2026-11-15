@@ -108,7 +108,7 @@ export default function Announcements() {
         actions={canManage && <Button onClick={() => setCreateOpen(true)}><Plus size={15} /> اعلامیهٔ جدید</Button>}
       />
       <Card>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
@@ -118,8 +118,8 @@ export default function Announcements() {
             ) : null
           }
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 
@@ -162,7 +162,7 @@ export default function Announcements() {
                 <option value="POSITION">سمت خاص</option>
               </Select>
             </Field>
-            <Field label="شناسهٔ مخاطب (در صورت انتخاب خاص)"><input className="input ltr" value={form.targetId} onChange={(e) => setForm((f) => ({ ...f, targetId: e.target.value }))} /></Field>
+            <Field label="شناسهٔ مخاطب (در صورت انتخاب خاص)"><Input className="input ltr" value={form.targetId} onChange={(e) => setForm((f) => ({ ...f, targetId: e.target.value }))} /></Field>
           </div>
           <label className="checkbox-row">
             <input type="checkbox" checked={form.requiresAck} onChange={(e) => setForm((f) => ({ ...f, requiresAck: e.target.checked }))} />

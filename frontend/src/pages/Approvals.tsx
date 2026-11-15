@@ -53,7 +53,7 @@ export default function Approvals() {
     <>
       <PageHeader title="صندوق تأییدها" subtitle="کارهای در انتظار تصمیم شما" />
       <Card>
-        <DataTable
+        <DataTable error={inbox.error} onRetry={inbox.reload}
           columns={cols}
           rows={inbox.rows}
           loading={inbox.loading}
@@ -66,14 +66,14 @@ export default function Approvals() {
             ) : null
           }
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={inbox.page} totalPages={inbox.totalPages} total={inbox.total} onChange={inbox.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={inbox.pageSize} onPageSizeChange={inbox.setPageSize} page={inbox.page} totalPages={inbox.totalPages} total={inbox.total} onChange={inbox.setPage} />
         </div>
       </Card>
 
       <div className="mt-lg">
         <Card title="گردش‌های تأیید اخیر">
-          <DataTable
+          <DataTable error={instances.error} onRetry={instances.reload}
             columns={[
               { key: 'subjectType', header: 'موضوع' },
               { key: 'status', header: 'وضعیت', render: (r: any) => <Badge kind={badgeKind(r.status)}>{statusLabel(r.status)}</Badge> },

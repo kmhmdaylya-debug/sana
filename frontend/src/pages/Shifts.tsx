@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker, Input, Tabs,
   Badge,
   Button,
   Card,
@@ -101,25 +101,25 @@ export default function Shifts() {
         actions={canSwap && <Button onClick={() => setSwapOpen(true)}>درخواست تعویض شیفت</Button>}
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'defs' ? ' active' : ''}`} onClick={() => setTab('defs')}>تعریف شیفت</button>
         <button className={`tab${tab === 'swaps' ? ' active' : ''}`} onClick={() => setTab('swaps')}>تعویض‌ها</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'defs' ? (
           <>
-            <div style={{ padding: '14px 14px 0' }}>
-              <ListToolbar onSearch={(s) => defs.setSearch(s)} />
+            <div className="list-toolbar-wrap">
+              <ListToolbar search={defs.search} onSearch={(s) => defs.setSearch(s)} />
             </div>
-            <DataTable columns={defCols} rows={defs.rows} loading={defs.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={defs.page} totalPages={defs.totalPages} total={defs.total} onChange={defs.setPage} />
+            <DataTable error={defs.error} onRetry={defs.reload} columns={defCols} rows={defs.rows} loading={defs.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={defs.pageSize} onPageSizeChange={defs.setPageSize} page={defs.page} totalPages={defs.totalPages} total={defs.total} onChange={defs.setPage} />
             </div>
           </>
         ) : (
           <>
-            <DataTable
+            <DataTable error={swaps.error} onRetry={swaps.reload}
               columns={swapCols}
               rows={swaps.rows}
               loading={swaps.loading}
@@ -132,8 +132,8 @@ export default function Shifts() {
                 ) : null
               }
             />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={swaps.page} totalPages={swaps.totalPages} total={swaps.total} onChange={swaps.setPage} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={swaps.pageSize} onPageSizeChange={swaps.setPageSize} page={swaps.page} totalPages={swaps.totalPages} total={swaps.total} onChange={swaps.setPage} />
             </div>
           </>
         )}
@@ -152,9 +152,9 @@ export default function Shifts() {
       >
         <div className="col" style={{ gap: 14 }}>
           <Field label="شناسهٔ ساعت کاری منبع (UUID)" required hint="شناسهٔ shiftAssignment خودتان">
-            <input className="input ltr" value={form.sourceAssignmentId} onChange={(e) => setForm((f) => ({ ...f, sourceAssignmentId: e.target.value }))} />
+            <Input className="input ltr" value={form.sourceAssignmentId} onChange={(e) => setForm((f) => ({ ...f, sourceAssignmentId: e.target.value }))} />
           </Field>
-          <Field label="شناسهٔ نیروی جایگزین (UUID)" required><input className="input ltr" value={form.toEmployeeId} onChange={(e) => setForm((f) => ({ ...f, toEmployeeId: e.target.value }))} /></Field>
+          <Field label="کارمند جایگزین" required><EntityPicker value={form.toEmployeeId} onValueChange={(value) => setForm((f) => ({ ...f, toEmployeeId: value }))} endpoint="/employees" title="انتخاب کارمند جایگزین" /></Field>
           <Field label="دلیل"><Textarea value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} /></Field>
         </div>
       </Modal>

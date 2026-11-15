@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, GanttChartSquare } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
-import {
+import { DatePicker, Tabs,
   Badge,
   Button,
   Card,
   ConfirmDialog,
   Field,
   Input,
+  ListToolbar,
   Modal,
   PageHeader,
   Select,
@@ -18,6 +20,7 @@ import {
   type Column,
 } from '../components/ui';
 import { formatJalali, toPersianDigits, parseDateInput, toJalali } from '../lib/format';
+import { normalizeSearch } from '../lib/search';
 
 interface Member {
   id: string;
@@ -81,12 +84,12 @@ const PRIORITY_LABELS: Record<string, string> = {
   CRITICAL: 'بحرانی',
 };
 const PRIORITY_COLORS: Record<string, string> = {
-  LOW: '#7d776b',
-  MEDIUM: '#3d5573',
-  HIGH: '#a8781c',
-  CRITICAL: '#b3443a',
+  LOW: '#68758a',
+  MEDIUM: '#4778d8',
+  HIGH: '#a77524',
+  CRITICAL: '#ba4859',
 };
-const PALETTE = ['#3f7d52', '#3d5573', '#6f5490', '#b3443a', '#a8781c', '#a3a878', '#3f7a94', '#b06a8c'];
+const PALETTE = ['#27805e', '#4778d8', '#8060ad', '#ba4859', '#a77524', '#467a73', '#307c99', '#a65f8c'];
 
 const toDate = (v: string) => new Date(v);
 const dayDiff = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / DAY);
@@ -94,9 +97,12 @@ const dayDiff = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / D
 export default function Projects() {
   const toast = useToast();
   const { hasPermission } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('search') ?? '';
   const [view, setView] = useState<'timeline' | 'gantt'>('timeline');
   const [data, setData] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [taskFor, setTaskFor] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
@@ -117,12 +123,13 @@ export default function Projects() {
 
   const load = async () => {
     setLoading(true);
+    setError('');
     try {
       const r = await api.get('/projects/timeline');
       const body = r?.data?.data ?? r?.data;
       setData(body?.projects ?? []);
     } catch (e) {
-      toast('error', apiErrorMessage(e));
+      setError(apiErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -178,6 +185,7 @@ export default function Projects() {
     if (!p.tasks.length) return p.progress;
     return Math.round(p.tasks.reduce((s, t) => s + t.progress, 0) / p.tasks.length);
   };
+  const visibleProjects = data.filter(project => normalizeSearch(`${project.title} ${project.code}`).includes(normalizeSearch(search)));
 
   return (
     <>
@@ -193,23 +201,30 @@ export default function Projects() {
         }
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${view === 'timeline' ? ' active' : ''}`} onClick={() => setView('timeline')}>
           تقویم پروژه
         </button>
         <button className={`tab${view === 'gantt' ? ' active' : ''}`} onClick={() => setView('gantt')}>
           <GanttChartSquare size={14} /> گانت چارت
         </button>
-      </div>
+      </Tabs>
+      <ListToolbar search={search} onSearch={value => {
+        const next = new URLSearchParams(searchParams);
+        if (value) next.set('search', value); else next.delete('search');
+        setSearchParams(next, { replace: true });
+      }} />
 
       {loading ? (
         <Card><div className="skeleton" style={{ height: 220 }} /></Card>
-      ) : !data.length ? (
-        <Card><div className="empty-state">هنوز پروژه‌ای ثبت نشده است.</div></Card>
+      ) : error ? (
+        <div className="alert alert-danger" role="alert">{error} <Button variant="secondary" onClick={load}>تلاش دوباره</Button></div>
+      ) : !visibleProjects.length ? (
+        <Card><div className="empty-state">{search ? 'پروژه‌ای با این عبارت پیدا نشد.' : 'هنوز پروژه‌ای ثبت نشده است.'}</div></Card>
       ) : view === 'timeline' ? (
-        <TimelineView projects={data} onOpen={setTaskFor} onDelete={setDeleteTarget} progressOf={progressOf} />
+        <TimelineView projects={visibleProjects} onOpen={setTaskFor} onDelete={setDeleteTarget} progressOf={progressOf} />
       ) : (
-        <GanttView projects={data} />
+        <GanttView projects={visibleProjects} />
       )}
 
       {/* ایجاد پروژه */}
@@ -232,10 +247,10 @@ export default function Projects() {
             <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
           </Field>
           <Field label="تاریخ شروع" required hint="شمسی یا میلادی">
-            <Input className="ltr" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} placeholder="1404/11/01" />
+            <DatePicker className="ltr" value={form.startDate} onValueChange={(value) => setForm((f) => ({ ...f, startDate: value }))} placeholder="1404/11/01" />
           </Field>
           <Field label="تاریخ پایان" required hint="شمسی یا میلادی">
-            <Input className="ltr" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} placeholder="1404/12/30" />
+            <DatePicker className="ltr" value={form.endDate} onValueChange={(value) => setForm((f) => ({ ...f, endDate: value }))} placeholder="1404/12/30" />
           </Field>
           <Field label="مدیر پروژه">
             <Select value={form.managerId} onChange={(e) => setForm((f) => ({ ...f, managerId: e.target.value }))}>
@@ -714,10 +729,10 @@ function ProjectTasksModal({
             <Input value={form.phase} onChange={(e) => setForm((f) => ({ ...f, phase: e.target.value }))} placeholder="تحلیل، توسعه، …" />
           </Field>
           <Field label="تاریخ شروع" required hint="شمسی یا میلادی">
-            <Input className="ltr" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} placeholder="1404/11/01" />
+            <DatePicker className="ltr" value={form.startDate} onValueChange={(value) => setForm((f) => ({ ...f, startDate: value }))} placeholder="1404/11/01" />
           </Field>
           <Field label="تاریخ پایان" required hint="شمسی یا میلادی">
-            <Input className="ltr" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} placeholder="1404/11/20" />
+            <DatePicker className="ltr" value={form.endDate} onValueChange={(value) => setForm((f) => ({ ...f, endDate: value }))} placeholder="1404/11/20" />
           </Field>
           <Field label="مسئول">
             <Select value={form.assigneeId} onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}>

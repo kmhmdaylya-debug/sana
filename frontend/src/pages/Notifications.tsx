@@ -84,8 +84,8 @@ export default function Notifications() {
         }
       />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
             <Select value={onlyUnread} onChange={(e) => { setOnlyUnread(e.target.value); list.setFilter('isRead', e.target.value); }} style={{ width: 170 }}>
               <option value="">همه</option>
               <option value="false">فقط خوانده‌نشده</option>
@@ -93,7 +93,7 @@ export default function Notifications() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
@@ -103,8 +103,8 @@ export default function Notifications() {
             ) : null
           }
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
     </>

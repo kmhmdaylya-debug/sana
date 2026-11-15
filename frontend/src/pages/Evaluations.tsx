@@ -52,7 +52,7 @@ export default function Evaluations() {
     <>
       <PageHeader title="ارزیابی عملکرد" subtitle="فرم‌ها، دوره‌ها و ارزیابی‌ها" />
       <Card>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
@@ -64,8 +64,8 @@ export default function Evaluations() {
             ) : null
           }
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
     </>

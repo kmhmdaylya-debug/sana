@@ -3,7 +3,7 @@ import { Download, Play } from 'lucide-react';
 import { api, apiErrorMessage, downloadFile } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
 import { useList } from '../lib/useList';
-import {
+import { DatePicker,
   Badge,
   Button,
   Card,
@@ -155,8 +155,8 @@ export default function Reports() {
             <div className="form-grid">
               {def.needsDateRange && (
                 <>
-                  <Field label="از تاریخ (میلادی)"><Input className="ltr" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="2026-01-01" /></Field>
-                  <Field label="تا تاریخ (میلادی)"><Input className="ltr" value={to} onChange={(e) => setTo(e.target.value)} placeholder="2026-12-31" /></Field>
+                  <Field label="از تاریخ (میلادی)"><DatePicker output="iso" className="ltr" value={from} onValueChange={(value) => setFrom(value)} placeholder="2026-01-01" /></Field>
+                  <Field label="تا تاریخ (میلادی)"><DatePicker output="iso" className="ltr" value={to} onValueChange={(value) => setTo(value)} placeholder="2026-12-31" /></Field>
                 </>
               )}
               {def.needsMonth && (
@@ -178,9 +178,9 @@ export default function Reports() {
 
       <div className="mt-lg">
         <Card title="تاریخچهٔ اجرای گزارش‌ها">
-          <DataTable columns={runCols} rows={runs.rows} loading={runs.loading} emptyMessage="هنوز گزارشی اجرا نشده است." />
-          <div style={{ padding: '0 14px 14px' }}>
-            <Pagination page={runs.page} totalPages={runs.totalPages} total={runs.total} onChange={runs.setPage} />
+          <DataTable error={runs.error} onRetry={runs.reload} columns={runCols} rows={runs.rows} loading={runs.loading} emptyMessage="هنوز گزارشی اجرا نشده است." />
+          <div className="list-pagination-wrap">
+            <Pagination pageSize={runs.pageSize} onPageSizeChange={runs.setPageSize} page={runs.page} totalPages={runs.totalPages} total={runs.total} onChange={runs.setPage} />
           </div>
         </Card>
       </div>

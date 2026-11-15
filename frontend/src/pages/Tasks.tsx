@@ -4,7 +4,7 @@ import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { DatePicker,
   Badge,
   Button,
   Card,
@@ -144,8 +144,8 @@ export default function Tasks() {
         actions={canCreate && <Button onClick={() => openTask()}><Plus size={15} /> وظیفهٔ جدید</Button>}
       />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
             <Select onChange={(e) => list.setFilter('status', e.target.value)} style={{ width: 160 }}>
               <option value="">همهٔ وضعیت‌ها</option>
               {STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
@@ -156,9 +156,9 @@ export default function Tasks() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable columns={cols} rows={list.rows} loading={list.loading} />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <DataTable error={list.error} onRetry={list.reload} columns={cols} rows={list.rows} loading={list.loading} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 
@@ -182,7 +182,7 @@ export default function Tasks() {
                 {PRIORITIES.map((p) => <option key={p} value={p}>{statusLabel(p)}</option>)}
               </Select>
             </Field>
-            <Field label="مهلت" hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><input className="input ltr" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} placeholder="1404/01/01" /></Field>
+            <Field label="مهلت" hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><DatePicker className="input ltr" value={form.dueDate} onValueChange={(value) => setForm((f) => ({ ...f, dueDate: value }))} placeholder="1404/01/01" /></Field>
             <Field label="SLA (ساعت)"><Input type="number" value={form.slaHours} onChange={(e) => setForm((f) => ({ ...f, slaHours: e.target.value }))} /></Field>
           </div>
           <Field label={`کاربران مسئول (${toPersianDigits(form.assigneeIds.length)})`} error={users.error}>
@@ -196,7 +196,7 @@ export default function Tasks() {
               ))}
               {!users.loading && !users.error && !users.rows.length && <p>کاربری یافت نشد.</p>}
             </div>
-            <Pagination page={users.page} totalPages={users.totalPages} total={users.total} onChange={users.setPage} />
+            <Pagination pageSize={users.pageSize} onPageSizeChange={users.setPageSize} page={users.page} totalPages={users.totalPages} total={users.total} onChange={users.setPage} />
           </Field>
         </div>
       </Modal>

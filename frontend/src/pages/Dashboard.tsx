@@ -76,11 +76,12 @@ function PersonalDashboard() {
     let active = true;
     (async () => {
       try {
-        const requests: Promise<any>[] = [api.get('/dashboard/me')];
-        if (canMgmt) requests.push(api.get('/dashboard/management'));
-        if (hasPermission('tasks.view')) requests.push(api.get('/tasks?limit=60'));
-        if (hasPermission('attendance.view')) requests.push(api.get('/attendance/records?limit=200'));
-        const [m, mg, t, at] = await Promise.all(requests);
+        const [m, mg, t, at] = await Promise.all([
+          api.get('/dashboard/me'),
+          canMgmt ? api.get('/dashboard/management') : null,
+          hasPermission('tasks.view') ? api.get('/tasks?limit=60') : null,
+          hasPermission('attendance.view') ? api.get('/attendance/records?limit=200') : null,
+        ]);
         if (!active) return;
         setMy(m?.data?.data ?? null);
         if (mg) setMgmt(mg?.data?.data ?? null);
@@ -99,16 +100,12 @@ function PersonalDashboard() {
 
   /** تعداد رکوردهای حضور در هر روز هفته (۵ روز کاری) */
   const weekBars = useMemo(() => {
-    const counts = new Array(5).fill(0);
-    for (const r of attendance) {
-      const d = new Date(r.workDate);
-      const dow = d.getDay(); // 0=یکشنبه … 6=جمعه
-      const idx = dow === 6 ? -1 : dow - 1; // شنبه=0 … پنجشنبه=4
-      if (idx >= 0 && idx < 5) counts[idx] += 1;
-    }
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Tehran', year:'numeric', month:'2-digit', day:'2-digit' });
+    const days = Array.from({length:7},(_,index) => { const date = new Date(); date.setDate(date.getDate()-6+index); return date; });
+    const counts = days.map(date => attendance.filter(row => row.workDate.slice(0,10) === formatter.format(date)).length);
     const max = Math.max(1, ...counts);
     return counts.map((c, i) => ({
-      label: WEEKDAYS[i + 1],
+      label: new Intl.DateTimeFormat('fa-IR', { timeZone:'Asia/Tehran', weekday:'short' }).format(days[i]),
       value: c,
       height: Math.round((c / max) * 100),
     }));
@@ -117,7 +114,7 @@ function PersonalDashboard() {
   /** درصد حضور موفق (کارکرد کامل بدون تأخیر) */
   const attendanceRate = useMemo(() => {
     if (!attendance.length) return 0;
-    const good = attendance.filter((r) => r.workMinutes >= 420 && (r.lateMinutes ?? 0) <= 15).length;
+    const good = attendance.filter((r) => (r.lateMinutes ?? 0) === 0).length;
     return Math.round((good / attendance.length) * 100);
   }, [attendance]);
 
@@ -144,7 +141,7 @@ function PersonalDashboard() {
   return (
     <>
       <PageHeader
-        title={`سلام ${user?.fullName ?? ''} 👋`}
+        title={`سلام ${user?.fullName ?? ''}`}
         subtitle="خلاصهٔ وضعیت سازمان و کارهای در جریان"
       />
 
@@ -153,7 +150,7 @@ function PersonalDashboard() {
       {/* ---------- پنل تحلیلی ---------- */}
       <div className="hero-panel mb">
         <div className="hero-chart">
-          <div className="hero-title">حضور ثبت‌شده در هفتهٔ جاری</div>
+          <div className="hero-title">حضور ثبت‌شده در هفت روز اخیر</div>
           <div className="hero-bars">
             {weekBars.map((b, i) => (
               <div key={i} className="hero-bar-item">
@@ -192,17 +189,16 @@ function PersonalDashboard() {
 
       {/* ---------- کارت‌های خلاصه ---------- */}
       <div className="grid grid-4 mb">
-        <StatCard label="کل کاربران" value={toPersianDigits(mgmt?.employees.total ?? 0)} link="/users" />
-        <StatCard label="کاربران فعال" value={toPersianDigits(mgmt?.employees.active ?? 0)} link="/users" />
-        <StatCard label="غایب امروز" value={toPersianDigits(mgmt?.absentToday ?? 0)} link="/attendance" />
-        <StatCard label="قراردادهای رو به انقضا" value={toPersianDigits(mgmt?.expiringContracts ?? 0)} link="/contracts" />
+        <StatCard label="کارهای باز من" value={loading ? '—' : toPersianDigits(my?.myOpenTasks ?? 0)} link="/tasks" />
+        <StatCard label="درخواست‌های مرخصی من" value={loading ? '—' : toPersianDigits(my?.myActiveLeaves ?? 0)} link="/leaves" />
+        <StatCard label="جابه‌جایی شیفت در انتظار" value={loading ? '—' : toPersianDigits(my?.myPendingSwaps ?? 0)} link="/shifts" />
+        <StatCard label="اعلان‌های خوانده‌نشده" value={loading ? '—' : toPersianDigits(my?.unreadNotifications ?? 0)} link="/notifications" />
       </div>
 
       {/* ---------- بوم کانبان وظایف ---------- */}
       {hasPermission('tasks.view') && (
         <Card
           title="بوم کارها"
-          subtitle="وظایف بر اساس وضعیت — برای دیدن جزئیات روی هر کارت کلیک کنید"
           className="mb"
         >
           <div className="kanban">
@@ -211,9 +207,7 @@ function PersonalDashboard() {
                 <div className="kanban-col-head">
                   <span className="kanban-col-title">{col.title}</span>
                   <span className="kanban-col-count">{toPersianDigits(col.cards.length)}</span>
-                  <button className="kanban-col-menu" aria-label="گزینه‌ها">
-                    <MoreVertical size={15} />
-                  </button>
+                  <Link className="kanban-col-menu" to="/tasks" aria-label="مشاهده وظایف" title="مشاهده وظایف"><ArrowLeft size={15} /></Link>
                 </div>
                 <div className="kanban-cards">
                   {col.cards.slice(0, 8).map((t) => (
@@ -266,7 +260,7 @@ function Gauge({ value }: { value: number }) {
       </svg>
       <div className="gauge-center">
         <div className="gauge-number">{toPersianDigits(value)}٪</div>
-        <div className="gauge-label">حضور منظم</div>
+        <div className="gauge-label">رکوردهای بدون تأخیر</div>
       </div>
     </div>
   );
@@ -290,9 +284,7 @@ function TaskCard({ task }: { task: BoardTask }) {
         <Link to="/tasks" className="kanban-card-title" style={{ color: 'inherit', textDecoration: 'none' }}>
           {task.title}
         </Link>
-        <button className="kanban-card-menu" aria-label="گزینه‌ها">
-          <MoreVertical size={15} />
-        </button>
+        <Link className="kanban-card-menu" to="/tasks" aria-label="مشاهده وظیفه" title="مشاهده وظیفه"><ArrowLeft size={15} /></Link>
       </div>
       {task.description && <div className="kanban-card-desc">{task.description}</div>}
       <div className="kanban-card-foot">

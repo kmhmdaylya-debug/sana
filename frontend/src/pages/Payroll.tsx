@@ -58,7 +58,7 @@ export default function Payroll() {
     <>
       <PageHeader title="حقوق و دستمزد" subtitle="دوره‌های حقوق، فیش حقوقی و انتشار" />
       <Card>
-        <DataTable
+        <DataTable error={periods.error} onRetry={periods.reload}
           columns={cols}
           rows={periods.rows}
           loading={periods.loading}
@@ -77,8 +77,8 @@ export default function Payroll() {
             </>
           )}
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={periods.page} totalPages={periods.totalPages} total={periods.total} onChange={periods.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={periods.pageSize} onPageSizeChange={periods.setPageSize} page={periods.page} totalPages={periods.totalPages} total={periods.total} onChange={periods.setPage} />
         </div>
       </Card>
 
@@ -102,10 +102,10 @@ function Payslips({ periodId, onClose }: { periodId: string; onClose: () => void
   return (
     <>
       <Modal open title="فیش‌های حقوقی دوره" onClose={onClose} width={820}>
-        <DataTable columns={cols} rows={list.rows} loading={list.loading} rowActions={(r) => (
+        <DataTable error={list.error} onRetry={list.reload} columns={cols} rows={list.rows} loading={list.loading} rowActions={(r) => (
           <Button size="sm" variant="outline" onClick={() => setDetailId(r.id)}>جزئیات</Button>
         )} />
-        <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
       </Modal>
       {detailId && <PayslipDetail id={detailId} onClose={() => setDetailId(null)} />}
     </>

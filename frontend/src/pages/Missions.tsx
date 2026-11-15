@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker,
   Badge,
   Button,
   Card,
@@ -86,8 +86,8 @@ export default function Missions() {
         actions={canCreate && <Button onClick={() => setCreateOpen(true)}>ثبت مأموریت</Button>}
       />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
             <Select onChange={(e) => list.setFilter('status', e.target.value)} style={{ width: 180 }}>
               <option value="">همهٔ وضعیت‌ها</option>
               {Object.entries(MISSION_STATUS_LABELS).map(([v, l]) => (
@@ -96,7 +96,7 @@ export default function Missions() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
@@ -113,8 +113,8 @@ export default function Missions() {
             ) : null
           }
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 
@@ -130,12 +130,12 @@ export default function Missions() {
         }
       >
         <div className="col" style={{ gap: 14 }}>
-          <Field label="شناسهٔ نیرو (UUID)" required><input className="input ltr" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} /></Field>
+          <Field label="کارمند" required><EntityPicker value={form.employeeId} onValueChange={(value) => setForm((f) => ({ ...f, employeeId: value }))} endpoint="/employees" title="انتخاب کارمند" /></Field>
           <Field label="عنوان مأموریت" required><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="مقصد"><Input value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} /></Field>
           <div className="form-grid">
-            <Field label="از (میلادی ISO)" required><input className="input ltr" value={form.fromAt} onChange={(e) => setForm((f) => ({ ...f, fromAt: e.target.value }))} /></Field>
-            <Field label="تا (میلادی ISO)" required><input className="input ltr" value={form.toAt} onChange={(e) => setForm((f) => ({ ...f, toAt: e.target.value }))} /></Field>
+            <Field label="از (میلادی ISO)" required><Input className="input ltr" value={form.fromAt} onChange={(e) => setForm((f) => ({ ...f, fromAt: e.target.value }))} /></Field>
+            <Field label="تا (میلادی ISO)" required><Input className="input ltr" value={form.toAt} onChange={(e) => setForm((f) => ({ ...f, toAt: e.target.value }))} /></Field>
           </div>
           <Field label="برآورد هزینه (ریال)"><Input type="number" value={form.estimatedCost} onChange={(e) => setForm((f) => ({ ...f, estimatedCost: Number(e.target.value) }))} /></Field>
           <Field label="هدف مأموریت"><Textarea value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} /></Field>

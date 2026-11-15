@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { ManualDailyAttendanceDto } from './dto/manual-daily-attendance.dto';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { DailyAttendanceService } from './daily-attendance.service';
@@ -29,6 +30,13 @@ export class AttendanceController {
   @Get('daily')
   dailyStatus(@CurrentUser() user: AuthenticatedUser) {
     return this.daily.status(user);
+  }
+
+  @Patch('daily/:employeeId')
+  @RequirePermissions(PERMISSIONS.DASHBOARD_VIEW_MANAGEMENT, PERMISSIONS.ATTENDANCE_CREATE)
+  @ApiOperation({ summary: 'ثبت دستی حضور امروز توسط مدیر در حوزهٔ دسترسی' })
+  setDaily(@Param('employeeId', ParseUUIDPipe) employeeId: string, @Body() dto: ManualDailyAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.daily.setToday(employeeId, dto, user);
   }
 
   // =========================================================================

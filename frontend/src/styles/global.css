@@ -2,95 +2,6 @@
    سامانه مدیریت منابع انسانی «سنا» — استایل سراسری (RTL / فارسی)
    ========================================================================== */
 
-@font-face {
-  font-family: 'Vazirmatn';
-  src: local('Vazirmatn'), local('Vazir');
-  font-display: swap;
-}
-
-:root {
-  /* پالت گرم و کرم (الهام‌گرفته از طراحی BizLink) */
-  --blue-50: #eef1f6;
-  --blue-100: #dde3ee;
-  --blue-500: #4b6484;
-  --blue-600: #3d5573;
-  --blue-700: #2f4259;
-  --blue-900: #1b2735;
-
-  --navy-800: #26241f;
-  --navy-900: #1b1a17;
-  --navy-700: #35322b;
-
-  --bg: #f3f1ec;
-  --surface: #fffefb;
-  --surface-2: #f8f6f1;
-  --sidebar-bg: #f7f5f0;
-  --border: #e8e4db;
-  --border-strong: #d9d4c8;
-
-  --text: #1c1b18;
-  --text-muted: #7d776b;
-  --text-soft: #a8a294;
-
-  --olive-50: #eef0e2;
-  --olive-100: #e0e4cd;
-  --olive-300: #b9bd92;
-  --olive-500: #a3a878;
-  --olive-600: #8d925f;
-  --olive-700: #74794a;
-
-  --green-50: #e8f3ec;
-  --green-200: #b7dcc2;
-  --green-600: #3f7d52;
-  --green-700: #336544;
-
-  --amber-50: #fbf1df;
-  --amber-200: #f2ddb0;
-  --amber-600: #a8781c;
-
-  --red-50: #f8e9e7;
-  --red-200: #efc4bd;
-  --red-600: #b3443a;
-  --red-700: #94362e;
-
-  --sky-50: #e7f0f4;
-  --sky-200: #b9d7e4;
-  --sky-600: #3f7a94;
-
-  --violet-50: #efeaf5;
-  --violet-200: #d6c9e6;
-  --violet-600: #6f5490;
-
-  --radius: 16px;
-  --radius-sm: 10px;
-  --shadow-sm: 0 1px 2px rgba(28, 27, 24, 0.04);
-  --shadow: 0 6px 22px rgba(28, 27, 24, 0.07);
-  --shadow-lg: 0 20px 48px rgba(28, 27, 24, 0.14);
-  --sidebar-w: 252px;
-  --header-h: 68px;
-}
-
-html[data-theme='dark'] {
-  --bg: #171613;
-  --surface: #1f1e1a;
-  --surface-2: #262420;
-  --sidebar-bg: #1b1a17;
-  --border: #2e2c26;
-  --border-strong: #3d3a32;
-  --text: #f0ede6;
-  --text-muted: #a49d90;
-  --text-soft: #7c7568;
-  --olive-50: #2b2d20;
-  --olive-100: #3a3d28;
-  --blue-50: #232833;
-  --green-50: #1d2a20;
-  --amber-50: #2e2617;
-  --red-50: #2e1c19;
-  --sky-50: #1c262c;
-  --violet-50: #262030;
-  --shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.55);
-}
 
 * {
   box-sizing: border-box;
@@ -156,7 +67,7 @@ a:hover {
   font-weight: 700;
   font-size: 16px;
   color: var(--text);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   position: sticky;
   top: 0;
   background: var(--sidebar-bg);
@@ -188,7 +99,7 @@ a:hover {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-soft);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 .sidebar-link {
   display: flex;
@@ -307,7 +218,7 @@ a:hover {
 .header-title {
   font-weight: 600;
   font-size: 15px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .header-spacer {
   flex: 1;
@@ -417,7 +328,7 @@ a:hover {
 .card-title {
   font-weight: 600;
   font-size: 14.5px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .card-body {
   padding: 18px;
@@ -1377,7 +1288,7 @@ a:hover {
 .gauge-number {
   font-size: 30px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 .gauge-label {
   font-size: 11px;
@@ -1394,7 +1305,7 @@ a:hover {
 .hero-kpi-value {
   font-size: 32px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.1;
 }
 .hero-kpi-label {

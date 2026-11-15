@@ -61,7 +61,7 @@ export class EmployeePanelController {
   }
 
   @Post('tasks/:taskId/check-in')
-  @RequirePermissions(PERMISSIONS.PANEL_ATTENDANCE)
+  @RequirePermissions(PERMISSIONS.PANEL_ATTENDANCE, PERMISSIONS.DASHBOARD_VIEW_MANAGEMENT, PERMISSIONS.ATTENDANCE_CREATE)
   @ApiOperation({ summary: 'ثبت حضور روی مرحلهٔ پروژه' })
   checkIn(
     @Param('taskId', ParseUUIDPipe) taskId: string,

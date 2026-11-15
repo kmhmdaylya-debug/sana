@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker,
   Badge,
   Button,
   Card,
@@ -103,8 +103,8 @@ export default function Loans() {
         actions={canCreate && <Button onClick={() => setCreateOpen(true)}>درخواست وام</Button>}
       />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
             <Select onChange={(e) => list.setFilter('status', e.target.value)} style={{ width: 180 }}>
               <option value="">همهٔ وضعیت‌ها</option>
               {Object.entries(LOAN_STATUS_LABELS).map(([v, l]) => (
@@ -113,7 +113,7 @@ export default function Loans() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
@@ -129,8 +129,8 @@ export default function Loans() {
             </>
           )}
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 
@@ -162,7 +162,7 @@ export default function Loans() {
         footer={<><Button onClick={submit} loading={saving}>ثبت</Button><Button variant="secondary" onClick={() => setCreateOpen(false)}>انصراف</Button></>}
       >
         <div className="col" style={{ gap: 14 }}>
-          <Field label="شناسهٔ نیرو (UUID)" required><input className="input ltr" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} /></Field>
+          <Field label="کارمند" required><EntityPicker value={form.employeeId} onValueChange={(value) => setForm((f) => ({ ...f, employeeId: value }))} endpoint="/employees" title="انتخاب کارمند" /></Field>
           <div className="form-grid">
             <Field label="نوع">
               <Select value={form.loanType} onChange={(e) => setForm((f) => ({ ...f, loanType: e.target.value }))}>

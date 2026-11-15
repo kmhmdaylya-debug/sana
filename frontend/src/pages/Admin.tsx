@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { Tabs,
   Badge,
   Button,
   Card,
@@ -107,18 +107,18 @@ export default function Admin() {
     <>
       <PageHeader title="امور اداری" subtitle="مکاتبات، جلسات، نظرسنجی و پیشنهادها" />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'corr' ? ' active' : ''}`} onClick={() => setTab('corr')}>مکاتبات</button>
         <button className={`tab${tab === 'meetings' ? ' active' : ''}`} onClick={() => setTab('meetings')}>جلسات</button>
         <button className={`tab${tab === 'surveys' ? ' active' : ''}`} onClick={() => setTab('surveys')}>نظرسنجی</button>
         <button className={`tab${tab === 'suggestions' ? ' active' : ''}`} onClick={() => setTab('suggestions')}>صندوق پیشنهادها</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'corr' && (
           <>
-            <div style={{ padding: '14px 14px 0' }}>
-              <ListToolbar onSearch={(s) => corr.setSearch(s)}>
+            <div className="list-toolbar-wrap">
+              <ListToolbar search={corr.search} onSearch={(s) => corr.setSearch(s)}>
                 <Select onChange={(e) => corr.setFilter('direction', e.target.value)} style={{ width: 140 }}>
                   <option value="">وارده و صادره</option>
                   <option value="INCOMING">وارده</option>
@@ -126,25 +126,25 @@ export default function Admin() {
                 </Select>
               </ListToolbar>
             </div>
-            <DataTable columns={corrCols} rows={corr.rows} loading={corr.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={corr.page} totalPages={corr.totalPages} total={corr.total} onChange={corr.setPage} />
+            <DataTable error={corr.error} onRetry={corr.reload} columns={corrCols} rows={corr.rows} loading={corr.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={corr.pageSize} onPageSizeChange={corr.setPageSize} page={corr.page} totalPages={corr.totalPages} total={corr.total} onChange={corr.setPage} />
             </div>
           </>
         )}
         {tab === 'meetings' && (
           <>
-            <DataTable columns={meetingCols} rows={meetings.rows} loading={meetings.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={meetings.page} totalPages={meetings.totalPages} total={meetings.total} onChange={meetings.setPage} />
+            <DataTable error={meetings.error} onRetry={meetings.reload} columns={meetingCols} rows={meetings.rows} loading={meetings.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={meetings.pageSize} onPageSizeChange={meetings.setPageSize} page={meetings.page} totalPages={meetings.totalPages} total={meetings.total} onChange={meetings.setPage} />
             </div>
           </>
         )}
         {tab === 'surveys' && (
           <>
-            <DataTable columns={surveyCols} rows={surveys.rows} loading={surveys.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={surveys.page} totalPages={surveys.totalPages} total={surveys.total} onChange={surveys.setPage} />
+            <DataTable error={surveys.error} onRetry={surveys.reload} columns={surveyCols} rows={surveys.rows} loading={surveys.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={surveys.pageSize} onPageSizeChange={surveys.setPageSize} page={surveys.page} totalPages={surveys.totalPages} total={surveys.total} onChange={surveys.setPage} />
             </div>
           </>
         )}
@@ -153,9 +153,9 @@ export default function Admin() {
             <div className="alert alert-info mb" style={{ margin: '14px 14px 0' }}>
               ارسال پیشنهاد با گزینهٔ ناشناس از طریق دکمهٔ «ثبت پیشنهاد» امکان‌پذیر است.
             </div>
-            <DataTable columns={suggestionCols} rows={suggestions.rows} loading={suggestions.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={suggestions.page} totalPages={suggestions.totalPages} total={suggestions.total} onChange={suggestions.setPage} />
+            <DataTable error={suggestions.error} onRetry={suggestions.reload} columns={suggestionCols} rows={suggestions.rows} loading={suggestions.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={suggestions.pageSize} onPageSizeChange={suggestions.setPageSize} page={suggestions.page} totalPages={suggestions.totalPages} total={suggestions.total} onChange={suggestions.setPage} />
             </div>
           </>
         )}

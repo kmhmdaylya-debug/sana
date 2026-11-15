@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -32,12 +32,19 @@ import {
   Users,
   Wallet,
   X,
+  PanelRightClose,
+  PanelRightOpen,
+  ChevronDown,
+  ChevronLeft,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { toPersianDigits } from '../lib/format';
 import ChangePassword from '../components/ChangePassword';
 import DailyAttendance from '../components/DailyAttendance';
+import GlobalSearch from '../components/GlobalSearch';
+import PageBoundary from '../components/PageBoundary';
+import { applyTheme, readTheme } from '../lib/theme';
 
 interface MenuItem {
   to: string;
@@ -113,6 +120,8 @@ const MENU: { group: string; items: MenuItem[] }[] = [
 ];
 
 const PAGE_TITLES: Record<string, string> = {
+  '/panel': 'پنل کارمند',
+  '/projects': 'پروژه‌ها و گانت',
   '/': 'داشبورد',
   '/approvals': 'صندوق تأییدها',
   '/users': 'کاربران و پرسنل',
@@ -142,171 +151,118 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [dark, setDark] = useState(() => localStorage.getItem('sana-theme') === 'dark');
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sana-sidebar') === 'collapsed');
+  const [dark, setDark] = useState(() => readTheme() === 'dark');
   const [unread, setUnread] = useState(0);
-  const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [closedGroups, setClosedGroups] = useState<string[]>([]);
+  const aside = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const profile = useRef<HTMLDetailsElement>(null);
 
+  useEffect(() => { applyTheme(dark ? 'dark' : 'light'); }, [dark]);
+  useEffect(() => { localStorage.setItem('sana-sidebar', collapsed ? 'collapsed' : 'expanded'); }, [collapsed]);
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    localStorage.setItem('sana-theme', dark ? 'dark' : 'light');
-  }, [dark]);
-
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSearchOpen(v => !v); }
+      if (event.key === 'Escape') { setSidebarOpen(false); if (profile.current) profile.current.open = false; }
+    };
+    document.addEventListener('keydown', onKey);
+    const closeProfile = (event: PointerEvent) => { if (profile.current && !profile.current.contains(event.target as Node)) profile.current.open = false; };
+    document.addEventListener('pointerdown', closeProfile);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', closeProfile); };
+  }, []);
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const old = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    aside.current?.querySelector<HTMLElement>('button,a')?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(aside.current?.querySelectorAll<HTMLElement>('a[href],button:not(:disabled)') ?? []).filter(el => el.getClientRects().length > 0);
+      const first = controls[0], last = controls[controls.length-1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', trap);
+    return () => { document.body.style.overflow = old; document.removeEventListener('keydown', trap); (previous?.isConnected ? previous : menuButton.current)?.focus(); };
+  }, [sidebarOpen]);
   useEffect(() => {
     setSidebarOpen(false);
+    const activeGroup = MENU.find(group => group.items.some(item => item.to === location.pathname));
+    if (activeGroup) setClosedGroups(groups => groups.filter(group => group !== activeGroup.group));
+    if (profile.current) profile.current.open = false;
+    document.title = `${PAGE_TITLES[location.pathname] ?? 'کارهای تیم'} | سنا`;
     let active = true;
-    api
-      .get('/notifications/unread-count')
-      .then((r) => {
-        if (active) setUnread(r?.data?.data?.unreadCount ?? 0);
-      })
-      .catch(() => {});
-    // شمارندهٔ صندوق تأییدها در کنار آیتم منو
-    api
-      .get('/approvals/inbox')
-      .then((r) => {
-        const rows = r?.data?.data ?? [];
-        if (active) setPendingApprovals(Array.isArray(rows) ? rows.length : (rows?.items?.length ?? 0));
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [location.pathname]);
+    if (hasPermission('notifications.view')) api.get('/notifications/unread-count').then(r => { if (active) setUnread(r?.data?.data?.unreadCount ?? 0); }).catch(() => {});
+    if (hasPermission('approvals.view')) api.get('/approvals/inbox').then(r => {
+      const rows = r?.data?.data ?? [];
+      if (active) setPendingApprovals(Array.isArray(rows) ? rows.length : (rows?.items?.length ?? 0));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [location.pathname, hasPermission]);
 
-  const visibleMenu = useMemo(
-    () =>
-      MENU.map((g) => ({
-        ...g,
-        items: g.items
-          .filter(
-            (i) =>
-              (!i.permission || user?.isSuperAdmin || user?.permissions?.includes(i.permission)) &&
-              (!i.requiresEmployee || !!user?.employee),
-          )
-          .map((i) => (i.to === '/approvals' ? { ...i, count: pendingApprovals } : i)),
-      })).filter((g) => g.items.length > 0),
-    [user, pendingApprovals],
-  );
+  const visibleMenu = useMemo(() => MENU.map(g => ({
+    ...g,
+    items: g.items.filter(i => (!i.permission || hasPermission(i.permission)) && (!i.requiresEmployee || !!user?.employee))
+      .map(i => i.to === '/approvals' ? { ...i, count:pendingApprovals } : i),
+  })).filter(g => g.items.length > 0), [user, pendingApprovals, hasPermission]);
+  const currentGroup = visibleMenu.find(group => group.items.some(item => item.to === location.pathname));
+  const title = location.pathname === '/' ? 'کارهای تیم' : PAGE_TITLES[location.pathname] ?? 'سامانه سنا';
+  const initials = (user?.fullName ?? 'کاربر').split(' ').slice(0,2).map(p => p[0]).join('');
+  const role = user?.isSuperAdmin ? 'مدیر سیستم' : user?.employee?.position?.title ?? user?.roles?.[0]?.name ?? 'کاربر';
+  const signOut = async () => { await logout(); navigate('/login'); };
 
-  const title = PAGE_TITLES[location.pathname] ?? 'سامانهٔ سنا';
-  const initials = (user?.fullName ?? '؟').split(' ').slice(0, 2).map((p) => p[0]).join('');
-
-  return (
-    <div className="app-shell">
-      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-logo">سنا</div>
-          <div>
-            <div>سنا</div>
-            <div style={{ fontSize: 10.5, fontWeight: 400, color: 'var(--text-soft)' }}>مدیریت منابع انسانی</div>
-          </div>
-          <button className="header-icon-btn mobile-only" style={{ marginInlineStart: 'auto' }} aria-label="بستن منو" title="بستن منو" onClick={() => setSidebarOpen(false)}><X size={18} /></button>
-        </div>
-        <nav className="sidebar-nav">
-          {visibleMenu.map((g) => (
-            <div key={g.group}>
-              <div className="sidebar-group">{g.group}</div>
-              {g.items.map((i) => (
-                <NavLink key={i.to} to={i.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={i.to === '/'}>
-                  {i.icon}
-                  <span>{i.label}</span>
-                  {i.count !== undefined && <span className="sidebar-link-count">{toPersianDigits(i.count)}</span>}
-                </NavLink>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        <div className="sidebar-foot">
-          <div className="sidebar-user">
-            <div className="sidebar-user-avatar">{initials}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="sidebar-user-name">{user?.fullName ?? 'کاربر'}</div>
-              <div className="sidebar-user-role">{user?.employee?.position?.title ?? user?.roles?.[0]?.name ?? 'کاربر'}</div>
-            </div>
-            <button
-              className="header-icon-btn"
-              onClick={async () => {
-                await logout();
-                navigate('/login');
-              }}
-              aria-label="خروج"
-              title="خروج از حساب"
-            >
-              <LogOut size={17} />
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      <div className="app-main">
-        <header className="app-header">
-          <button
-            className="header-icon-btn mobile-only"
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label="منو"
-            aria-expanded={sidebarOpen}
-          >
-            <Menu size={18} />
-          </button>
-
-          <div className="search-box">
-            <Search size={16} />
-            <input
-              className="input"
-              placeholder="جست‌وجوی نیرو، پروژه، سند…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && search.trim()) {
-                  navigate(`/users?search=${encodeURIComponent(search.trim())}`);
-                }
-              }}
-            />
-          </div>
-
-          <div className="header-spacer" />
-          <div className="header-actions">
-            <ChangePassword />
-            <button
-              className="header-icon-btn"
-              onClick={() => navigate('/notifications')}
-              aria-label="اعلان‌ها"
-              title="اعلان‌ها"
-            >
-              <Bell size={18} />
-              {unread > 0 && (
-                <span className="header-badge-dot">{toPersianDigits(unread > 99 ? '99+' : unread)}</span>
-              )}
-            </button>
-            <button
-              className="header-icon-btn"
-              onClick={() => setDark((v) => !v)}
-              aria-label="تغییر پوسته"
-              title={dark ? 'پوستهٔ روشن' : 'پوستهٔ تیره'}
-            >
-              {dark ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            <button
-              className="header-icon-btn"
-              onClick={() => navigate(user?.employee ? '/panel' : '/users')}
-              aria-label="حساب کاربری"
-              title={user?.fullName ?? 'حساب کاربری'}
-            >
-              <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials}</div>
-            </button>
-          </div>
-        </header>
-        <main className="app-content">
-          {user && <DailyAttendance key={user.id} attendance={!!user.employee} />}
-          <Outlet />
-        </main>
+  return <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
+    <a className="skip-link" href="#main-content">رفتن به محتوای اصلی</a>
+    {sidebarOpen && <button type="button" className="sidebar-backdrop" aria-label="بستن منو" onClick={() => setSidebarOpen(false)} />}
+    <aside ref={aside} id="main-sidebar" className={`sidebar${sidebarOpen ? ' open' : ''}`} role={sidebarOpen ? 'dialog' : undefined} aria-modal={sidebarOpen || undefined} aria-label="منوی اصلی">
+      <div className="sidebar-brand">
+        <img className="sidebar-brand-logo" src="/favicon.svg" alt="" width={36} height={36} />
+        <div className="brand-copy"><strong>سنا</strong><span>مدیریت منابع انسانی</span></div>
+        <button type="button" className="header-icon-btn mobile-only" aria-label="بستن منو" title="بستن منو" onClick={() => setSidebarOpen(false)}><X size={19} /></button>
       </div>
+      <nav className="sidebar-nav" aria-label="بخش‌های سامانه">
+        {visibleMenu.map(g => {
+          const groupClosed = closedGroups.includes(g.group);
+          return <div className="sidebar-section" key={g.group}>
+            <button type="button" className="sidebar-group" aria-expanded={!groupClosed} onClick={() => setClosedGroups(groups => groups.includes(g.group) ? groups.filter(name => name !== g.group) : [...groups,g.group])}><span>{g.group}</span><ChevronDown size={12} /></button>
+            <div className={groupClosed ? 'sidebar-group-items is-closed' : 'sidebar-group-items'}>{g.items.map(item => <NavLink key={item.to} to={item.to} end={item.to === '/'} title={collapsed ? item.label : undefined} aria-label={item.label} className={({isActive}) => `sidebar-link${isActive ? ' active' : ''}`}>
+              {item.icon}<span className="sidebar-link-label">{item.label}</span>{!!item.count && <span className="sidebar-link-count">{toPersianDigits(item.count)}</span>}
+            </NavLink>)}</div>
+          </div>;
+        })}
+      </nav>
+      <div className="sidebar-foot">
+        <button type="button" className="sidebar-collapse" onClick={() => setCollapsed(v => !v)} title={collapsed ? 'باز کردن منو' : 'جمع کردن منو'} aria-label={collapsed ? 'باز کردن منو' : 'جمع کردن منو'} aria-expanded={!collapsed}>{collapsed ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}<span>جمع کردن منو</span></button>
+        <div className="sidebar-user"><span className="sidebar-user-avatar">{initials}</span><div className="sidebar-user-copy"><div className="sidebar-user-name">{user?.fullName}</div><div className="sidebar-user-role">{role}</div></div><button type="button" className="header-icon-btn" onClick={() => void signOut()} aria-label="خروج" title="خروج از حساب"><LogOut size={17} /></button></div>
+      </div>
+    </aside>
+    <div className="app-main">
+      <header className="app-header">
+        <button ref={menuButton} type="button" className="header-icon-btn mobile-only" onClick={() => setSidebarOpen(v => !v)} aria-label="منو" aria-expanded={sidebarOpen} aria-controls="main-sidebar"><Menu size={20} /></button>
+        <nav className="header-breadcrumb" aria-label="مسیر صفحه"><span>{currentGroup?.group ?? 'سنا'}</span><ChevronLeft size={13} /><strong>{title}</strong></nav>
+        <button type="button" className="header-search" onClick={() => setSearchOpen(true)} aria-label="جست‌وجوی سراسری" title="جست‌وجوی سراسری"><Search size={17} /><span>جست‌وجو در سنا</span></button>
+        <div className="header-spacer" />
+        {user && <DailyAttendance />}
+        <div className="header-actions">
+          <ChangePassword />
+          {hasPermission('notifications.view') && <button type="button" className="header-icon-btn" onClick={() => navigate('/notifications')} aria-label="اعلان‌ها" title="اعلان‌ها"><Bell size={18} />{unread > 0 && <span className="header-badge-dot">{toPersianDigits(unread > 99 ? '99+' : unread)}</span>}</button>}
+          <button type="button" className="header-icon-btn" onClick={() => setDark(v => !v)} aria-label={dark ? 'فعال کردن تم روشن' : 'فعال کردن تم تیره'} title={dark ? 'تم روشن' : 'تم تیره'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
+          <details ref={profile} className="profile-menu">
+            <summary aria-label="حساب کاربری" title={user?.fullName}><span className="avatar">{initials}</span><ChevronDown size={12} /></summary>
+            <div className="profile-dropdown"><strong>{user?.fullName}</strong><span>{role}</span><span className="ltr">{user?.username}</span>{user?.employee && hasPermission('panel.view') && <NavLink to="/panel"><UserRound size={16} />پنل کارمند</NavLink>}{hasPermission('settings.view') && <NavLink to="/settings"><Settings size={16} />تنظیمات</NavLink>}<button type="button" onClick={() => void signOut()}><LogOut size={16} />خروج از حساب</button></div>
+          </details>
+        </div>
+      </header>
+      <main className="app-content" id="main-content" tabIndex={-1}><PageBoundary key={location.pathname}><Outlet /></PageBoundary></main>
     </div>
-  );
+    <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} links={visibleMenu.flatMap(group => group.items)} />
+  </div>;
 }

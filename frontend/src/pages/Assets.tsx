@@ -74,8 +74,8 @@ export default function Assets() {
         actions={canManage && <Button onClick={() => setCreateOpen(true)}><Plus size={15} /> دارایی جدید</Button>}
       />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
             <Select onChange={(e) => list.setFilter('status', e.target.value)} style={{ width: 170 }}>
               <option value="">همهٔ وضعیت‌ها</option>
               {Object.entries(ASSET_STATUS_LABELS).map(([v, l]) => (
@@ -84,9 +84,9 @@ export default function Assets() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable columns={cols} rows={list.rows} loading={list.loading} />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <DataTable error={list.error} onRetry={list.reload} columns={cols} rows={list.rows} loading={list.loading} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 

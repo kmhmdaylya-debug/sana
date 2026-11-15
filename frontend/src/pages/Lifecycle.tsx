@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker, DatePicker, Tabs,
   Badge,
   Button,
   Card,
@@ -88,33 +88,33 @@ export default function Lifecycle() {
         actions={canManage && tab === 'terminations' && <Button onClick={() => setTermOpen(true)}>درخواست خاتمه</Button>}
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'onboarding' ? ' active' : ''}`} onClick={() => setTab('onboarding')}>ورود نیرو</button>
         <button className={`tab${tab === 'offboarding' ? ' active' : ''}`} onClick={() => setTab('offboarding')}>تسویهٔ خروج</button>
         <button className={`tab${tab === 'terminations' ? ' active' : ''}`} onClick={() => setTab('terminations')}>درخواست‌های خاتمه</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'onboarding' && (
           <>
-            <DataTable columns={onbCols} rows={onboarding.rows} loading={onboarding.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={onboarding.page} totalPages={onboarding.totalPages} total={onboarding.total} onChange={onboarding.setPage} />
+            <DataTable error={onboarding.error} onRetry={onboarding.reload} columns={onbCols} rows={onboarding.rows} loading={onboarding.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={onboarding.pageSize} onPageSizeChange={onboarding.setPageSize} page={onboarding.page} totalPages={onboarding.totalPages} total={onboarding.total} onChange={onboarding.setPage} />
             </div>
           </>
         )}
         {tab === 'offboarding' && (
           <>
-            <DataTable columns={offbCols} rows={offboarding.rows} loading={offboarding.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={offboarding.page} totalPages={offboarding.totalPages} total={offboarding.total} onChange={offboarding.setPage} />
+            <DataTable error={offboarding.error} onRetry={offboarding.reload} columns={offbCols} rows={offboarding.rows} loading={offboarding.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={offboarding.pageSize} onPageSizeChange={offboarding.setPageSize} page={offboarding.page} totalPages={offboarding.totalPages} total={offboarding.total} onChange={offboarding.setPage} />
             </div>
           </>
         )}
         {tab === 'terminations' && (
           <>
-            <div style={{ padding: '14px 14px 0' }}><ListToolbar onSearch={(s) => terminations.setSearch(s)} /></div>
-            <DataTable
+            <div className="list-toolbar-wrap"><ListToolbar search={terminations.search} onSearch={(s) => terminations.setSearch(s)} /></div>
+            <DataTable error={terminations.error} onRetry={terminations.reload}
               columns={termCols}
               rows={terminations.rows}
               loading={terminations.loading}
@@ -127,8 +127,8 @@ export default function Lifecycle() {
                 ) : null
               }
             />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={terminations.page} totalPages={terminations.totalPages} total={terminations.total} onChange={terminations.setPage} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={terminations.pageSize} onPageSizeChange={terminations.setPageSize} page={terminations.page} totalPages={terminations.totalPages} total={terminations.total} onChange={terminations.setPage} />
             </div>
           </>
         )}
@@ -139,7 +139,7 @@ export default function Lifecycle() {
         footer={<><Button onClick={submitTermination} loading={saving}>ثبت</Button><Button variant="secondary" onClick={() => setTermOpen(false)}>انصراف</Button></>}
       >
         <div className="col" style={{ gap: 14 }}>
-          <Field label="شناسهٔ نیرو (UUID)" required><input className="input ltr" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} /></Field>
+          <Field label="کارمند" required><EntityPicker value={form.employeeId} onValueChange={(value) => setForm((f) => ({ ...f, employeeId: value }))} endpoint="/employees" title="انتخاب کارمند" /></Field>
           <Field label="دلیل" required>
             <Select value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}>
               <option value="RESIGNATION">استعفا</option>
@@ -149,7 +149,7 @@ export default function Lifecycle() {
               <option value="OTHER">سایر</option>
             </Select>
           </Field>
-          <Field label="تاریخ خاتمه" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><input className="input ltr" value={form.terminationDate} onChange={(e) => setForm((f) => ({ ...f, terminationDate: e.target.value }))} placeholder="1404/01/01" /></Field>
+          <Field label="تاریخ خاتمه" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><DatePicker className="input ltr" value={form.terminationDate} onValueChange={(value) => setForm((f) => ({ ...f, terminationDate: value }))} placeholder="1404/01/01" /></Field>
           <Field label="توضیحات"><Textarea value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} /></Field>
         </div>
       </Modal>

@@ -3,7 +3,7 @@ import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { Tabs,
   Badge,
   Button,
   Card,
@@ -124,36 +124,36 @@ export default function Recruitment() {
         actions={canManage && tab === 'requisitions' && <Button onClick={() => setReqOpen(true)}>درخواست جذب جدید</Button>}
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'requisitions' ? ' active' : ''}`} onClick={() => setTab('requisitions')}>درخواست‌های جذب</button>
         <button className={`tab${tab === 'openings' ? ' active' : ''}`} onClick={() => setTab('openings')}>آگهی‌ها</button>
         <button className={`tab${tab === 'applicants' ? ' active' : ''}`} onClick={() => setTab('applicants')}>داوطلبان</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'requisitions' && (
           <>
-            <div style={{ padding: '14px 14px 0' }}><ListToolbar onSearch={(s) => reqs.setSearch(s)} /></div>
-            <DataTable columns={reqCols} rows={reqs.rows} loading={reqs.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={reqs.page} totalPages={reqs.totalPages} total={reqs.total} onChange={reqs.setPage} />
+            <div className="list-toolbar-wrap"><ListToolbar search={reqs.search} onSearch={(s) => reqs.setSearch(s)} /></div>
+            <DataTable error={reqs.error} onRetry={reqs.reload} columns={reqCols} rows={reqs.rows} loading={reqs.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={reqs.pageSize} onPageSizeChange={reqs.setPageSize} page={reqs.page} totalPages={reqs.totalPages} total={reqs.total} onChange={reqs.setPage} />
             </div>
           </>
         )}
         {tab === 'openings' && (
           <>
-            <DataTable columns={openingCols} rows={openings.rows} loading={openings.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={openings.page} totalPages={openings.totalPages} total={openings.total} onChange={openings.setPage} />
+            <DataTable error={openings.error} onRetry={openings.reload} columns={openingCols} rows={openings.rows} loading={openings.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={openings.pageSize} onPageSizeChange={openings.setPageSize} page={openings.page} totalPages={openings.totalPages} total={openings.total} onChange={openings.setPage} />
             </div>
           </>
         )}
         {tab === 'applicants' && (
           <>
-            <div style={{ padding: '14px 14px 0' }}><ListToolbar onSearch={(s) => apps.setSearch(s)} /></div>
-            <DataTable columns={appCols} rows={apps.rows} loading={apps.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={apps.page} totalPages={apps.totalPages} total={apps.total} onChange={apps.setPage} />
+            <div className="list-toolbar-wrap"><ListToolbar search={apps.search} onSearch={(s) => apps.setSearch(s)} /></div>
+            <DataTable error={apps.error} onRetry={apps.reload} columns={appCols} rows={apps.rows} loading={apps.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={apps.pageSize} onPageSizeChange={apps.setPageSize} page={apps.page} totalPages={apps.totalPages} total={apps.total} onChange={apps.setPage} />
             </div>
           </>
         )}

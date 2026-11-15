@@ -3,7 +3,7 @@ import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker, DatePicker, Tabs,
   Badge,
   Button,
   Card,
@@ -106,35 +106,35 @@ export default function Training() {
         )}
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'courses' ? ' active' : ''}`} onClick={() => setTab('courses')}>دوره‌ها</button>
         <button className={`tab${tab === 'records' ? ' active' : ''}`} onClick={() => setTab('records')}>سوابق آموزش</button>
         <button className={`tab${tab === 'certs' ? ' active' : ''}`} onClick={() => setTab('certs')}>گواهینامه‌ها</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'courses' && (
           <>
-            <div style={{ padding: '14px 14px 0' }}><ListToolbar onSearch={(s) => courses.setSearch(s)} /></div>
-            <DataTable columns={courseCols} rows={courses.rows} loading={courses.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={courses.page} totalPages={courses.totalPages} total={courses.total} onChange={courses.setPage} />
+            <div className="list-toolbar-wrap"><ListToolbar search={courses.search} onSearch={(s) => courses.setSearch(s)} /></div>
+            <DataTable error={courses.error} onRetry={courses.reload} columns={courseCols} rows={courses.rows} loading={courses.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={courses.pageSize} onPageSizeChange={courses.setPageSize} page={courses.page} totalPages={courses.totalPages} total={courses.total} onChange={courses.setPage} />
             </div>
           </>
         )}
         {tab === 'records' && (
           <>
-            <DataTable columns={recordCols} rows={records.rows} loading={records.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={records.page} totalPages={records.totalPages} total={records.total} onChange={records.setPage} />
+            <DataTable error={records.error} onRetry={records.reload} columns={recordCols} rows={records.rows} loading={records.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={records.pageSize} onPageSizeChange={records.setPageSize} page={records.page} totalPages={records.totalPages} total={records.total} onChange={records.setPage} />
             </div>
           </>
         )}
         {tab === 'certs' && (
           <>
-            <DataTable columns={certCols} rows={certs.rows} loading={certs.loading} />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={certs.page} totalPages={certs.totalPages} total={certs.total} onChange={certs.setPage} />
+            <DataTable error={certs.error} onRetry={certs.reload} columns={certCols} rows={certs.rows} loading={certs.loading} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={certs.pageSize} onPageSizeChange={certs.setPageSize} page={certs.page} totalPages={certs.totalPages} total={certs.total} onChange={certs.setPage} />
             </div>
           </>
         )}
@@ -145,7 +145,7 @@ export default function Training() {
         footer={<><Button onClick={submitCourse} loading={saving}>ثبت</Button><Button variant="secondary" onClick={() => setCourseOpen(false)}>انصراف</Button></>}
       >
         <div className="form-grid">
-          <Field label="کد دوره" required><input className="input ltr" value={courseForm.code} onChange={(e) => setCourseForm((f) => ({ ...f, code: e.target.value }))} /></Field>
+          <Field label="کد دوره" required><Input className="input ltr" value={courseForm.code} onChange={(e) => setCourseForm((f) => ({ ...f, code: e.target.value }))} /></Field>
           <Field label="عنوان" required><Input value={courseForm.title} onChange={(e) => setCourseForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="مدرس"><Input value={courseForm.instructor} onChange={(e) => setCourseForm((f) => ({ ...f, instructor: e.target.value }))} /></Field>
           <Field label="مدت (ساعت)"><Input type="number" value={courseForm.durationHours} onChange={(e) => setCourseForm((f) => ({ ...f, durationHours: Number(e.target.value) }))} /></Field>
@@ -158,10 +158,10 @@ export default function Training() {
         footer={<><Button onClick={submitRecord} loading={saving}>ثبت</Button><Button variant="secondary" onClick={() => setRecordOpen(false)}>انصراف</Button></>}
       >
         <div className="col" style={{ gap: 14 }}>
-          <Field label="شناسهٔ نیرو (UUID)" required><input className="input ltr" value={recordForm.employeeId} onChange={(e) => setRecordForm((f) => ({ ...f, employeeId: e.target.value }))} /></Field>
-          <Field label="شناسهٔ دوره (UUID)" required><input className="input ltr" value={recordForm.courseId} onChange={(e) => setRecordForm((f) => ({ ...f, courseId: e.target.value }))} /></Field>
+          <Field label="کارمند" required><EntityPicker value={recordForm.employeeId} onValueChange={(value) => setRecordForm((f) => ({ ...f, employeeId: value }))} endpoint="/employees" title="انتخاب کارمند" /></Field>
+          <Field label="دوره آموزشی" required><EntityPicker value={recordForm.courseId} onValueChange={(value) => setRecordForm((f) => ({ ...f, courseId: value }))} endpoint="/training/courses" title="انتخاب دوره آموزشی" /></Field>
           <div className="form-grid">
-            <Field label="تاریخ حضور" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><input className="input ltr" value={recordForm.attendanceDate} onChange={(e) => setRecordForm((f) => ({ ...f, attendanceDate: e.target.value }))} placeholder="1404/01/01" /></Field>
+            <Field label="تاریخ حضور" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><DatePicker className="input ltr" value={recordForm.attendanceDate} onValueChange={(value) => setRecordForm((f) => ({ ...f, attendanceDate: value }))} placeholder="1404/01/01" /></Field>
             <Field label="وضعیت">
               <Select value={recordForm.status} onChange={(e) => setRecordForm((f) => ({ ...f, status: e.target.value }))}>
                 {RECORD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}

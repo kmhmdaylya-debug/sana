@@ -3,7 +3,7 @@ import { Download, Plus } from 'lucide-react';
 import { api, apiErrorMessage, downloadFile } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker, DatePicker,
   Badge,
   Button,
   Card,
@@ -19,16 +19,20 @@ import {
   useToast,
   type Column,
 } from '../components/ui';
-import { formatJalali, statusLabel, badgeKind } from '../lib/format';
+import { formatJalali } from '../lib/format';
 
 interface Doc {
   id: string;
   title: string;
-  documentType: string;
-  status: string;
+  docType: string;
+  confidentiality: string;
+  expiryDate?: string | null;
   employee?: { code: string; firstName: string; lastName: string } | null;
   versions?: { id: string; version: number; fileName: string; expiryDate?: string | null }[];
 }
+
+const DOC_TYPES = { NATIONAL_ID:'کارت ملی', BIRTH_CERTIFICATE:'شناسنامه', DEGREE:'مدرک تحصیلی', WORK_EXPERIENCE:'سابقه کار', CONTRACT:'قرارداد', NDA:'محرمانگی', CERTIFICATE:'گواهینامه', RESUME:'رزومه', OTHER:'سایر' };
+const CONFIDENTIALITY = { NORMAL:'عادی', CONFIDENTIAL:'محرمانه', SECRET:'سری' };
 
 export default function Documents() {
   const toast = useToast();
@@ -36,9 +40,9 @@ export default function Documents() {
   const list = useList<Doc>('/documents');
   const [uploadOpen, setUploadOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [createdId, setCreatedId] = useState<string | null>(null);
   const [form, setForm] = useState({ employeeId: '', documentType: 'OTHER', title: '', note: '', expiryDate: '' });
   const fileRef = useRef<HTMLInputElement>(null);
-  void form;
 
   const canManage = hasPermission('documents.create');
 
@@ -50,16 +54,23 @@ export default function Documents() {
     }
     setSaving(true);
     try {
+      let id = createdId;
+      if (!id) {
+        const response = await api.post('/documents', {
+          employeeId: form.employeeId, docType: form.documentType, title: form.title,
+          ...(form.expiryDate ? { expiryDate: form.expiryDate } : {}),
+        });
+        id = response.data.data.id;
+        setCreatedId(id);
+      }
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('employeeId', form.employeeId);
-      fd.append('documentType', form.documentType);
-      fd.append('title', form.title);
       if (form.note) fd.append('note', form.note);
-      if (form.expiryDate) fd.append('expiryDate', form.expiryDate);
-      await api.post('/documents', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await api.post(`/documents/${id}/versions`, fd);
       toast('success', 'سند آپلود شد.');
       setUploadOpen(false);
+      setCreatedId(null);
+      setForm({ employeeId:'', documentType:'OTHER', title:'', note:'', expiryDate:'' });
       list.reload();
     } catch (e) {
       toast('error', apiErrorMessage(e));
@@ -71,12 +82,12 @@ export default function Documents() {
   const columns: Column<Doc>[] = [
     { key: 'title', header: 'عنوان سند', render: (r) => <span className="fw-600">{r.title}</span> },
     { key: 'employee', header: 'نیرو', render: (r) => (r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : '—') },
-    { key: 'documentType', header: 'نوع سند', render: (r) => statusLabel(r.documentType) },
-    { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status)}>{statusLabel(r.status)}</Badge> },
+    { key: 'docType', header: 'نوع سند', render: (r) => DOC_TYPES[r.docType as keyof typeof DOC_TYPES] ?? r.docType },
+    { key: 'confidentiality', header: 'محرمانگی', render: (r) => <Badge kind={r.confidentiality === 'NORMAL' ? 'gray' : 'amber'}>{CONFIDENTIALITY[r.confidentiality as keyof typeof CONFIDENTIALITY] ?? r.confidentiality}</Badge> },
     {
       key: 'expiry',
       header: 'تاریخ انقضا',
-      render: (r) => (r.versions?.[0]?.expiryDate ? formatJalali(r.versions[0].expiryDate) : '—'),
+      render: (r) => (r.expiryDate ? formatJalali(r.expiryDate) : '—'),
     },
   ];
 
@@ -87,36 +98,30 @@ export default function Documents() {
         subtitle="اسکن مدارک، نسخه‌ها و انقضای اسناد"
         actions={
           canManage && (
-            <Button onClick={() => setUploadOpen(true)}>
+            <Button onClick={() => { setCreatedId(null); setUploadOpen(true); }}>
               <Plus size={15} /> آپلود سند
             </Button>
           )
         }
       />
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
-          <ListToolbar onSearch={(s) => list.setSearch(s)}>
-            <Select onChange={(e) => list.setFilter('documentType', e.target.value)} style={{ width: 180 }}>
+        <div className="list-toolbar-wrap">
+          <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
+            <Select aria-label="نوع مدرک" onChange={(e) => list.setFilter('docType', e.target.value)} style={{ width: 180 }}>
               <option value="">همهٔ انواع</option>
-              <option value="HIRING">استخدام</option>
-              <option value="EDUCATION">تحصیلی</option>
-              <option value="ID">احراز هویت</option>
-              <option value="MILITARY">نظام وظیفه</option>
-              <option value="INSURANCE">بیمه</option>
-              <option value="CONTRACT">قرارداد</option>
-              <option value="OTHER">سایر</option>
+              {Object.entries(DOC_TYPES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
             </Select>
           </ListToolbar>
         </div>
-        <DataTable columns={columns} rows={list.rows} loading={list.loading} rowActions={(r) => (
+        <DataTable error={list.error} onRetry={list.reload} columns={columns} rows={list.rows} loading={list.loading} rowActions={(r) => (
           r.versions?.[0]?.id ? (
             <Button size="sm" variant="outline" onClick={() => downloadFile(`/documents/versions/${r.versions[0].id}/download`, r.versions[0].fileName)}>
               <Download size={13} /> دانلود
             </Button>
           ) : null
         )} />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 
@@ -132,22 +137,19 @@ export default function Documents() {
         }
       >
         <div className="col" style={{ gap: 14 }}>
-          <Field label="شناسهٔ نیرو (UUID)" required><Input value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} /></Field>
+          {createdId && <div className="alert alert-warning" role="status">مشخصات سند ذخیره شد؛ برای تکمیل، فایل را دوباره آپلود کنید.</div>}
+          <fieldset disabled={!!createdId || saving} className="document-metadata form-grid">
+          <Field label="کارمند" required><EntityPicker value={form.employeeId} onValueChange={(value) => setForm((f) => ({ ...f, employeeId: value }))} endpoint="/employees" title="انتخاب کارمند" /></Field>
           <Field label="عنوان سند" required><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="نوع سند">
             <Select value={form.documentType} onChange={(e) => setForm((f) => ({ ...f, documentType: e.target.value }))}>
-              <option value="HIRING">استخدام</option>
-              <option value="EDUCATION">تحصیلی</option>
-              <option value="ID">احراز هویت</option>
-              <option value="MILITARY">نظام وظیفه</option>
-              <option value="INSURANCE">بیمه</option>
-              <option value="CONTRACT">قرارداد</option>
-              <option value="OTHER">سایر</option>
+              {Object.entries(DOC_TYPES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
             </Select>
           </Field>
-          <Field label="تاریخ انقضا (میلادی)"><Input value={form.expiryDate} onChange={(e) => setForm((f) => ({ ...f, expiryDate: e.target.value }))} placeholder="2027-01-01" /></Field>
+          <Field label="تاریخ انقضا (میلادی)"><DatePicker output="iso" value={form.expiryDate} onValueChange={(value) => setForm((f) => ({ ...f, expiryDate: value }))} placeholder="2027-01-01" /></Field>
+          </fieldset>
           <Field label="فایل" required hint="پسوند مجاز: pdf, jpg, png, doc, docx, xls, xlsx — حداکثر ۱۰ مگابایت">
-            <input ref={fileRef} type="file" className="input" />
+            <Input ref={fileRef} type="file" className="input" />
           </Field>
           <Field label="یادداشت"><Textarea value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} /></Field>
         </div>

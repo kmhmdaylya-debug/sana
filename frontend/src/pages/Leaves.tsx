@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { EntityPicker, Tabs,
   Badge,
   Button,
   Card,
@@ -85,16 +85,16 @@ export default function Leaves() {
         actions={canCreate && <Button onClick={() => setCreateOpen(true)}>درخواست مرخصی</Button>}
       />
 
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'requests' ? ' active' : ''}`} onClick={() => setTab('requests')}>درخواست‌ها</button>
         <button className={`tab${tab === 'balance' ? ' active' : ''}`} onClick={() => setTab('balance')}>ماندهٔ مرخصی</button>
-      </div>
+      </Tabs>
 
       <Card>
         {tab === 'requests' ? (
           <>
-            <div style={{ padding: '14px 14px 0' }}>
-              <ListToolbar onSearch={(s) => requests.setSearch(s)}>
+            <div className="list-toolbar-wrap">
+              <ListToolbar search={requests.search} onSearch={(s) => requests.setSearch(s)}>
                 <Select onChange={(e) => requests.setFilter('status', e.target.value)} style={{ width: 180 }}>
                   <option value="">همهٔ وضعیت‌ها</option>
                   <option value="SUBMITTED">ثبت‌شده</option>
@@ -106,7 +106,7 @@ export default function Leaves() {
                 </Select>
               </ListToolbar>
             </div>
-            <DataTable
+            <DataTable error={requests.error} onRetry={requests.reload}
               columns={cols}
               rows={requests.rows}
               loading={requests.loading}
@@ -119,8 +119,8 @@ export default function Leaves() {
                 ) : null
               }
             />
-            <div style={{ padding: '0 14px 14px' }}>
-              <Pagination page={requests.page} totalPages={requests.totalPages} total={requests.total} onChange={requests.setPage} />
+            <div className="list-pagination-wrap">
+              <Pagination pageSize={requests.pageSize} onPageSizeChange={requests.setPageSize} page={requests.page} totalPages={requests.totalPages} total={requests.total} onChange={requests.setPage} />
             </div>
           </>
         ) : (
@@ -140,12 +140,12 @@ export default function Leaves() {
         }
       >
         <div className="col" style={{ gap: 14 }}>
-          <Field label="شناسهٔ نوع مرخصی (UUID)" hint="از تنظیمات انواع مرخصی">
-            <input className="input ltr" value={form.leaveTypeId} onChange={(e) => setForm((f) => ({ ...f, leaveTypeId: e.target.value }))} />
+          <Field label="نوع مرخصی" hint="از تنظیمات انواع مرخصی">
+            <EntityPicker value={form.leaveTypeId} onValueChange={(value) => setForm((f) => ({ ...f, leaveTypeId: value }))} endpoint="/leaves/types" title="انتخاب نوع مرخصی" />
           </Field>
           <div className="form-grid">
-            <Field label="از (میلادی ISO)" required><input className="input ltr" value={form.startAt} onChange={(e) => setForm((f) => ({ ...f, startAt: e.target.value }))} placeholder="2026-05-01T08:00" /></Field>
-            <Field label="تا (میلادی ISO)" required><input className="input ltr" value={form.endAt} onChange={(e) => setForm((f) => ({ ...f, endAt: e.target.value }))} placeholder="2026-05-02T17:00" /></Field>
+            <Field label="از (میلادی ISO)" required><Input className="input ltr" value={form.startAt} onChange={(e) => setForm((f) => ({ ...f, startAt: e.target.value }))} placeholder="2026-05-01T08:00" /></Field>
+            <Field label="تا (میلادی ISO)" required><Input className="input ltr" value={form.endAt} onChange={(e) => setForm((f) => ({ ...f, endAt: e.target.value }))} placeholder="2026-05-02T17:00" /></Field>
           </div>
           <Field label="دلیل" required><Textarea value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} /></Field>
         </div>
@@ -176,8 +176,8 @@ function BalanceTab() {
   return (
     <>
       <div className="flex mb" style={{ padding: '14px 14px 0' }}>
-        <input className="input ltr" placeholder="شناسهٔ نیرو (UUID)" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={{ maxWidth: 320 }} />
-        <input className="input ltr" placeholder="سال" value={year} onChange={(e) => setYear(e.target.value)} style={{ maxWidth: 110 }} />
+        <Input className="input ltr" placeholder="شناسهٔ نیرو (UUID)" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={{ maxWidth: 320 }} />
+        <Input className="input ltr" placeholder="سال" value={year} onChange={(e) => setYear(e.target.value)} style={{ maxWidth: 110 }} />
         <Button onClick={load} loading={loading}>نمایش مانده</Button>
       </div>
       <DataTable

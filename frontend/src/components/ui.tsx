@@ -5,15 +5,42 @@ import {
   useEffect,
   useMemo,
   useState,
+  useId,
+  useRef,
+  Children,
+  cloneElement,
+  isValidElement,
+  forwardRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
-import { Check, ChevronLeft, ChevronRight, Info, TriangleAlert, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Info, TriangleAlert, X, Search, LoaderCircle } from 'lucide-react';
 import { toPersianDigits } from '../lib/format';
 import { useAuth } from '../lib/auth';
+import { Modal } from './ui/Modal';
+export { Modal } from './ui/Modal';
+export { DataTable, type Column } from './ui/DataTable';
+export { DatePicker } from './ui/DatePicker';
+export { EntityPicker } from './ui/EntityPicker';
+
+const FieldContext = createContext<{ id: string; required?: boolean; error?: string; description?: string }>({ id: '' });
+
+export function Tabs({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`tabs ${className}`} role="tablist" aria-label="نماها" onKeyDown={e => {
+    if (!['ArrowRight','ArrowLeft','Home','End'].includes(e.key)) return;
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const index = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (current + (e.key === 'ArrowLeft' ? 1 : -1) + items.length) % items.length;
+    e.preventDefault(); items[index]?.focus(); items[index]?.click();
+  }}>{Children.map(children, child => {
+    if (!isValidElement<{ className?: string }>(child)) return child;
+    const selected = child.props.className?.split(' ').includes('active') ?? false;
+    return cloneElement(child as React.ReactElement<any>, { role:'tab', 'aria-selected':selected, tabIndex:selected ? 0 : -1, type:'button' });
+  })}</div>;
+}
 
 /* ==========================================================================
    دکمه / ورودی / انتخاب / ناحیهٔ متن
@@ -32,24 +59,29 @@ export function Button({ variant = 'primary', size = 'md', loading, className = 
     <button
       className={`btn btn-${variant}${size === 'sm' ? ' btn-sm' : ''} ${className}`}
       disabled={disabled || loading}
+      type="button"
+      aria-busy={loading || undefined}
       {...rest}
     >
-      {loading && <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+      {loading && <LoaderCircle className="button-spinner" size={15} aria-hidden="true" />}
       {children}
     </button>
   );
 }
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className="input" {...props} />;
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className = '', ...props }, ref) {
+  const field = useContext(FieldContext);
+  return <input ref={ref} id={field.id || undefined} aria-required={field.required || undefined} aria-invalid={!!field.error || undefined} aria-describedby={field.description} {...props} className={`input ${className}`} />;
+});
+
+export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  const field = useContext(FieldContext);
+  return <select id={field.id || undefined} aria-required={field.required || undefined} aria-invalid={!!field.error || undefined} aria-describedby={field.description} {...props} className={`select ${className}`} />;
 }
 
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className="select" {...props} />;
-}
-
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className="textarea" {...props} />;
+export function Textarea({ className = '', ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const field = useContext(FieldContext);
+  return <textarea id={field.id || undefined} aria-required={field.required || undefined} aria-invalid={!!field.error || undefined} aria-describedby={field.description} {...props} className={`textarea ${className}`} />;
 }
 
 interface FieldProps {
@@ -61,15 +93,18 @@ interface FieldProps {
 }
 
 export function Field({ label, required, hint, error, children }: FieldProps) {
+  const id = useId();
   return (
-    <div className="form-group">
-      <label className="form-label">
+    <FieldContext.Provider value={{ id, required, error, description: error || hint ? `${id}-hint` : undefined }}>
+    <div className={`form-group${error ? ' has-error' : ''}`}>
+      <label className="form-label" htmlFor={id}>
         {label}
         {required && <span className="req"> *</span>}
       </label>
       {children}
-      {error ? <span className="form-error">{error}</span> : hint ? <span className="form-hint">{hint}</span> : null}
+      {error ? <span id={`${id}-hint`} className="form-error" role="alert">{error}</span> : hint ? <span id={`${id}-hint`} className="form-hint">{hint}</span> : null}
     </div>
+    </FieldContext.Provider>
   );
 }
 
@@ -105,12 +140,12 @@ export function Card({ title, subtitle, actions, children, style, className }: {
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="flex-between mb" style={{ gap: 12 }}>
+    <div className="page-heading">
       <div>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{title}</h2>
+        <h1>{title}</h1>
         {subtitle && <div className="text-muted text-sm">{subtitle}</div>}
       </div>
-      {actions && <div className="flex flex-wrap">{actions}</div>}
+      {actions && <div className="page-actions">{actions}</div>}
     </div>
   );
 }
@@ -129,39 +164,6 @@ export function Badge({ kind = 'gray', children }: { kind?: string; children: Re
    مودال
    ========================================================================== */
 
-export function Modal({ open, title, onClose, children, footer, width }: {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-  footer?: ReactNode;
-  width?: number;
-}) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-  return (
-    <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={width ? { width: `min(${width}px, 96vw)` } : undefined}>
-        <div className="modal-header">
-          <span>{title}</span>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="بستن" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <X size={16} />
-          </button>
-        </div>
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-footer">{footer}</div>}
-      </div>
-    </div>
-  );
-}
 
 export function ConfirmDialog({ open, title, message, confirmLabel = 'تأیید', danger, onConfirm, onClose, loading }: {
   open: boolean;
@@ -195,86 +197,32 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'تأیید
    جدول داده
    ========================================================================== */
 
-export interface Column<T> {
-  key: string;
-  header: string;
-  render?: (row: T) => ReactNode;
-  width?: number | string;
-}
 
-export function DataTable<T extends Record<string, any>>({ columns, rows, loading, emptyMessage = 'موردی برای نمایش وجود ندارد.', rowActions }: {
-  columns: Column<T>[];
-  rows: T[];
-  loading?: boolean;
-  emptyMessage?: string;
-  rowActions?: (row: T) => ReactNode;
-}) {
-  if (loading) {
-    return (
-      <div style={{ padding: 24 }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="skeleton" style={{ height: 18, marginBottom: 10 }} />
-        ))}
-      </div>
-    );
-  }
-  if (!rows.length) {
-    return (
-      <div className="empty-state">
-        <div className="icon">
-          <Info size={26} />
-        </div>
-        <div>{emptyMessage}</div>
-      </div>
-    );
-  }
-  return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>
-            {columns.map((c) => (
-              <th key={c.key} style={c.width ? { width: c.width } : undefined}>{c.header}</th>
-            ))}
-            {rowActions && <th style={{ width: 120 }}>عملیات</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => (
-            <tr key={row.id ?? idx}>
-              {columns.map((c) => (
-                <td key={c.key}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>
-              ))}
-              {rowActions && <td><div className="table-actions">{rowActions(row)}</div></td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export function Pagination({ page, totalPages, total, onChange }: {
+export function Pagination({ page, totalPages, total, onChange, pageSize, onPageSizeChange }: {
   page: number;
   totalPages: number;
   total: number;
   onChange: (page: number) => void;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
 }) {
   if (totalPages <= 1 && !total) return null;
   return (
-    <div className="flex-between mt" style={{ padding: '0 4px' }}>
+    <FieldContext.Provider value={{ id: '' }}><nav className="pagination" aria-label="صفحه‌بندی">
       <span className="text-muted text-sm">
         مجموع {toPersianDigits(total)} رکورد — صفحهٔ {toPersianDigits(page)} از {toPersianDigits(Math.max(1, totalPages))}
       </span>
+      {onPageSizeChange && <label className="pagination-size">تعداد در صفحه<Select aria-label="تعداد رکورد در صفحه" value={pageSize} onChange={e => onPageSizeChange(Number(e.target.value))}>{[10,20,50,100,200].map(size => <option key={size} value={size}>{toPersianDigits(size)}</option>)}</Select></label>}
       <div className="btn-group">
-        <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-          <ChevronRight size={14} /> قبلی
+        <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onChange(page - 1)} aria-label="صفحه قبل" title="صفحه قبل">
+          <ChevronRight size={16} />
         </Button>
-        <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>
-          بعدی <ChevronLeft size={14} />
+        <span className="pagination-current" aria-current="page">{toPersianDigits(page)}</span>
+        <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => onChange(page + 1)} aria-label="صفحه بعد" title="صفحه بعد">
+          <ChevronLeft size={16} />
         </Button>
       </div>
-    </div>
+    </nav></FieldContext.Provider>
   );
 }
 
@@ -298,7 +246,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="toast-stack">
+      <div className="toast-stack" role="region" aria-label="پیام‌ها" aria-live="polite">
         {items.map((t) => (
           <div key={t.id} className={`toast ${t.kind === 'info' ? '' : t.kind}`}>
             {t.kind === 'success' && <Check size={16} />}
@@ -306,6 +254,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             {t.kind === 'warning' && <TriangleAlert size={16} />}
             {t.kind === 'info' && <Info size={16} />}
             <span>{t.message}</span>
+            <button type="button" className="toast-dismiss" aria-label="بستن پیام" onClick={() => setItems(prev => prev.filter(item => item.id !== t.id))}><X size={14} /></button>
           </div>
         ))}
       </div>
@@ -322,12 +271,7 @@ export function useToast() {
    ========================================================================== */
 
 export function SearchIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-  );
+  return <Search size={16} aria-hidden="true" />;
 }
 
 export function ListToolbar({ search, onSearch, children }: {
@@ -335,17 +279,21 @@ export function ListToolbar({ search, onSearch, children }: {
   onSearch?: (s: string) => void;
   children?: ReactNode;
 }) {
+  const [query, setQuery] = useState(search ?? '');
+  useEffect(() => { if (search !== undefined) setQuery(search); }, [search]);
   return (
-    <div className="flex flex-wrap mb" style={{ gap: 10 }}>
+    <div className="list-toolbar">
       {onSearch && (
         <div className="search-box">
           <SearchIcon />
           <input
             className="input"
             placeholder="جست‌وجو…"
-            value={search ?? ''}
-            onChange={(e) => onSearch(e.target.value)}
+            aria-label="جست‌وجو در فهرست"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); onSearch(e.target.value); }}
           />
+          {query && <button type="button" className="search-clear" aria-label="پاک کردن جست‌وجو" title="پاک کردن جست‌وجو" onClick={() => { setQuery(''); onSearch(''); }}><X size={14} /></button>}
         </div>
       )}
       {children}

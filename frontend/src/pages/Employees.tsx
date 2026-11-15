@@ -3,7 +3,7 @@ import { Eye, Plus } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList, useItem } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import {
+import { DatePicker, Tabs,
   Badge,
   Button,
   Card,
@@ -169,7 +169,7 @@ export default function Employees() {
       />
 
       <Card>
-        <div style={{ padding: '14px 14px 0' }}>
+        <div className="list-toolbar-wrap">
           <ListToolbar search={search} onSearch={(s) => { setSearch(s); list.setSearch(s); }}>
             <Select value={status} onChange={(e) => { setStatus(e.target.value); list.setFilter('status', e.target.value); }} style={{ width: 170 }}>
               <option value="">همهٔ وضعیت‌ها</option>
@@ -179,13 +179,13 @@ export default function Employees() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable columns={columns} rows={list.rows} loading={list.loading} rowActions={(r) => (
+        <DataTable error={list.error} onRetry={list.reload} columns={columns} rows={list.rows} loading={list.loading} rowActions={(r) => (
           <Button size="sm" variant="outline" onClick={() => setDetailId(r.id)}>
             <Eye size={14} /> پرونده
           </Button>
         )} />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 
@@ -216,7 +216,7 @@ export default function Employees() {
           <Field label="کد ملی" required><Input value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} /></Field>
           <Field label="موبایل"><Input value={form.mobile} onChange={(e) => set('mobile', e.target.value)} placeholder="09xxxxxxxxx" /></Field>
           <Field label="ایمیل"><Input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="name@company.com" /></Field>
-          <Field label="تاریخ استخدام" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱ یا 2026-01-01"><Input value={form.hireDate} onChange={(e) => set('hireDate', e.target.value)} placeholder="1404/01/01" /></Field>
+          <Field label="تاریخ استخدام" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱ یا 2026-01-01"><DatePicker value={form.hireDate} onValueChange={(value) => set('hireDate', value)} placeholder="1404/01/01" /></Field>
           <Field label="حقوق پایهٔ ماهانه (ریال)"><Input type="number" min={0} value={form.monthlyBaseSalary} onChange={(e) => set('monthlyBaseSalary', e.target.value)} placeholder="50000000" /></Field>
           <Field label="سمت">
             <Select value={form.positionId} onChange={(e) => set('positionId', e.target.value)}>
@@ -268,12 +268,12 @@ function EmployeeDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <Modal open title={`پروندهٔ ${emp.firstName} ${emp.lastName}`} onClose={onClose} width={860}>
-      <div className="tabs mb">
+      <Tabs className="tabs mb">
         <button className={`tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>مشخصات</button>
         <button className={`tab${tab === 'contracts' ? ' active' : ''}`} onClick={() => setTab('contracts')}>قراردادها</button>
         <button className={`tab${tab === 'attendance' ? ' active' : ''}`} onClick={() => setTab('attendance')}>حضور و غیاب</button>
         <button className={`tab${tab === 'leaves' ? ' active' : ''}`} onClick={() => setTab('leaves')}>مرخصی‌ها</button>
-      </div>
+      </Tabs>
 
       {tab === 'info' && (
         <div className="form-grid">

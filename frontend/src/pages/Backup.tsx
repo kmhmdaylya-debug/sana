@@ -93,7 +93,7 @@ export default function Backup() {
         <div className="alert alert-info mb" style={{ margin: '14px 14px 0' }}>
           <DatabaseBackup size={15} style={{ verticalAlign: 'middle' }} /> پیشنهاد می‌شود روزانه یک نسخهٔ پشتیبان تهیه و خارج از سرور نگهداری شود.
         </div>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
@@ -106,8 +106,8 @@ export default function Backup() {
             ) : null
           }
         />
-        <div style={{ padding: '0 14px 14px' }}>
-          <Pagination page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
+        <div className="list-pagination-wrap">
+          <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
 

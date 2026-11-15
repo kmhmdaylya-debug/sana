@@ -152,7 +152,7 @@ export default function Roles() {
         actions={<Button onClick={() => setCreateOpen(true)}><Plus size={15} /> نقش جدید</Button>}
       />
       <Card>
-        <DataTable
+        <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}

@@ -3,6 +3,9 @@ import { AttendanceRecordStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { calendarDay, calendarDayStart, shiftCalendarDay } from './daily-date.util';
+import { AccessService } from '../common/access/access.service';
+import { PERMISSIONS } from '../common/constants/permissions';
+import { ManualDailyAttendanceDto } from './dto/manual-daily-attendance.dto';
 
 type Store = Prisma.TransactionClient;
 const DAY = 86_400_000;
@@ -14,7 +17,7 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private running: Promise<void> | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly access: AccessService) {}
 
   async onModuleInit() {
     await this.run();
@@ -49,7 +52,6 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
         user: { is: { status: 'ACTIVE', deletedAt: null, ...(!employeeId ? { isSuperAdmin: false } : {}) } },
       },
       include: {
-        user: { select: { lastLoginAt: true, sessions: { where: { createdAt: { gte: start, lt: end } }, orderBy: { createdAt: 'asc' }, take: 1, select: { createdAt: true } } } },
         attendanceRecords: { where: { workDate } },
         attendances: { where: { type: 'IN', eventTime: { gte: start, lt: new Date(end.getTime() + DAY) } }, orderBy: { eventTime: 'asc' } },
         projectAttendances: { where: { workDate }, select: { id: true } },
@@ -78,8 +80,7 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
     const working = employee.shiftAssignments.length > 0 || (!weekend && !holiday);
     const cutoff = new Date(Math.max(end.getTime(), ...schedules.map((s) => s.end.getTime())));
     const record = employee.attendanceRecords[0];
-    const loginAt = employee.user?.sessions[0]?.createdAt ?? (employee.user?.lastLoginAt && employee.user.lastLoginAt >= start && employee.user.lastLoginAt < end ? employee.user.lastLoginAt : null);
-    const firstIn = record?.firstIn ?? employee.attendances.find((e) => e.eventTime < cutoff)?.eventTime ?? loginAt;
+    const firstIn = record?.status === 'ABSENT' ? null : record?.firstIn ?? employee.attendances.find((e) => e.eventTime < cutoff)?.eventTime ?? null;
     const coveredMinutes = (schedule: { start: Date; end: Date }, ranges: { startAt: Date; endAt: Date }[]) => {
       const intervals = ranges.map((r) => [Math.max(schedule.start.getTime(), r.startAt.getTime()), Math.min(schedule.end.getTime(), r.endAt.getTime())]).filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0]);
       let until = schedule.start.getTime();
@@ -95,8 +96,12 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
     const mission = record?.status === 'MISSION' || coversSchedules(employee.missions);
     const missingMinutes = schedules.reduce((sum, s) => sum + Math.max(0, s.minutes - coveredMinutes(s, [...employee.leaveRequests, ...employee.missions])), 0);
     const mixedExcuse = missingMinutes === 0 && !leave && !mission;
-    const present = !!firstIn || employee.projectAttendances.length > 0 || (!!record && ['COMPLETE', 'REMOTE'].includes(record.status));
-    return { working, cutoff, record, firstIn, loginAt, present, leave, mission: mission || mixedExcuse, minutes: Math.ceil(missingMinutes) };
+    const present = record?.status !== 'ABSENT' && (!!firstIn || employee.projectAttendances.length > 0 || (!!record && ['COMPLETE', 'REMOTE'].includes(record.status)));
+    return { working, cutoff, record, firstIn, present, leave, mission: mission || mixedExcuse, minutes: Math.ceil(missingMinutes) };
+  }
+
+  private displayStatus(state: ReturnType<DailyAttendanceService['dayState']>) {
+    return state.present ? 'PRESENT' : state.record?.status === 'ABSENT' ? 'ABSENT' : state.leave ? 'LEAVE' : state.mission ? 'MISSION' : !state.working ? 'HOLIDAY' : 'PENDING';
   }
 
   async status(user: AuthenticatedUser, now = new Date()) {
@@ -107,8 +112,8 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
     const employees = await this.employeesForDay(this.prisma, company.id, day, company.timezone, employee.id);
     if (!employees.length) throw new BadRequestException('پروندهٔ پرسنلی شما برای ثبت حضور فعال نیست.');
     const state = this.dayState(employees[0], company, day);
-    const status = state.loginAt ? 'PRESENT' : 'PENDING';
-    return { success: true, data: { day, timeZone: company.timezone, serverNow: now.toISOString(), status, firstIn: state.loginAt, canConfirm: false } };
+    const status = this.displayStatus(state);
+    return { success: true, data: { day, timeZone: company.timezone, serverNow: now.toISOString(), status, firstIn: state.firstIn, canConfirm: false } };
   }
 
   async teamStatus(employeeIds: string[], now = new Date()) {
@@ -120,11 +125,42 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
       const employees = await this.employeesForDay(this.prisma, company.id, day, company.timezone, undefined, employeeIds);
       return employees.map((employee) => {
         const state = this.dayState(employee, company, day);
-        const status = state.loginAt ? 'PRESENT' : 'PENDING';
-        return { employeeId: employee.id, code: employee.code, fullName: `${employee.firstName} ${employee.lastName}`, day, timeZone: company.timezone, firstIn: state.loginAt, status };
+        const status = this.displayStatus(state);
+        return { employeeId: employee.id, code: employee.code, fullName: `${employee.firstName} ${employee.lastName}`, day, timeZone: company.timezone, firstIn: state.firstIn, status };
       });
     }));
     return { success: true, data: groups.flat().sort((a, b) => a.fullName.localeCompare(b.fullName, 'fa')), timestamp: now.toISOString() };
+  }
+
+  async setToday(employeeId: string, dto: ManualDailyAttendanceDto, user: AuthenticatedUser, now = new Date()) {
+    const required = [PERMISSIONS.DASHBOARD_VIEW_MANAGEMENT, PERMISSIONS.ATTENDANCE_CREATE];
+    if (!user.isSuperAdmin && !required.every(permission => user.permissions.includes(permission) || user.permissions.includes('*'))) throw new ForbiddenException('ثبت حضور فقط برای مدیر دارای مجوز امکان‌پذیر است.');
+    if (!(await this.access.canAccessEmployee(user, employeeId))) throw new ForbiddenException('این کارمند خارج از حوزهٔ دسترسی شماست.');
+    const employee = await this.prisma.employee.findUniqueOrThrow({ where: { id: employeeId } });
+    if (employee.deletedAt || employee.status !== 'ACTIVE') throw new BadRequestException('پروندهٔ کارمند فعال نیست.');
+    const company = await this.company(employee.companyId);
+    const day = calendarDay(now, company.timezone);
+    if (dto.day !== day) throw new BadRequestException('تاریخ تغییر کرده است؛ فهرست حضور را تازه‌سازی کنید.');
+    const workDate = new Date(`${day}T00:00:00Z`);
+    if (employee.hireDate > workDate) throw new BadRequestException('تاریخ شروع همکاری این کارمند هنوز نرسیده است.');
+    const minuteOfDay = dto.firstIn ? Number(dto.firstIn.slice(0, 2)) * 60 + Number(dto.firstIn.slice(3)) : null;
+    const firstIn = dto.status === 'PRESENT' ? (minuteOfDay === null ? now : new Date(calendarDayStart(day, company.timezone).getTime() + minuteOfDay * MINUTE)) : null;
+    if (firstIn && firstIn > now) throw new BadRequestException('زمان ورود نمی‌تواند در آینده باشد.');
+    const row = await this.prisma.$transaction(async tx => {
+      // Serialize with daily closing and concurrent edits; keep the record and audit atomic.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(7341, 2411)`;
+      const before = await tx.attendanceRecord.findUnique({ where: { employeeId_workDate: { employeeId, workDate } } });
+      if (before?.lockedAt || before?.lastOut || before?.workMinutes || before?.overtimeMinutes) throw new BadRequestException('این رکورد دارای کارکرد یا قفل است؛ از بخش اصلاحیهٔ حضور استفاده کنید.');
+      const data = {
+        firstIn, status: dto.status === 'PRESENT' ? AttendanceRecordStatus.INCOMPLETE : AttendanceRecordStatus.ABSENT,
+        absenceMinutes: 0, absenceType: dto.status === 'ABSENT' ? 'MANUAL_ABSENT' : null,
+        note: dto.note?.trim() || 'ثبت دستی حضور توسط مدیر',
+      };
+      const after = await tx.attendanceRecord.upsert({ where: { employeeId_workDate: { employeeId, workDate } }, create: { employeeId, workDate, ...data }, update: data });
+      await tx.auditLog.create({ data: { userId: user.id, action: before ? 'UPDATE' : 'CREATE', entity: 'DailyAttendance', entityId: after.id, before: before ? JSON.stringify(before) : null, after: JSON.stringify(after), note: 'ثبت دستی وضعیت حضور توسط مدیر' } });
+      return after;
+    });
+    return { success: true, data: row };
   }
 
   async closeFinishedDays(now = new Date()) {

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, CircleAlert, Clock, Plus, RefreshCw, UserRound } from 'lucide-react';
+import { ChevronDown, CircleAlert, Clock, Plus, RefreshCw, UserRound, ClipboardList, CheckCircle2 } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
 import { getDefaultCompanyId } from '../lib/org';
-import { formatJalali, parseDateInput, toPersianDigits } from '../lib/format';
-import { Button, Field, Input, Modal, PageHeader, Pagination, Select, Textarea, useToast } from './ui';
+import { formatJalali, parseDateInput, toPersianDigits, isPastDueDate } from '../lib/format';
+import { DatePicker, Button, Field, Input, Modal, PageHeader, Pagination, Select, Textarea, useToast } from './ui';
 import TeamPresence from './TeamPresence';
 
 interface Work {
@@ -55,6 +55,14 @@ export default function TeamWork() {
   const visible = tasks.filter((task) => filter === 'ALL' || (filter === 'ACTIVE' ? !['DONE', 'CANCELLED'].includes(task.status) : stateOf(task) === filter));
   return <>
     <PageHeader title="کارهای تیم" actions={hasPermission('tasks.create') && <Button onClick={() => setCreating(true)}><Plus size={17} /> واگذاری کار</Button>} />
+    <div className="work-overview" role="group" aria-label="خلاصه کارهای تیم">
+      {[
+        { key:'ACTIVE', label:'کارهای باز', count:tasks.filter(task => !['DONE','CANCELLED'].includes(task.status)).length, icon:<ClipboardList size={20} /> },
+        { key:'IN_PROGRESS', label:'در حال انجام', count:tasks.filter(task => stateOf(task) === 'IN_PROGRESS').length, icon:<Clock size={20} /> },
+        { key:'BLOCKED', label:'دارای مشکل', count:tasks.filter(task => stateOf(task) === 'BLOCKED').length, icon:<CircleAlert size={20} />, className:'has-problem' },
+        { key:'DONE', label:'انجام‌شده', count:tasks.filter(task => task.status === 'DONE').length, icon:<CheckCircle2 size={20} />, className:'is-done' },
+      ].map(item => <button type="button" key={item.key} className={item.className} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)}>{item.icon}<span><strong>{loading || error ? '—' : toPersianDigits(item.count)}</strong><small>{item.label}</small></span></button>)}
+    </div>
     <div className="team-work-toolbar">
       <Select aria-label="وضعیت کارها" value={filter} onChange={(e) => setFilter(e.target.value)}>
         <option value="ACTIVE">کارهای باز</option>
@@ -70,7 +78,7 @@ export default function TeamWork() {
       {!visible.length && <div className="empty-state">کاری در این وضعیت نیست.</div>}
       {visible.map((task) => {
         const state = stateOf(task);
-        const overdue = task.dueDate && new Date(task.dueDate).getTime() < Date.now() && !['DONE', 'CANCELLED'].includes(state);
+        const overdue = isPastDueDate(task.dueDate) && !['DONE', 'CANCELLED'].includes(state);
         return <article key={task.id} className={`team-work-row state-${state.toLowerCase()}`}>
           <div className="team-work-title"><h3>{task.title}</h3><span className="team-work-state">{state === 'BLOCKED' ? <CircleAlert size={15} /> : <Clock size={15} />}{labels[state] ?? state}</span></div>
           <div className="team-work-meta"><span><UserRound size={15} />{task.assignees.map((a) => a.user?.fullName ?? (a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : '')).filter(Boolean).join('، ') || 'بدون مسئول'}</span>{task.dueDate && <span className={overdue ? 'text-danger' : ''}>مهلت: {formatJalali(task.dueDate)}{overdue ? ' · عقب‌افتاده' : ''}</span>}</div>
@@ -118,7 +126,7 @@ function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: ()
     <div className="col" style={{ gap: 14 }}>
       <Field label="عنوان کار" required><Input aria-label="عنوان کار" maxLength={240} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
       <Field label="شرح کار"><Textarea aria-label="شرح کار" value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
-      <Field label="مهلت"><Input aria-label="مهلت" placeholder="۱۴۰۵/۰۸/۳۰" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></Field>
+      <Field label="مهلت"><DatePicker aria-label="مهلت" placeholder="۱۴۰۵/۰۸/۳۰" value={dueDate} onValueChange={(value) => setDueDate(value)} /></Field>
       <Field label="مسئول کار" required>
         <Input aria-label="جستجوی کارمند" placeholder="نام کارمند" value={people.search} onChange={(e) => people.setSearch(e.target.value)} />
         {assignee && <p className="text-sm">مسئول انتخاب‌شده: {assignee.fullName}</p>}
@@ -126,7 +134,7 @@ function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: ()
           {!people.rows.length && <p className="text-muted">کاربری پیدا نشد.</p>}
           {people.rows.map((person) => <label key={person.id}><input type="radio" name="work-assignee" checked={assignee?.id === person.id} onChange={() => setAssignee(person)} /><span>{person.fullName}<small>{person.username}</small></span></label>)}
         </div>}
-        <Pagination page={people.page} totalPages={people.totalPages} total={people.total} onChange={people.setPage} />
+        <Pagination pageSize={people.pageSize} onPageSizeChange={people.setPageSize} page={people.page} totalPages={people.totalPages} total={people.total} onChange={people.setPage} />
       </Field>
     </div>
   </Modal>;
