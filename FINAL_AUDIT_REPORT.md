@@ -84,3 +84,31 @@ NOT READY. Confirmed P0 findings and untested operational workflows remain.
   stored in this report.
 - Backend and frontend are running locally on ports 4114 and 5183 respectively.
   These checks establish local login recovery, not completion of the full audit.
+
+## Task Workflow And Categories (2026-11-16)
+
+- Task surfaces now distinguish done (green), unable (red), and in-progress
+  (soft blue), independently of their shared category color.
+- Added persisted retry requests, manager approval/rejection, required rejection
+  reasons, notifications, and history. Employee-only requests require assignment;
+  reviews require `tasks.update` and task access. Compare-and-set updates reject
+  concurrent duplicate requests/reviews. Changing a category with unchanged
+  assignees preserves the pending request and inability reason.
+- Added six validated shared categories to tasks, projects and project stages.
+  Null stage categories inherit the current parent category in the UI.
+- Applied migration `20261116132200_task_categories_retry` without data reset.
+  Prisma validation and database/schema diff passed (no difference).
+- Pre-migration full encrypted database backup:
+  `backups/before-task-workflow-2026-11-16T13-21-54-671Z.pgdump.enc` (463762 bytes).
+  Same AES-256-GCM envelope as the login recovery backup; decryption read-back
+  matched the original custom-format dump. Encrypted artifact SHA-256:
+  `09c1af9802b5510df3c6dd45085a86dc2375e62654ba57aded4ed47f260702a4`.
+  Isolated restore has not been tested.
+- Verification: 127 backend tests, 27 frontend tests, both production builds,
+  and a live HTTP workflow through port 5183 passed. Live checks included scoped
+  assignment, duplicate/concurrent requests and reviews, rejection, approval,
+  restart/completion/dismissal, category edits, and project category inheritance.
+  Temporary test users, employees, tasks, projects and their task notifications
+  were removed. Browser screenshots were not verified.
+- Backend remains on port 4114; frontend remains on 5183. This feature work does
+  not change the overall NOT READY production decision above.

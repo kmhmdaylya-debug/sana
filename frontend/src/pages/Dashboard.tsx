@@ -7,6 +7,10 @@ import { Badge, Card, PageHeader, useToast } from '../components/ui';
 import { toPersianDigits, statusLabel, badgeKind, formatJalali } from '../lib/format';
 import TeamPresence from '../components/TeamPresence';
 import TeamWork from '../components/TeamWork';
+import TaskCountdown from '../components/TaskCountdown';
+import TaskStatusMark from '../components/TaskStatusMark';
+import { WorkCategoryTag } from '../components/WorkCategory';
+import { categoryStyle } from '../lib/workCategories';
 
 interface MyDashboard {
   unreadNotifications: number;
@@ -26,6 +30,8 @@ interface ManagementDashboard {
 }
 
 interface BoardTask {
+  category?: string | null;
+  delayReason?: string | null;
   id: string;
   title: string;
   description?: string | null;
@@ -172,9 +178,9 @@ function PersonalDashboard() {
         <div className="hero-kpis">
           <div>
             <div className="hero-kpi-value">{toPersianDigits(mgmt?.openTasks ?? my?.myOpenTasks ?? 0)}</div>
-            <div className="hero-kpi-label">وظایف در جریان</div>
+            <div className="hero-kpi-label">task در جریان</div>
             <Link to="/tasks" className="hero-kpi-link">
-              مشاهدهٔ وظایف <ArrowLeft size={13} />
+              مشاهدهٔ task <ArrowLeft size={13} />
             </Link>
           </div>
           <div>
@@ -195,7 +201,7 @@ function PersonalDashboard() {
         <StatCard label="اعلان‌های خوانده‌نشده" value={loading ? '—' : toPersianDigits(my?.unreadNotifications ?? 0)} link="/notifications" />
       </div>
 
-      {/* ---------- بوم کانبان وظایف ---------- */}
+      {/* ---------- بوم کانبان task ---------- */}
       {hasPermission('tasks.view') && (
         <Card
           title="بوم کارها"
@@ -207,7 +213,7 @@ function PersonalDashboard() {
                 <div className="kanban-col-head">
                   <span className="kanban-col-title">{col.title}</span>
                   <span className="kanban-col-count">{toPersianDigits(col.cards.length)}</span>
-                  <Link className="kanban-col-menu" to="/tasks" aria-label="مشاهده وظایف" title="مشاهده وظایف"><ArrowLeft size={15} /></Link>
+                  <Link className="kanban-col-menu" to="/tasks" aria-label="مشاهده task" title="مشاهده task"><ArrowLeft size={15} /></Link>
                 </div>
                 <div className="kanban-cards">
                   {col.cards.slice(0, 8).map((t) => (
@@ -279,12 +285,13 @@ function TaskCard({ task }: { task: BoardTask }) {
   const dark = task.priority === 'CRITICAL';
 
   return (
-    <div className={`kanban-card${dark ? ' dark' : ''}`}>
+    <div style={categoryStyle(task.category)} className={`kanban-card status-${task.delayReason ? 'blocked' : task.status.toLowerCase()}${dark ? ' dark' : ''}${task.category ? ' has-category' : ''}`}>
       <div className="kanban-card-head">
+        <TaskStatusMark status={task.status} blocked={!!task.delayReason} />
         <Link to="/tasks" className="kanban-card-title" style={{ color: 'inherit', textDecoration: 'none' }}>
           {task.title}
         </Link>
-        <Link className="kanban-card-menu" to="/tasks" aria-label="مشاهده وظیفه" title="مشاهده وظیفه"><ArrowLeft size={15} /></Link>
+        <Link className="kanban-card-menu" to="/tasks" aria-label="مشاهده task" title="مشاهده task"><ArrowLeft size={15} /></Link>
       </div>
       {task.description && <div className="kanban-card-desc">{task.description}</div>}
       <div className="kanban-card-foot">
@@ -293,6 +300,8 @@ function TaskCard({ task }: { task: BoardTask }) {
             <CalendarDays size={12} /> {formatJalali(task.dueDate)}
           </span>
         )}
+        <TaskCountdown dueDate={task.dueDate} status={task.status} />
+        <WorkCategoryTag value={task.category} />
         {task.orgUnit?.name && <span className="kanban-chip">{task.orgUnit.name}</span>}
         <span className="kanban-meta">
           <MessageSquare size={12} /> {toPersianDigits(task._count?.comments ?? 0)}

@@ -74,13 +74,13 @@ export class ApprovalsController {
   }
   @Post('tasks/:id/decide')
   @RequirePermissions(PERMISSIONS.APPROVALS_DECIDE)
-  @ApiOperation({ summary: 'تصمیم روی وظیفه تأیید (تأیید/رد/اصلاح/ارجاع)' })
+  @ApiOperation({ summary: 'تصمیم روی task تأیید (تأیید/رد/اصلاح/ارجاع)' })
   decide(@Param('id') taskId: string, @Body() dto: DecideTaskDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.decideTask(taskId, dto, user);
   }
   @Post('expire-overdue')
   @RequirePermissions(PERMISSIONS.APPROVALS_MANAGE)
-  @ApiOperation({ summary: 'انقضای وظایف عقب‌افتاده از SLA' })
+  @ApiOperation({ summary: 'انقضای task عقب‌افتاده از SLA' })
   expireOverdue(@Body() dto: ExpireOverdueDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.expireOverdue(dto, user.id);
   }

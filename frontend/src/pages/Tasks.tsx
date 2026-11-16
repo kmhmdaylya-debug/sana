@@ -4,6 +4,11 @@ import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
+import TaskCountdown from '../components/TaskCountdown';
+import TaskStatusMark from '../components/TaskStatusMark';
+import { WorkCategoryPicker, WorkCategoryTag } from '../components/WorkCategory';
+import TaskRetryReview from '../components/TaskRetryReview';
+import { WORK_CATEGORIES } from '../lib/workCategories';
 import { DatePicker,
   Badge,
   Button,
@@ -23,6 +28,8 @@ import { DatePicker,
 import { formatJalali, statusLabel, badgeKind, toPersianDigits, parseDateInput } from '../lib/format';
 
 interface Task {
+  category?: string | null;
+  retryStatus?: string | null;
   id: string;
   title: string;
   description?: string | null;
@@ -56,7 +63,7 @@ export default function Tasks() {
   const users = useList<UserOption>('/tasks/assignees', { limit: 50 });
   const [createOpen, setCreateOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', dueDate: '', slaHours: '', assigneeIds: [] as string[] });
+  const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', category: '', dueDate: '', slaHours: '', assigneeIds: [] as string[] });
   const [saving, setSaving] = useState(false);
 
   const canCreate = hasPermission('tasks.create');
@@ -64,7 +71,7 @@ export default function Tasks() {
 
   const openTask = (task?: Task) => {
     setEditingTask(task ?? null);
-    setForm({ title: task?.title ?? '', description: task?.description ?? '', priority: task?.priority ?? 'MEDIUM', dueDate: task?.dueDate?.slice(0, 10) ?? '', slaHours: task?.slaHours?.toString() ?? '', assigneeIds: (task?.assignees ?? []).map((a) => a.userId ?? a.user?.id).filter((id): id is string => !!id) });
+    setForm({ title: task?.title ?? '', description: task?.description ?? '', priority: task?.priority ?? 'MEDIUM', category: task?.category ?? '', dueDate: task?.dueDate?.slice(0, 10) ?? '', slaHours: task?.slaHours?.toString() ?? '', assigneeIds: (task?.assignees ?? []).map((a) => a.userId ?? a.user?.id).filter((id): id is string => !!id) });
     users.reload();
     setCreateOpen(true);
   };
@@ -72,13 +79,14 @@ export default function Tasks() {
   const submit = async () => {
     setSaving(true);
     try {
-      if (!form.title.trim()) throw new Error('عنوان وظیفه را وارد کنید.');
+      if (!form.title.trim()) throw new Error('عنوان task را وارد کنید.');
       const dueDate = parseDateInput(form.dueDate);
       if (form.dueDate && !dueDate) throw new Error('قالب تاریخ مهلت معتبر نیست (نمونه: ۱۴۰۴/۰۱/۰۱).');
       const payload = {
         title: form.title,
         description: form.description,
         priority: form.priority,
+        category: form.category || null,
         dueDate: dueDate || (editingTask ? null : undefined),
         slaHours: form.slaHours ? Number(form.slaHours) : (editingTask ? null : undefined),
         assigneeUserIds: form.assigneeIds,
@@ -90,7 +98,7 @@ export default function Tasks() {
         if (!companyId) throw new Error('شرکتی در ساختار سازمانی ثبت نشده است.');
         await api.post('/tasks', { ...payload, companyId });
       }
-      toast('success', editingTask ? 'وظیفه و مسئولان به‌روزرسانی شدند.' : 'وظیفه ثبت شد.');
+      toast('success', editingTask ? 'task و مسئولان به‌روزرسانی شدند.' : 'task ثبت شد.');
       setCreateOpen(false);
       list.reload();
     } catch (e) {
@@ -104,18 +112,20 @@ export default function Tasks() {
     try {
       await api.patch(`/tasks/${id}`, { status });
       list.reload();
-      toast('success', 'وضعیت وظیفه به‌روزرسانی شد.');
+      toast('success', 'وضعیت task به‌روزرسانی شد.');
     } catch (e) {
       toast('error', apiErrorMessage(e));
     }
   };
 
   const cols: Column<Task>[] = [
-    { key: 'title', header: 'عنوان', render: (r) => <span className="fw-600">{r.title}</span> },
+    { key: 'title', header: 'عنوان', render: (r) => <span className="task-table-title"><TaskStatusMark status={r.status} blocked={!!r.delayReason} /><span className="fw-600">{r.title}</span></span> },
+    { key: 'category', header: 'دسته', render: r => r.category ? <WorkCategoryTag value={r.category} /> : '—' },
+    { key: 'retry', header: 'انجام دوباره', render: r => canUpdate ? <TaskRetryReview task={r} onReviewed={list.reload} /> : r.retryStatus === 'PENDING' ? 'در انتظار تأیید مدیر' : '—' },
     { key: 'delayReason', header: 'دلیل انجام نشدن', render: (r) => r.delayReason || '—' },
     { key: 'assignees', header: 'مسئول', render: (r) => (r.assignees ?? []).map((a) => a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : a.user?.fullName ?? null).filter(Boolean).join('، ') || '—' },
     { key: 'priority', header: 'اولویت', render: (r) => <Badge kind={r.priority === 'CRITICAL' || r.priority === 'HIGH' ? 'red' : r.priority === 'MEDIUM' ? 'amber' : 'gray'}>{statusLabel(r.priority)}</Badge> },
-    { key: 'dueDate', header: 'مهلت', render: (r) => (r.dueDate ? formatJalali(r.dueDate) : '—') },
+    { key: 'dueDate', header: 'مهلت', render: (r) => <div className="task-deadline-cell"><span>{r.dueDate ? formatJalali(r.dueDate) : '—'}</span><TaskCountdown dueDate={r.dueDate} status={r.status} /></div> },
     { key: 'sla', header: 'SLA', render: (r) => (r.slaHours ? `${toPersianDigits(r.slaHours)} ساعت` : '—') },
     {
       key: 'status',
@@ -124,7 +134,7 @@ export default function Tasks() {
         canUpdate ? (
           <Select value={r.status} onChange={(e) => changeStatus(r.id, e.target.value)} style={{ width: 130 }}>
             {STATUSES.map((s) => (
-              <option key={s} value={s}>{statusLabel(s)}</option>
+              <option key={s} value={s}>{s === 'IN_PROGRESS' && r.delayReason ? 'انجام نشد' : statusLabel(s)}</option>
             ))}
           </Select>
         ) : (
@@ -132,20 +142,21 @@ export default function Tasks() {
         ),
     },
     ...(canUpdate ? [{ key: 'actions', header: 'مسئولان', render: (r: Task) => (
-      <Button variant="secondary" size="sm" title="ویرایش وظیفه و مسئولان" aria-label="ویرایش وظیفه و مسئولان" onClick={() => openTask(r)}><UserRoundPen size={16} /></Button>
+      <Button variant="secondary" size="sm" title="ویرایش task و مسئولان" aria-label="ویرایش task و مسئولان" onClick={() => openTask(r)}><UserRoundPen size={16} /></Button>
     ) }] : []),
   ];
 
   return (
     <>
       <PageHeader
-        title="وظایف"
-        subtitle="سپردن، پیگیری و تکمیل وظایف"
-        actions={canCreate && <Button onClick={() => openTask()}><Plus size={15} /> وظیفهٔ جدید</Button>}
+        title="task"
+        subtitle="سپردن، پیگیری و تکمیل task"
+        actions={canCreate && <Button onClick={() => openTask()}><Plus size={15} /> task جدید</Button>}
       />
       <Card>
         <div className="list-toolbar-wrap">
           <ListToolbar search={list.search} onSearch={(s) => list.setSearch(s)}>
+            <Select aria-label="دسته‌بندی task" onChange={event => list.setFilter('category', event.target.value)}><option value="">همهٔ دسته‌ها</option>{WORK_CATEGORIES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</Select>
             <Select onChange={(e) => list.setFilter('status', e.target.value)} style={{ width: 160 }}>
               <option value="">همهٔ وضعیت‌ها</option>
               {STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
@@ -156,7 +167,7 @@ export default function Tasks() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable error={list.error} onRetry={list.reload} columns={cols} rows={list.rows} loading={list.loading} />
+        <DataTable error={list.error} onRetry={list.reload} columns={cols} rows={list.rows} loading={list.loading} rowClassName={task => `task-state-${task.status === 'DONE' ? 'done' : task.status !== 'CANCELLED' && task.delayReason ? 'blocked' : task.status.toLowerCase()}`} />
         <div className="list-pagination-wrap">
           <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
@@ -164,7 +175,7 @@ export default function Tasks() {
 
       <Modal
         open={createOpen}
-        title={editingTask ? 'ویرایش وظیفه و مسئولان' : 'ثبت وظیفهٔ جدید'}
+        title={editingTask ? 'ویرایش task و مسئولان' : 'ثبت task جدید'}
         onClose={() => setCreateOpen(false)}
         footer={
           <>
@@ -176,6 +187,7 @@ export default function Tasks() {
         <div className="col" style={{ gap: 14 }}>
           <Field label="عنوان" required><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="شرح"><Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></Field>
+          <WorkCategoryPicker value={form.category} onChange={category => setForm(value => ({ ...value, category }))} disabled={saving} />
           <div className="form-grid">
             <Field label="اولویت">
               <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}>

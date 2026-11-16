@@ -78,7 +78,7 @@ const ROLE_DEFS: {
   {
     code: 'EMPLOYEE',
     name: 'کارمند',
-    description: 'خدمات خودکارسازی: درخواست مرخصی، اصلاح حضور، وظایف و اعلامیه‌ها',
+    description: 'خدمات خودکارسازی: درخواست مرخصی، اصلاح حضور، task و اعلامیه‌ها',
     match: (c) =>
       c === 'dashboard.view' ||
       c === 'leaves.view' ||

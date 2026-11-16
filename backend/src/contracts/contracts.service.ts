@@ -6,6 +6,7 @@ import { AuditService } from '../common/audit/audit.service';
 import { NotificationService } from '../common/notifications/notification.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { employeeVisibility } from '../employees/employee-privacy';
 import { CreateContractDto, CreateContractVersionDto, ContractQueryDto, UpdateContractDto } from './dto/contracts.dto';
 
 const VERSION_MONEY_FIELDS = ['baseSalary', 'housingAllowance', 'foodAllowance', 'childAllowance', 'seniorityPay'] as const;
@@ -53,7 +54,7 @@ export class ContractsService {
     ]);
 
     return {
-      data: rows.map((c) => ({ ...c, versions: c.versions.map((v) => this.versionPublic(v)) })),
+      data: rows.map((c) => ({ ...c, versions: c.versions.map((v) => this.versionPublic(v, user, c.employeeId)) })),
       meta: {
         total,
         page,
@@ -85,7 +86,7 @@ export class ContractsService {
       orderBy: { createdAt: 'desc' },
     });
     return {
-      data: rows.map((c) => ({ ...c, versions: c.versions.map((v) => this.versionPublic(v)) })),
+      data: rows.map((c) => ({ ...c, versions: c.versions.map((v) => this.versionPublic(v, user, c.employeeId)) })),
       meta: { total: rows.length, page: 1, limit: rows.length, totalPages: 1, hasNext: false, hasPrev: false },
       success: true,
       timestamp: new Date().toISOString(),
@@ -103,8 +104,9 @@ export class ContractsService {
       },
     });
     if (!contract) throw new NotFoundException('قرارداد موردنظر یافت نشد.');
+    await this.audit.recordView(user.id, 'Contract', id);
     return {
-      data: { ...contract, versions: contract.versions.map((v) => this.versionPublic(v)) },
+      data: { ...contract, versions: contract.versions.map((v) => this.versionPublic(v, user, contract.employeeId)) },
       success: true,
       timestamp: new Date().toISOString(),
     };
@@ -274,14 +276,17 @@ export class ContractsService {
     return data;
   }
 
-  private versionPublic(v: any) {
+  private versionPublic(v: Prisma.ContractVersionGetPayload<Record<string, never>>, user: AuthenticatedUser, employeeId: string) {
+    const visibility = employeeVisibility(user, employeeId);
     return {
       ...v,
-      baseSalary: Number(v.baseSalary),
-      housingAllowance: Number(v.housingAllowance),
-      foodAllowance: Number(v.foodAllowance),
-      childAllowance: Number(v.childAllowance),
-      seniorityPay: Number(v.seniorityPay),
+      terms: visibility.personal ? v.terms : null,
+      changeReason: visibility.personal ? v.changeReason : null,
+      baseSalary: visibility.salary ? Number(v.baseSalary) : null,
+      housingAllowance: visibility.salary ? Number(v.housingAllowance) : null,
+      foodAllowance: visibility.salary ? Number(v.foodAllowance) : null,
+      childAllowance: visibility.salary ? Number(v.childAllowance) : null,
+      seniorityPay: visibility.salary ? Number(v.seniorityPay) : null,
     };
   }
 }

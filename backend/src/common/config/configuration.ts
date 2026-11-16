@@ -98,6 +98,8 @@ export default registerAs('app', () => ({
     encryptionKey: requiredSecret('BACKUP_ENCRYPTION_KEY'),
     maxFiles: parseInt(process.env.BACKUP_MAX_FILES ?? '10', 10),
     pgDumpPath: process.env.PG_DUMP_PATH ?? 'pg_dump',
+    pgRestorePath: process.env.PG_RESTORE_PATH ?? 'pg_restore',
+    restoreDatabaseUrl: process.env.BACKUP_RESTORE_DATABASE_URL ?? '',
   },
 
   seed: {

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -14,10 +15,15 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { TaskPriority, TaskStatus } from '@prisma/client';
+import { TaskPriority, TaskStatus, WorkCategory } from '@prisma/client';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class CreateTaskDto {
+  @ApiPropertyOptional({ enum: WorkCategory })
+  @IsOptional()
+  @IsEnum(WorkCategory)
+  category?: WorkCategory | null;
+
   @ApiProperty({ format: 'uuid' })
   @IsUUID('4')
   companyId: string;
@@ -28,7 +34,7 @@ export class CreateTaskDto {
   orgUnitId?: string;
 
   @ApiProperty()
-  @IsString({ message: 'عنوان وظیفه الزامی است.' })
+  @IsString({ message: 'عنوان task الزامی است.' })
   @MaxLength(240)
   title: string;
 
@@ -86,6 +92,11 @@ export class CreateTaskDto {
 }
 
 export class UpdateTaskDto {
+  @ApiPropertyOptional({ enum: WorkCategory })
+  @IsOptional()
+  @IsEnum(WorkCategory)
+  category?: WorkCategory | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -157,6 +168,11 @@ export class UpdateTaskDto {
 }
 
 export class TaskQueryDto extends PaginationDto {
+  @ApiPropertyOptional({ enum: WorkCategory })
+  @IsOptional()
+  @IsEnum(WorkCategory)
+  category?: WorkCategory;
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID('4')
@@ -200,7 +216,19 @@ export class TaskCommentDto {
 }
 
 export class TaskDependencyDto {
-  @ApiProperty({ format: 'uuid', description: 'وظیفه پیش‌نیاز' })
+  @ApiProperty({ format: 'uuid', description: 'task پیش‌نیاز' })
   @IsUUID('4')
   dependsOnTaskId: string;
+}
+
+export class ReviewTaskRetryDto {
+  @ApiProperty()
+  @IsBoolean()
+  approved: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }

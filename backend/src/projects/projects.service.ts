@@ -200,6 +200,7 @@ export class ProjectsService {
         priority: dto.priority,
         progress: dto.progress ?? 0,
         color: dto.color ?? null,
+        category: dto.category ?? null,
         managerId: dto.managerId ?? null,
         createdById: user.id,
         ...(dto.memberIds?.length
@@ -239,6 +240,7 @@ export class ProjectsService {
         ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
         ...(dto.progress !== undefined ? { progress: dto.progress } : {}),
         ...(dto.color !== undefined ? { color: dto.color } : {}),
+        ...(dto.category !== undefined ? { category: dto.category } : {}),
         ...(dto.managerId !== undefined ? { managerId: dto.managerId } : {}),
       },
       include: PROJECT_INCLUDE,
@@ -285,7 +287,7 @@ export class ProjectsService {
     this.assertDates(dto.startDate, dto.endDate);
     if (dto.dependsOnId) {
       const dep = await this.prisma.projectTask.findFirst({ where: { id: dto.dependsOnId, projectId } });
-      if (!dep) throw new BadRequestException('وظیفهٔ پیش‌نیاز در این پروژه یافت نشد.');
+      if (!dep) throw new BadRequestException('task پیش‌نیاز در این پروژه یافت نشد.');
     }
 
     const task = await this.prisma.projectTask.create({
@@ -299,6 +301,7 @@ export class ProjectsService {
         status: dto.status ?? 'PENDING',
         priority: dto.priority ?? 'MEDIUM',
         color: dto.color ?? project.color ?? null,
+        category: dto.category ?? null,
         assigneeId: dto.assigneeId ?? null,
         dependsOnId: dto.dependsOnId ?? null,
         sortOrder: dto.sortOrder ?? project.tasks.length,
@@ -337,6 +340,7 @@ export class ProjectsService {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
         ...(dto.color !== undefined ? { color: dto.color } : {}),
+        ...(dto.category !== undefined ? { category: dto.category } : {}),
         ...(dto.assigneeId !== undefined ? { assigneeId: dto.assigneeId } : {}),
         ...(dto.dependsOnId !== undefined ? { dependsOnId: dto.dependsOnId } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),

@@ -160,7 +160,7 @@ export class AccessService {
 
     if (!or.length) {
       // کاربر بدون حوزه فقط پرونده خودش را می‌بیند
-      return scope.ownEmployeeId ? { id: scope.ownEmployeeId } : { id: '__none__' };
+      return scope.ownEmployeeId ? { id: scope.ownEmployeeId } : { id: { in: [] } };
     }
     return { OR: or };
   }
@@ -201,6 +201,30 @@ export class AccessService {
     return fallback.id;
   }
 
+  /**
+   * شرکتِ مرجع برای ایجاد رکورد وابسته به شرکت.
+   * اگر واحد/سمت/شعبه‌ای داده شده باشد، شرکت از روی همان مرجع استخراج می‌شود
+   * تا رکورد با ساختار سازمانی هم‌خوان بماند؛ در غیر این صورت شرکت پیش‌فرض کاربر.
+   */
+  async resolveCompanyIdForRefs(
+    user: AuthenticatedUser,
+    refs: { branchId?: string | null; orgUnitId?: string | null; positionId?: string | null },
+  ): Promise<string> {
+    if (refs.orgUnitId) {
+      const unit = await this.prisma.orgUnit.findUnique({ where: { id: refs.orgUnitId }, select: { companyId: true } });
+      if (unit) return unit.companyId;
+    }
+    if (refs.positionId) {
+      const position = await this.prisma.position.findUnique({ where: { id: refs.positionId }, select: { companyId: true } });
+      if (position) return position.companyId;
+    }
+    if (refs.branchId) {
+      const branch = await this.prisma.branch.findUnique({ where: { id: refs.branchId }, select: { companyId: true } });
+      if (branch) return branch.companyId;
+    }
+    return this.resolveCompanyId(user);
+  }
+
   hasPermission(user: AuthenticatedUser, permission: string): boolean {
     return user.isSuperAdmin || user.permissions.includes('*') || user.permissions.includes(permission);
   }
@@ -219,6 +243,25 @@ export class AccessService {
   async assertCompanyAccess(user: AuthenticatedUser, companyId: string): Promise<void> {
     const ids = await this.allowedCompanyIds(user);
     if (ids !== null && !ids.includes(companyId)) throw new ForbiddenException('به این شرکت دسترسی ندارید.');
+  }
+
+  async companyWhereFor(user: AuthenticatedUser): Promise<{ companyId?: Prisma.StringFilter }> {
+    const ids = await this.allowedCompanyIds(user);
+    return ids === null ? {} : { companyId: { in: ids } };
+  }
+
+  async assertCompanyMember(user: AuthenticatedUser, companyId: string, refs: { employeeId?: string | null; userId?: string | null }): Promise<void> {
+    await this.assertCompanyAccess(user, companyId);
+    if (refs.employeeId) {
+      await this.assertEmployeeAccess(user, refs.employeeId);
+      const employee = await this.prisma.employee.findFirst({ where: { id: refs.employeeId, companyId, deletedAt: null }, select: { id: true } });
+      if (!employee) throw new BadRequestException('کارمند انتخاب‌شده به این شرکت تعلق ندارد.');
+    }
+    if (refs.userId) {
+      const target = await this.prisma.user.findFirst({ where: { id: refs.userId, status: 'ACTIVE', deletedAt: null, employee: { is: { companyId, deletedAt: null } } }, select: { employeeId: true } });
+      if (!target?.employeeId || (refs.employeeId && refs.employeeId !== target.employeeId)) throw new BadRequestException('کاربر انتخاب‌شده به این شرکت تعلق ندارد.');
+      await this.assertEmployeeAccess(user, target.employeeId);
+    }
   }
 
   async assertEmployeeAccess(user: AuthenticatedUser, employeeId: string): Promise<void> {

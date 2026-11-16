@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
   Briefcase,
@@ -63,7 +63,7 @@ const MENU: { group: string; items: MenuItem[] }[] = [
   {
     group: 'اصلی',
     items: [
-      { to: '/panel', label: 'پنل کارمند', icon: <UserRound size={17} />, permission: 'panel.view', requiresEmployee: true },
+      { to: '/panel', label: 'task', icon: <UserRound size={17} />, permission: 'panel.view', requiresEmployee: true },
       { to: '/', label: 'داشبورد', icon: <LayoutDashboard size={17} />, permission: 'dashboard.view.management' },
       { to: '/approvals', label: 'صندوق تأییدها', icon: <ClipboardCheck size={17} />, permission: 'approvals.view' },
     ],
@@ -85,7 +85,7 @@ const MENU: { group: string; items: MenuItem[] }[] = [
   {
     group: 'همکاری و پشتیبانی',
     items: [
-      { to: '/tasks', label: 'وظایف', icon: <ClipboardList size={17} />, permission: 'tasks.view' },
+      { to: '/tasks', label: 'task', icon: <ClipboardList size={17} />, permission: 'tasks.view' },
       { to: '/projects', label: 'پروژه‌ها و گانت', icon: <GanttChartSquare size={17} />, permission: 'projects.view' },
       { to: '/assets', label: 'دارایی‌ها', icon: <Boxes size={17} />, permission: 'assets.view' },
       { to: '/training', label: 'آموزش و گواهینامه', icon: <GraduationCap size={17} />, permission: 'training.view' },
@@ -121,7 +121,7 @@ const MENU: { group: string; items: MenuItem[] }[] = [
 ];
 
 const PAGE_TITLES: Record<string, string> = {
-  '/panel': 'پنل کارمند',
+  '/panel': 'task',
   '/projects': 'پروژه‌ها و گانت',
   '/': 'داشبورد',
   '/approvals': 'صندوق تأییدها',
@@ -134,7 +134,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/missions': 'مأموریت‌ها',
   '/payroll': 'حقوق و دستمزد',
   '/evaluations': 'ارزیابی عملکرد',
-  '/tasks': 'وظایف',
+  '/tasks': 'task',
   '/assets': 'دارایی‌ها',
   '/training': 'آموزش و گواهینامه',
   '/loans': 'وام و مزایا',
@@ -156,7 +156,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sana-sidebar') === 'collapsed');
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sana-sidebar') !== 'expanded');
   const [dark, setDark] = useState(() => readTheme() === 'dark');
   const [unread, setUnread] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -207,7 +207,7 @@ export default function Layout() {
       if (active) setPendingApprovals(Array.isArray(rows) ? rows.length : (rows?.items?.length ?? 0));
     }).catch(() => {});
     return () => { active = false; };
-  }, [location.pathname, hasPermission]);
+  }, [location.pathname, location.search, hasPermission]);
 
   const visibleMenu = useMemo(() => MENU.map(g => ({
     ...g,
@@ -235,7 +235,7 @@ export default function Layout() {
           return <div className="sidebar-section" key={g.group}>
             <button type="button" className="sidebar-group" aria-expanded={!groupClosed} onClick={() => setClosedGroups(groups => groups.includes(g.group) ? groups.filter(name => name !== g.group) : [...groups,g.group])}><span>{g.group}</span><ChevronDown size={12} /></button>
             <div className={groupClosed ? 'sidebar-group-items is-closed' : 'sidebar-group-items'}>{g.items.map(item => <NavLink key={item.to} to={item.to} end={item.to === '/'} title={collapsed ? item.label : undefined} aria-label={item.label} className={({isActive}) => `sidebar-link${isActive ? ' active' : ''}`}>
-              {item.icon}<span className="sidebar-link-label">{item.label}</span>{!!item.count && <span className="sidebar-link-count">{toPersianDigits(item.count)}</span>}
+              <span className="sidebar-link-icon" aria-hidden="true">{item.icon}</span><span className="sidebar-link-label">{item.label}</span>{!!item.count && <span className="sidebar-link-count">{toPersianDigits(item.count)}</span>}
             </NavLink>)}</div>
           </div>;
         })}
@@ -257,8 +257,20 @@ export default function Layout() {
           {hasPermission('notifications.view') && <button type="button" className="header-icon-btn" onClick={() => navigate('/notifications')} aria-label="اعلان‌ها" title="اعلان‌ها"><Bell size={18} />{unread > 0 && <span className="header-badge-dot">{toPersianDigits(unread > 99 ? '99+' : unread)}</span>}</button>}
           <button type="button" className="header-icon-btn" onClick={() => setDark(v => !v)} aria-label={dark ? 'فعال کردن تم روشن' : 'فعال کردن تم تیره'} title={dark ? 'تم روشن' : 'تم تیره'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
           <details ref={profile} className="profile-menu">
-            <summary aria-label="حساب کاربری" title={user?.fullName}><span className="avatar">{initials}</span><ChevronDown size={12} /></summary>
-            <div className="profile-dropdown"><strong>{user?.fullName}</strong><span>{role}</span><span className="ltr">{user?.username}</span>{user?.employee && hasPermission('panel.view') && <NavLink to="/panel"><UserRound size={16} />پنل کارمند</NavLink>}{hasPermission('settings.view') && <NavLink to="/settings"><Settings size={16} />تنظیمات</NavLink>}<button type="button" onClick={() => void signOut()}><LogOut size={16} />خروج از حساب</button></div>
+            <summary aria-label="حساب کاربری" title={user?.fullName}><span className="avatar">{initials}</span><span className="profile-summary-copy"><strong>{user?.fullName}</strong><small>{role}</small></span><ChevronDown size={12} /></summary>
+            <div className="profile-dropdown">
+              <strong>{user?.fullName}</strong><span>{role}</span><span className="ltr">{user?.username}</span>
+              {user?.employee && hasPermission('panel.view') && <>
+                <Link to="/panel"><ClipboardList size={16} />task من</Link>
+                <Link to="/panel?view=projects"><GanttChartSquare size={16} />پروژه‌های من</Link>
+                <Link to="/panel?view=leaves"><CalendarDays size={16} />مرخصی‌های من</Link>
+                <Link to="/panel?view=missions"><Briefcase size={16} />مأموریت‌های من</Link>
+                <Link to="/panel?view=payroll"><Wallet size={16} />حقوق من</Link>
+                <Link to="/panel?view=profile"><UserRound size={16} />پروندهٔ من</Link>
+              </>}
+              {hasPermission('settings.view') && <NavLink to="/settings"><Settings size={16} />تنظیمات</NavLink>}
+              <button type="button" onClick={() => void signOut()}><LogOut size={16} />خروج از حساب</button>
+            </div>
           </details>
         </div>
       </header>

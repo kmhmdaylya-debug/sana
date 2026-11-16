@@ -459,6 +459,7 @@ model User {
   surveyResponses   SurveyResponse[]
   taskComments      TaskComment[]
   createdTasks      Task[]           @relation("TaskCreator")
+  taskRetryRequests Task[]           @relation("TaskRetryRequester")
   createdProjects   Project[]        @relation("ProjectCreator")
   taskAssignees     TaskAssignee[]
   approvalsInitiated ApprovalInstance[] @relation("ApprovalInitiator")
@@ -1683,6 +1684,21 @@ model Goal {
 // وظایف
 // ---------------------------------------------------------------------------
 
+enum WorkCategory {
+  DESIGN
+  DEVELOPMENT
+  CONTENT
+  SUPPORT
+  OPERATIONS
+  GENERAL
+}
+
+enum TaskRetryStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Task {
   id             String       @id @default(uuid()) @db.Uuid
   companyId      String       @db.Uuid
@@ -1698,6 +1714,10 @@ model Task {
   slaHours       Int?
   delayReason    String?      @db.VarChar(500)
   projectName    String?      @db.VarChar(120)
+  category       WorkCategory?
+  retryStatus    TaskRetryStatus?
+  retryRequestedAt DateTime?
+  retryRequestedById String?  @db.Uuid
   recurrenceRule String?      @db.VarChar(200)
   createdById    String?      @db.Uuid
   completedAt    DateTime?
@@ -1707,6 +1727,7 @@ model Task {
   company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   orgUnit      OrgUnit?          @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
   createdBy    User?             @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  retryRequester User?           @relation("TaskRetryRequester", fields: [retryRequestedById], references: [id], onDelete: SetNull)
   assignees    TaskAssignee[]
   comments     TaskComment[]
   attachments  TaskAttachment[]
@@ -1716,6 +1737,8 @@ model Task {
   @@index([status])
   @@index([dueDate])
   @@index([companyId])
+  @@index([retryRequestedById])
+  @@index([companyId, category])
 }
 
 model TaskAssignee {
@@ -1805,6 +1828,7 @@ model Project {
   priority    ProjectPriority @default(MEDIUM)
   progress    Int             @default(0)
   color       String?         @db.VarChar(20)
+  category    WorkCategory?
   managerId   String?         @db.Uuid
   createdById String?         @db.Uuid
   createdAt   DateTime        @default(now())
@@ -1847,6 +1871,7 @@ model ProjectTask {
   status      String   @default("PENDING") @db.VarChar(30)
   priority    String   @default("MEDIUM") @db.VarChar(20)
   color       String?  @db.VarChar(20)
+  category    WorkCategory?
   assigneeId  String?  @db.Uuid
   dependsOnId String?  @db.Uuid
   sortOrder   Int      @default(0)

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AccessService } from '../common/access/access.service';
@@ -17,8 +17,22 @@ export class AnnouncementsService {
     private readonly notifications: NotificationService,
   ) {}
 
+  private async visibility(user: AuthenticatedUser): Promise<Prisma.AnnouncementWhereInput> {
+    const company = await this.access.companyWhereFor(user);
+    if (this.access.hasPermission(user, 'announcements.manage')) return company;
+    const employee = user.employeeId ? await this.prisma.employee.findUnique({ where: { id: user.employeeId }, select: { branchId: true, orgUnitId: true, positionId: true } }) : null;
+    return { AND: [company], OR: [
+      { targetType: 'ALL' },
+      ...(employee?.branchId ? [{ targetType: 'BRANCH', targetId: employee.branchId }] : []),
+      ...(employee?.orgUnitId ? [{ targetType: 'ORG_UNIT', targetId: employee.orgUnitId }] : []),
+      ...(employee?.positionId ? [{ targetType: 'POSITION', targetId: employee.positionId }] : []),
+    ] };
+  }
+
   async list(query: AnnouncementQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.AnnouncementWhereInput = {
+      AND: [await this.visibility(user)],
+      ...(query.pendingAck ? { requiresAck: true, acks: { none: { userId: user.id } } } : {}),
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.search ? { title: { contains: query.search } } : {}),
     };
@@ -41,10 +55,7 @@ export class AnnouncementsService {
       }),
     ]);
 
-    let data = rows;
-    if (query.pendingAck) {
-      data = rows.filter((a) => a.requiresAck && a.acks.length === 0);
-    }
+    const data = rows;
 
     return {
       data: data.map((a) => ({
@@ -63,11 +74,11 @@ export class AnnouncementsService {
         acknowledgedByMe: a.acks.length > 0 ? a.acks[0].acknowledgedAt : null,
       })),
       meta: {
-        total: query.pendingAck ? data.length : total,
+        total,
         page,
         limit,
-        totalPages: Math.max(1, Math.ceil((query.pendingAck ? data.length : total) / limit)),
-        hasNext: page * limit < (query.pendingAck ? data.length : total),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+        hasNext: page * limit < total,
         hasPrev: page > 1,
       },
       success: true,
@@ -76,12 +87,13 @@ export class AnnouncementsService {
   }
 
   async get(id: string, user: AuthenticatedUser) {
-    const row = await this.prisma.announcement.findUnique({
-      where: { id },
+    const row = await this.prisma.announcement.findFirst({
+      where: { id, AND: [await this.visibility(user)] },
       include: {
         company: { select: { id: true, code: true, name: true } },
         publishedBy: { select: { id: true, fullName: true } },
         acks: {
+          ...(this.access.hasPermission(user, 'announcements.manage') ? {} : { where: { userId: user.id } }),
           include: { user: { select: { id: true, fullName: true } } },
           orderBy: { acknowledgedAt: 'desc' },
         },
@@ -108,6 +120,11 @@ export class AnnouncementsService {
 
   /** انتشار اعلامیه + اطلاع‌رسانی */
   async create(dto: CreateAnnouncementDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
+    if (dto.targetType && dto.targetType !== 'ALL') {
+      if (!dto.targetId) throw new BadRequestException('مخاطب اعلامیه را انتخاب کنید.');
+      await this.access.assertEmployeeRelations(dto.companyId, { branchId: dto.targetType === 'BRANCH' ? dto.targetId : null, orgUnitId: dto.targetType === 'ORG_UNIT' ? dto.targetId : null, positionId: dto.targetType === 'POSITION' ? dto.targetId : null });
+    }
     const row = await this.prisma.announcement.create({
       data: {
         companyId: dto.companyId,
@@ -124,6 +141,8 @@ export class AnnouncementsService {
 
     // اطلاع‌رسانی به کاربران هدف
     const userWhere: Prisma.UserWhereInput = {
+      deletedAt: null,
+      AND: [{ employee: { is: { companyId: dto.companyId, deletedAt: null } } }],
       status: 'ACTIVE',
       ...(dto.targetType === 'ORG_UNIT' && dto.targetId
         ? { employee: { orgUnitId: dto.targetId, deletedAt: null } }
@@ -165,7 +184,7 @@ export class AnnouncementsService {
 
   /** تأیید مطالعه اعلامیه */
   async acknowledge(id: string, user: AuthenticatedUser) {
-    const announcement = await this.prisma.announcement.findUnique({ where: { id } });
+    const announcement = await this.prisma.announcement.findFirst({ where: { id, AND: [await this.visibility(user)] } });
     if (!announcement) throw new NotFoundException('اعلامیه یافت نشد.');
 
     await this.prisma.announcementAck.upsert({
@@ -185,6 +204,7 @@ export class AnnouncementsService {
   async remove(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.announcement.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('اعلامیه یافت نشد.');
+    if (row.companyId) await this.access.assertCompanyAccess(user, row.companyId);
     if (row.publishedById !== user.id && !user.isSuperAdmin) {
       throw new NotFoundException('اعلامیه یافت نشد.');
     }

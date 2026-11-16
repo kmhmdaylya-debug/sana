@@ -32,8 +32,15 @@ export class TrainingService {
   // دوره‌های آموزشی
   // =========================================================================
 
-  async listCourses(query: CourseQueryDto, pagination: PaginationDto) {
+  private async validatePrerequisites(companyId: string, ids: string[]) {
+    const unique = [...new Set(ids)];
+    const count = await this.prisma.trainingCourse.count({ where: { id: { in: unique }, companyId } });
+    if (count !== unique.length) throw new BadRequestException('پیش‌نیازها باید متعلق به همین شرکت باشند.');
+  }
+
+  async listCourses(query: CourseQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.TrainingCourseWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.isActive !== undefined && query.isActive !== '' ? { isActive: query.isActive === 'true' } : {}),
       ...(query.search
@@ -77,7 +84,7 @@ export class TrainingService {
     };
   }
 
-  async getCourse(id: string) {
+  async getCourse(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.trainingCourse.findUnique({
       where: { id },
       include: {
@@ -87,6 +94,7 @@ export class TrainingService {
       },
     });
     if (!row) throw new NotFoundException('دوره آموزشی یافت نشد.');
+    await this.access.assertCompanyAccess(user, row.companyId);
     return {
       data: {
         ...row,
@@ -99,7 +107,10 @@ export class TrainingService {
     };
   }
 
-  async createCourse(dto: CreateCourseDto, actorId: string) {
+  async createCourse(dto: CreateCourseDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.access.assertCompanyAccess(user, dto.companyId);
+    await this.validatePrerequisites(dto.companyId, dto.prerequisiteIds ?? []);
     const duplicate = await this.prisma.trainingCourse.findUnique({
       where: { companyId_code: { companyId: dto.companyId, code: dto.code.trim() } },
     });
@@ -138,9 +149,11 @@ export class TrainingService {
     };
   }
 
-  async updateCourse(id: string, dto: UpdateCourseDto, actorId: string) {
+  async updateCourse(id: string, dto: UpdateCourseDto, user: AuthenticatedUser) {
+    const actorId = user.id;
     const course = await this.prisma.trainingCourse.findUnique({ where: { id } });
     if (!course) throw new NotFoundException('دوره آموزشی یافت نشد.');
+    await this.access.assertCompanyAccess(user, course.companyId);
 
     const row = await this.prisma.trainingCourse.update({
       where: { id },
@@ -169,9 +182,12 @@ export class TrainingService {
   }
 
   /** تنظیم دوره‌های پیش‌نیاز یک دوره */
-  async setPrerequisites(id: string, prerequisiteIds: string[], actorId: string) {
+  async setPrerequisites(id: string, prerequisiteIds: string[], user: AuthenticatedUser) {
+    const actorId = user.id;
     const course = await this.prisma.trainingCourse.findUnique({ where: { id } });
     if (!course) throw new NotFoundException('دوره آموزشی یافت نشد.');
+    await this.access.assertCompanyAccess(user, course.companyId);
+    await this.validatePrerequisites(course.companyId, prerequisiteIds);
     if (prerequisiteIds.includes(id)) {
       throw new BadRequestException('دوره نمی‌تواند پیش‌نیاز خودش باشد.');
     }
@@ -251,6 +267,10 @@ export class TrainingService {
       include: { prerequisites: { select: { requiresCourseId: true } } },
     });
     if (!course) throw new NotFoundException('دوره آموزشی یافت نشد.');
+    await this.access.assertCompanyAccess(user, course.companyId);
+
+    const employee = await this.prisma.employee.findFirst({ where: { id: dto.employeeId, companyId: course.companyId, deletedAt: null }, select: { id: true } });
+    if (!employee) throw new BadRequestException('دوره و کارمند باید متعلق به یک شرکت باشند.');
 
     // بررسی گذراندن پیش‌نیازها
     const prereqIds = course.prerequisites.map((p) => p.requiresCourseId);

@@ -16,7 +16,8 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { AuditService, AuditContext } from '../common/audit/audit.service';
+import { AuditEntry, AuditService, AuditContext } from '../common/audit/audit.service';
+import { stringifyAudit } from '../common/audit/audit-redaction';
 import { AccessService } from '../common/access/access.service';
 import { NotificationService } from '../common/notifications/notification.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
@@ -480,7 +481,9 @@ export class PayrollService {
   // ==========================================================================
 
   async generate(periodId: string, actorId: string, user: AuthenticatedUser) {
-    const period = await this.getPeriodEntity(periodId);
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${periodId}::uuid FOR UPDATE`;
+    const period = await this.getPeriodEntity(periodId, db);
     await this.assertCompanyAccess(user, period.companyId);
 
     if (period.status === PayrollStatus.LOCKED) {
@@ -491,17 +494,17 @@ export class PayrollService {
     }
 
     const range = this.periodRange(period.year, period.month);
-    const settings = await this.loadPayrollSettings();
+    const settings = await this.loadPayrollSettings(db);
     const workingDaysPerMonth = this.config.get<number>('app.payroll.workingDaysPerMonth') ?? 30;
     const defaultMonthlyHours =
       this.config.get<number>('app.payroll.defaultWorkHoursPerDay') !== undefined
         ? (this.config.get<number>('app.payroll.defaultWorkHoursPerDay') as number) * 26
         : 220;
 
-    const components = await this.ensureCanonicalComponents(period.companyId, range);
+    const components = await this.ensureCanonicalComponents(period.companyId, range, db);
 
     // --- کارکنان فعال دوره ---
-    const employees = await this.prisma.employee.findMany({
+    const employees = await db.employee.findMany({
       where: {
         companyId: period.companyId,
         deletedAt: null,
@@ -529,7 +532,7 @@ export class PayrollService {
     const employeeIds = employees.map((e) => e.id);
 
     // --- قرارداد فعال هر کارمند ---
-    const contracts = await this.prisma.contract.findMany({
+    const contracts = await db.contract.findMany({
       where: { employeeId: { in: employeeIds }, companyId: period.companyId, deletedAt: null },
       include: { versions: { orderBy: { version: 'desc' } } },
     });
@@ -544,7 +547,7 @@ export class PayrollService {
     }
 
     // --- اضافه‌کاری دوره ---
-    const overtimeRows = await this.prisma.attendanceRecord.groupBy({
+    const overtimeRows = await db.attendanceRecord.groupBy({
       by: ['employeeId'],
       where: {
         employeeId: { in: employeeIds },
@@ -556,7 +559,7 @@ export class PayrollService {
     for (const row of overtimeRows) overtimeMap.set(row.employeeId, row._sum.overtimeMinutes ?? 0);
 
     // --- مرخصی‌های تأییدشده و حقوق‌دار ---
-    const leaves = await this.prisma.leaveRequest.findMany({
+    const leaves = await db.leaveRequest.findMany({
       where: {
         employeeId: { in: employeeIds },
         status: LeaveRequestStatus.APPROVED,
@@ -568,7 +571,7 @@ export class PayrollService {
     });
 
     // --- اقساط وام سررسیدشده در دوره ---
-    const installments = await this.prisma.loanInstallment.findMany({
+    const installments = await db.loanInstallment.findMany({
       where: {
         dueDate: { gte: range.startDate, lt: range.endExclusive },
         status: 'PENDING',
@@ -580,7 +583,7 @@ export class PayrollService {
     // --- کارکنانی که اصلاحیه تأییدشده دارند (تولید مجدد نباید اصلاحیه را بازنویسی کند) ---
     const amendedEmployees = new Set(
       (
-        await this.prisma.payrollAmendment.findMany({
+        await db.payrollAmendment.findMany({
           where: { periodId, status: 'APPROVED' },
           select: { employeeId: true },
         })
@@ -725,7 +728,7 @@ export class PayrollService {
         desiredCodes.add(draft.code);
         if (draft.amount <= 0) continue;
 
-        await this.prisma.payrollItem.upsert({
+        await db.payrollItem.upsert({
           where: {
             periodId_employeeId_componentId: {
               periodId,
@@ -753,7 +756,7 @@ export class PayrollService {
       }
 
       // پاک‌سازی اقلام استانداردی که در این دوره دیگر وجود ندارند (مثلاً اضافه‌کاری اصلاح‌شده)
-      await this.prisma.payrollItem.deleteMany({
+      await db.payrollItem.deleteMany({
         where: {
           periodId,
           employeeId: employee.id,
@@ -764,9 +767,9 @@ export class PayrollService {
     }
 
     // --- بازمحاسبه فیش‌های حقوقی و جمع دوره ---
-    const summary = await this.recalculatePayslips(periodId);
+    const summary = await this.recalculatePayslips(periodId, db);
 
-    await this.prisma.payrollPeriod.update({
+    await db.payrollPeriod.update({
       where: { id: periodId },
       data: {
         generatedAt: new Date(),
@@ -776,7 +779,7 @@ export class PayrollService {
       },
     });
 
-    await this.audit.record(actorId, {
+    await this.recordFinancialAudit(db, actorId, {
       action: AuditAction.UPDATE,
       entity: 'PayrollPeriod',
       entityId: periodId,
@@ -816,6 +819,8 @@ export class PayrollService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+  
+    }, { maxWait: 10000, timeout: 300000 });
   }
 
   // ==========================================================================
@@ -823,7 +828,9 @@ export class PayrollService {
   // ==========================================================================
 
   async review(periodId: string, actorId: string, user: AuthenticatedUser) {
-    const period = await this.getPeriodEntity(periodId);
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${periodId}::uuid FOR UPDATE`;
+    const period = await this.getPeriodEntity(periodId, db);
     await this.assertCompanyAccess(user, period.companyId);
     if (period.status === PayrollStatus.LOCKED) {
       throw new BadRequestException(PAYROLL_LOCKED_MESSAGE);
@@ -832,12 +839,12 @@ export class PayrollService {
       throw new BadRequestException('این دوره قبلاً بررسی شده است.');
     }
 
-    const updated = await this.prisma.payrollPeriod.update({
+    const updated = await db.payrollPeriod.update({
       where: { id: periodId },
       data: { status: PayrollStatus.REVIEWED },
     });
 
-    await this.audit.record(actorId, {
+    await this.recordFinancialAudit(db, actorId, {
       action: AuditAction.APPROVE,
       entity: 'PayrollPeriod',
       entityId: periodId,
@@ -847,10 +854,14 @@ export class PayrollService {
     });
 
     return this.periodToPublic(updated);
+  
+    }, { maxWait: 10000, timeout: 300000 });
   }
 
   async lock(periodId: string, actorId: string, user: AuthenticatedUser) {
-    const period = await this.getPeriodEntity(periodId);
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${periodId}::uuid FOR UPDATE`;
+    const period = await this.getPeriodEntity(periodId, db);
     await this.assertCompanyAccess(user, period.companyId);
     if (period.status === PayrollStatus.LOCKED) {
       throw new BadRequestException('این دوره قبلاً قفل شده است.');
@@ -859,12 +870,12 @@ export class PayrollService {
       throw new BadRequestException('ابتدا باید دوره توسط حسابدار بررسی شود.');
     }
 
-    const updated = await this.prisma.payrollPeriod.update({
+    const updated = await db.payrollPeriod.update({
       where: { id: periodId },
       data: { status: PayrollStatus.LOCKED, lockedAt: new Date(), lockedById: actorId },
     });
 
-    await this.audit.record(actorId, {
+    await this.recordFinancialAudit(db, actorId, {
       action: AuditAction.APPROVE,
       entity: 'PayrollPeriod',
       entityId: periodId,
@@ -874,38 +885,44 @@ export class PayrollService {
     });
 
     return this.periodToPublic(updated);
+  
+    }, { maxWait: 10000, timeout: 300000 });
   }
 
   async publish(periodId: string, actorId: string, user: AuthenticatedUser) {
-    const period = await this.getPeriodEntity(periodId);
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${periodId}::uuid FOR UPDATE`;
+    const period = await this.getPeriodEntity(periodId, db);
     await this.assertCompanyAccess(user, period.companyId);
     if (period.status === PayrollStatus.DRAFT) {
       throw new BadRequestException('ابتدا دوره باید بررسی شود.');
     }
 
-    const payslips = await this.prisma.payslip.findMany({ where: { periodId } });
+    if (period.status !== PayrollStatus.LOCKED) throw new BadRequestException('ابتدا دوره حقوق را قفل کنید.');
+    const payslips = await db.payslip.findMany({ where: { periodId, status: { not: 'PUBLISHED' } } });
     const publishedAt = new Date();
-    await this.prisma.payslip.updateMany({
-      where: { periodId },
+    await db.payslip.updateMany({
+      where: { periodId, id: { in: payslips.map(item => item.id) }, status: { not: 'PUBLISHED' } },
       data: { status: 'PUBLISHED', publishedAt },
     });
 
-    const employees = await this.prisma.employee.findMany({
+    const employees = await db.employee.findMany({
       where: { id: { in: payslips.map((p) => p.employeeId) } },
       select: { id: true, firstName: true, lastName: true, userId: true },
     });
     const userIds = employees.map((e) => e.userId).filter((v): v is string => !!v);
     if (userIds.length) {
-      await this.notifications.notifyMany(userIds, {
+      await db.notification.createMany({ data: [...new Set(userIds)].map(userId => ({
+        userId, status: 'SENT', sentAt: publishedAt,
         type: NotificationType.PAYSLIP_PUBLISHED,
         title: 'فیش حقوقی شما منتشر شد',
         body: `فیش حقوقی دوره ${period.year}/${period.month} آماده مشاهده است.`,
         link: `/payroll/payslips/${periodId}/mine`,
         senderId: actorId,
-      });
+      })) });
     }
 
-    await this.audit.record(actorId, {
+    await this.recordFinancialAudit(db, actorId, {
       action: AuditAction.APPROVE,
       entity: 'PayrollPeriod',
       entityId: periodId,
@@ -924,6 +941,8 @@ export class PayrollService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+  
+    }, { maxWait: 10000, timeout: 300000 });
   }
 
   // ==========================================================================
@@ -974,6 +993,7 @@ export class PayrollService {
       },
     });
     if (!amendment) throw new NotFoundException('اصلاحیه موردنظر یافت نشد.');
+    await this.access.assertEmployeeAccess(user, amendment.employeeId);
     return this.amendmentToPublic(amendment);
   }
 
@@ -983,10 +1003,12 @@ export class PayrollService {
 
     const allowed = await this.access.canAccessEmployee(user, dto.employeeId);
     if (!allowed) throw new ForbiddenException('به پرونده پرسنلی موردنظر دسترسی ندارید.');
+    const employee = await this.prisma.employee.findFirst({ where: { id: dto.employeeId, companyId: period.companyId, deletedAt: null }, select: { id: true } });
+    if (!employee) throw new BadRequestException('کارمند و دوره حقوق باید متعلق به یک شرکت باشند.');
 
     const componentIds = dto.items.map((i) => i.componentId);
     const components = await this.prisma.payComponent.findMany({
-      where: { id: { in: componentIds } },
+      where: { id: { in: componentIds }, companyId: period.companyId },
       select: { id: true, companyId: true },
     });
     if (components.length !== componentIds.length) {
@@ -1021,7 +1043,12 @@ export class PayrollService {
   }
 
   async approveAmendment(id: string, actorId: string, user: AuthenticatedUser) {
-    const amendment = await this.prisma.payrollAmendment.findUnique({
+    const lockTarget = await this.prisma.payrollAmendment.findUnique({ where: { id }, select: { periodId: true } });
+    if (!lockTarget) throw new NotFoundException('اصلاحیه موردنظر یافت نشد.');
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${lockTarget.periodId}::uuid FOR UPDATE`;
+      await db.$queryRaw`SELECT id FROM "PayrollAmendment" WHERE id = ${id}::uuid FOR UPDATE`;
+    const amendment = await db.payrollAmendment.findUnique({
       where: { id },
       include: { period: true },
     });
@@ -1042,7 +1069,7 @@ export class PayrollService {
 
     // اعمال اقلام روی دوره اصلی (بدون ایجاد دوره یا تغییر خودکار)
     for (const item of items) {
-      const existing = await this.prisma.payrollItem.findUnique({
+      const existing = await db.payrollItem.findUnique({
         where: {
           periodId_employeeId_componentId: {
             periodId: amendment.periodId,
@@ -1053,9 +1080,9 @@ export class PayrollService {
       });
       const ruleVersionId =
         existing?.ruleVersionId ??
-        (await this.resolveRuleVersion(item.componentId, range.startDate, range.end));
+        (await this.resolveRuleVersion(item.componentId, range.startDate, range.end, db));
 
-      await this.prisma.payrollItem.upsert({
+      await db.payrollItem.upsert({
         where: {
           periodId_employeeId_componentId: {
             periodId: amendment.periodId,
@@ -1080,8 +1107,8 @@ export class PayrollService {
       });
     }
 
-    const summary = await this.recalculatePayslips(amendment.periodId);
-    await this.prisma.payrollPeriod.update({
+    const summary = await this.recalculatePayslips(amendment.periodId, db);
+    await db.payrollPeriod.update({
       where: { id: amendment.periodId },
       data: {
         totalGross: summary.totalGross,
@@ -1090,12 +1117,12 @@ export class PayrollService {
       },
     });
 
-    const updated = await this.prisma.payrollAmendment.update({
+    const updated = await db.payrollAmendment.update({
       where: { id },
       data: { status: 'APPROVED', approvedById: actorId, decidedAt: new Date() },
     });
 
-    await this.audit.record(actorId, {
+    await this.recordFinancialAudit(db, actorId, {
       action: AuditAction.APPROVE,
       entity: 'PayrollAmendment',
       entityId: id,
@@ -1105,10 +1132,17 @@ export class PayrollService {
     });
 
     return this.amendmentToPublic(updated);
+  
+    }, { maxWait: 10000, timeout: 300000 });
   }
 
   async rejectAmendment(id: string, dto: RejectPayrollAmendmentDto, actorId: string, user: AuthenticatedUser) {
-    const amendment = await this.prisma.payrollAmendment.findUnique({
+    const lockTarget = await this.prisma.payrollAmendment.findUnique({ where: { id }, select: { periodId: true } });
+    if (!lockTarget) throw new NotFoundException('اصلاحیه موردنظر یافت نشد.');
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${lockTarget.periodId}::uuid FOR UPDATE`;
+      await db.$queryRaw`SELECT id FROM "PayrollAmendment" WHERE id = ${id}::uuid FOR UPDATE`;
+    const amendment = await db.payrollAmendment.findUnique({
       where: { id },
       include: { period: true },
     });
@@ -1118,12 +1152,12 @@ export class PayrollService {
     }
     await this.assertCompanyAccess(user, amendment.period.companyId);
 
-    const updated = await this.prisma.payrollAmendment.update({
+    const updated = await db.payrollAmendment.update({
       where: { id },
       data: { status: 'REJECTED', approvedById: actorId, decidedAt: new Date() },
     });
 
-    await this.audit.record(actorId, {
+    await this.recordFinancialAudit(db, actorId, {
       action: AuditAction.REJECT,
       entity: 'PayrollAmendment',
       entityId: id,
@@ -1133,6 +1167,8 @@ export class PayrollService {
     });
 
     return this.amendmentToPublic(updated);
+  
+    }, { maxWait: 10000, timeout: 300000 });
   }
 
   // ==========================================================================
@@ -1487,8 +1523,12 @@ export class PayrollService {
   // متدهای داخلی
   // ==========================================================================
 
-  private async getPeriodEntity(id: string) {
-    const period = await this.prisma.payrollPeriod.findUnique({ where: { id } });
+  private async recordFinancialAudit(db: Prisma.TransactionClient, userId: string, entry: AuditEntry) {
+    await db.auditLog.create({ data: { userId, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before: stringifyAudit(entry.before), after: stringifyAudit(entry.after) } });
+  }
+
+  private async getPeriodEntity(id: string, db: Prisma.TransactionClient = this.prisma) {
+    const period = await db.payrollPeriod.findUnique({ where: { id } });
     if (!period) throw new NotFoundException('دوره حقوق موردنظر یافت نشد.');
     return period;
   }
@@ -1514,13 +1554,13 @@ export class PayrollService {
   }
 
   /** تنظیمات سازمانی حقوق (خوانده‌شده از جدول Setting با مقادیر پیش‌فرض) */
-  private async loadPayrollSettings() {
+  private async loadPayrollSettings(db: Prisma.TransactionClient = this.prisma) {
     const keys = [
       'payroll.overtime.multiplier',
       'payroll.insurance.employeePercent',
       'payroll.insurance.employerPercent',
     ];
-    const rows = await this.prisma.setting.findMany({ where: { key: { in: keys } } });
+    const rows = await db.setting.findMany({ where: { key: { in: keys } } });
     const map = new Map(rows.map((r) => [r.key, r.value]));
     const num = (key: string, fallback: number): number => {
       const raw = map.get(key);
@@ -1539,9 +1579,10 @@ export class PayrollService {
   private async ensureCanonicalComponents(
     companyId: string,
     range: PeriodRange,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<Map<string, { componentId: string; ruleVersionId: string | null }>> {
     const result = new Map<string, { componentId: string; ruleVersionId: string | null }>();
-    const existing = await this.prisma.payComponent.findMany({
+    const existing = await db.payComponent.findMany({
       where: { companyId, code: { in: CANONICAL_CODES } },
     });
     const byCode = new Map(existing.map((c) => [c.code, c]));
@@ -1549,7 +1590,7 @@ export class PayrollService {
     for (const def of CANONICAL_COMPONENTS) {
       let component = byCode.get(def.code);
       if (!component) {
-        component = await this.prisma.payComponent.create({
+        component = await db.payComponent.create({
           data: {
             companyId,
             code: def.code,
@@ -1564,9 +1605,9 @@ export class PayrollService {
         });
       }
 
-      const ruleCount = await this.prisma.payRuleVersion.count({ where: { componentId: component.id } });
+      const ruleCount = await db.payRuleVersion.count({ where: { componentId: component.id } });
       if (ruleCount === 0) {
-        await this.prisma.payRuleVersion.create({
+        await db.payRuleVersion.create({
           data: {
             componentId: component.id,
             version: 1,
@@ -1579,7 +1620,7 @@ export class PayrollService {
 
       result.set(def.code, {
         componentId: component.id,
-        ruleVersionId: await this.resolveRuleVersion(component.id, range.startDate, range.end),
+        ruleVersionId: await this.resolveRuleVersion(component.id, range.startDate, range.end, db),
       });
     }
 
@@ -1591,8 +1632,9 @@ export class PayrollService {
     componentId: string,
     start: Date,
     end: Date,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<string | null> {
-    const rule = await this.prisma.payRuleVersion.findFirst({
+    const rule = await db.payRuleVersion.findFirst({
       where: {
         componentId,
         effectiveFrom: { lte: end },
@@ -1655,8 +1697,8 @@ export class PayrollService {
   }
 
   /** بازمحاسبه فیش‌های حقوقی و جمع دوره از روی اقلام */
-  private async recalculatePayslips(periodId: string) {
-    const items = await this.prisma.payrollItem.findMany({
+  private async recalculatePayslips(periodId: string, db: Prisma.TransactionClient = this.prisma) {
+    const items = await db.payrollItem.findMany({
       where: { periodId },
       include: { component: { select: { type: true, code: true } } },
     });
@@ -1676,10 +1718,10 @@ export class PayrollService {
 
     for (const [employeeId, bucket] of byEmployee.entries()) {
       const net = bucket.gross - bucket.deduction;
-      const existing = await this.prisma.payslip.findUnique({
+      const existing = await db.payslip.findUnique({
         where: { periodId_employeeId: { periodId, employeeId } },
       });
-      await this.prisma.payslip.upsert({
+      await db.payslip.upsert({
         where: { periodId_employeeId: { periodId, employeeId } },
         create: {
           periodId,

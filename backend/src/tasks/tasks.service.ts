@@ -11,7 +11,7 @@ import { AuditService } from '../common/audit/audit.service';
 import { NotificationService } from '../common/notifications/notification.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
-import { CreateTaskDto, TaskCommentDto, TaskDependencyDto, TaskQueryDto, UpdateTaskDto } from './dto/tasks.dto';
+import { CreateTaskDto, ReviewTaskRetryDto, TaskCommentDto, TaskDependencyDto, TaskQueryDto, UpdateTaskDto } from './dto/tasks.dto';
 
 @Injectable()
 export class TasksService {
@@ -51,16 +51,16 @@ export class TasksService {
     return { data, meta: { total, page: query.page, limit: query.limit, totalPages: Math.max(1, Math.ceil(total / query.limit)) }, success: true };
   }
 
-  /** آیا کاربر روی این وظیفه دسترسی دارد (مسئول/ایجادکننده/حوزه دسترسی) */
+  /** آیا کاربر روی این task دسترسی دارد (مسئول/ایجادکننده/حوزه دسترسی) */
   private async assertTaskAccess(taskId: string, user: AuthenticatedUser) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        assignees: { include: { employee: { select: { id: true } } } },
+        assignees: { include: { employee: { select: { id: true, userId: true } } } },
         orgUnit: { select: { id: true } },
       },
     });
-    if (!task) throw new NotFoundException('وظیفه موردنظر یافت نشد.');
+    if (!task) throw new NotFoundException('task موردنظر یافت نشد.');
 
     if (user.isSuperAdmin || user.scope.unrestricted) return task;
     if (task.createdById === user.id) return task;
@@ -70,7 +70,7 @@ export class TasksService {
       // دسترسی سطح شرکت مجاز است
       return task;
     }
-    throw new ForbiddenException('به این وظیفه دسترسی ندارید.');
+    throw new ForbiddenException('به این task دسترسی ندارید.');
   }
 
   async list(query: TaskQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
@@ -79,6 +79,7 @@ export class TasksService {
       ...(query.orgUnitId ? { orgUnitId: query.orgUnitId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.priority ? { priority: query.priority } : {}),
+      ...(query.category ? { category: query.category } : {}),
       ...(query.createdById ? { createdById: query.createdById } : {}),
       ...(query.assigneeId ? { assignees: { some: { employeeId: query.assigneeId } } } : {}),
       ...(query.filter === 'overdue'
@@ -101,7 +102,7 @@ export class TasksService {
         : {}),
     };
 
-    // محدودسازی حوزه: اگر کاربر unrestricted نیست فقط وظایف خودش/واحدش
+    // محدودسازی حوزه: اگر کاربر unrestricted نیست فقط task خودش/واحدش
     if (!user.isSuperAdmin && !user.scope.unrestricted) {
       where.AND = [{ OR: [
         { createdById: user.id },
@@ -180,7 +181,7 @@ export class TasksService {
   }
 
   /**
-   * مسئولان وظیفه از روی «کاربر» و/یا «نیرو» مشخص می‌شوند.
+   * مسئولان task از روی «کاربر» و/یا «نیرو» مشخص می‌شوند.
    * چون «کاربر = نیرو» است، شناسهٔ کاربر به پروندهٔ پرسنلی او نگاشت می‌شود
    * تا هم افرادِ دارای پرونده و هم حساب‌های صرفاً کاربری قابل انتخاب باشند.
    */
@@ -239,6 +240,7 @@ export class TasksService {
         progress: dto.progress ?? 0,
         slaHours: dto.slaHours ?? null,
         projectName: dto.projectName ?? null,
+        category: dto.category ?? null,
         createdById: user.id,
         assignees,
       },
@@ -263,7 +265,7 @@ export class TasksService {
       if (a.userId && a.userId !== user.id) {
         await this.notifications.notify(a.userId, {
           type: NotificationType.TASK_ASSIGNED,
-          title: 'وظیفه جدید به شما واگذار شد',
+          title: 'task جدید به شما واگذار شد',
           body: task.title,
           link: '/tasks',
         });
@@ -278,14 +280,16 @@ export class TasksService {
   }
 
   async update(id: string, dto: UpdateTaskDto, user: AuthenticatedUser) {
-    await this.assertTaskAccess(id, user);
+    const existing = await this.assertTaskAccess(id, user);
     if (dto.title !== undefined && !dto.title.trim()) throw new BadRequestException('عنوان کار را وارد کنید.');
-    const resolved = dto.assigneeIds !== undefined || dto.assigneeUserIds !== undefined
+    const requested = dto.assigneeIds !== undefined || dto.assigneeUserIds !== undefined
       ? await this.resolveAssignees(user, dto.assigneeUserIds, dto.assigneeIds) : undefined;
+    const assigneeKeys = (rows: { userId?: string | null; employeeId?: string | null }[]) => rows.map(row => `${row.userId ?? ''}|${row.employeeId ?? ''}`).sort().join(',');
+    const resolved = requested && assigneeKeys(requested) !== assigneeKeys(existing.assignees) ? requested : undefined;
 
     const before = await this.prisma.task.findUnique({ where: { id } });
     if (before?.status === TaskStatus.DONE && dto.status && dto.status !== TaskStatus.DONE) {
-      // بازگشایی وظیفه تکمیل‌شده مجاز است
+      // بازگشایی task تکمیل‌شده مجاز است
     }
 
     const task = await this.prisma.task.update({
@@ -298,6 +302,7 @@ export class TasksService {
         ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
+        ...(dto.category !== undefined ? { category: dto.category } : {}),
         ...(dto.dueDate !== undefined ? { dueDate: dto.dueDate ? new Date(dto.dueDate) : null } : {}),
         ...(dto.estimatedHours !== undefined ? { estimatedHours: dto.estimatedHours } : {}),
         ...(dto.actualHours !== undefined ? { actualHours: dto.actualHours } : {}),
@@ -306,6 +311,7 @@ export class TasksService {
         ...(dto.delayReason !== undefined ? { delayReason: dto.delayReason } : {}),
         ...(dto.status === TaskStatus.DONE ? { completedAt: before?.completedAt ?? new Date(), progress: 100, delayReason: null } : {}),
         ...(dto.status && dto.status !== TaskStatus.DONE ? { completedAt: null } : {}),
+        ...((dto.status && dto.status !== before?.status) || resolved ? { retryStatus: null, retryRequestedAt: null, retryRequestedById: null, delayReason: null } : {}),
       },
       include: { assignees: { include: { employee: { select: { userId: true } } } } },
     });
@@ -317,7 +323,7 @@ export class TasksService {
         if (uid !== user.id) {
           await this.notifications.notify(uid, {
             type: NotificationType.TASK_ASSIGNED,
-            title: 'وظیفه به شما واگذار شد',
+            title: 'task به شما واگذار شد',
             body: task.title,
             link: '/tasks',
           });
@@ -343,7 +349,7 @@ export class TasksService {
   async remove(id: string, user: AuthenticatedUser) {
     const task = await this.assertTaskAccess(id, user);
     if (task.createdById !== user.id && !user.isSuperAdmin) {
-      throw new ForbiddenException('فقط ایجادکننده وظیفه می‌تواند آن را حذف کند.');
+      throw new ForbiddenException('فقط ایجادکننده task می‌تواند آن را حذف کند.');
     }
     await this.prisma.task.delete({ where: { id } });
     await this.audit.record(user.id, {
@@ -373,12 +379,35 @@ export class TasksService {
     };
   }
 
+  async reviewRetry(id: string, dto: ReviewTaskRetryDto, user: AuthenticatedUser) {
+    const task = await this.assertTaskAccess(id, user);
+    const reason = dto.reason?.trim();
+    if (!dto.approved && !reason) throw new BadRequestException('دلیل رد درخواست را بنویسید.');
+    if (task.retryStatus !== 'PENDING' || !task.delayReason || ['DONE', 'CANCELLED'].includes(task.status)) throw new BadRequestException('درخواست در انتظار بررسی برای این کار وجود ندارد.');
+    await this.prisma.$transaction(async tx => {
+      const result = await tx.task.updateMany({
+        where: { id, retryStatus: 'PENDING', retryRequestedAt: task.retryRequestedAt, status: task.status, delayReason: task.delayReason },
+        data: { retryStatus: dto.approved ? 'APPROVED' : 'REJECTED', ...(dto.approved ? { status: 'NEW', delayReason: null, completedAt: null, progress: 0 } : {}) },
+      });
+      if (!result.count) throw new BadRequestException('درخواست تغییر کرده است؛ صفحه را تازه کنید.');
+      if (dto.approved) await tx.taskAssignee.updateMany({ where: { taskId: id }, data: { completedAt: null, dismissedAt: null } });
+      await tx.taskComment.create({ data: { taskId: id, authorId: user.id, content: dto.approved ? 'درخواست انجام دوباره تأیید شد؛ کار آمادهٔ شروع است.' : `درخواست انجام دوباره رد شد: ${reason}` } });
+    });
+    await this.audit.record(user.id, { action: AuditAction.UPDATE, entity: 'Task', entityId: id, after: { retryStatus: dto.approved ? 'APPROVED' : 'REJECTED', ...(reason ? { reason } : {}) } });
+    const recipients = new Set(task.assignees.map(assignment => assignment.userId ?? assignment.employee?.userId).filter((value): value is string => !!value));
+    if (task.retryRequestedById) recipients.add(task.retryRequestedById);
+    for (const recipient of recipients) {
+      if (recipient !== user.id) await this.notifications.notify(recipient, { title: dto.approved ? 'درخواست انجام دوباره تأیید شد' : 'درخواست انجام دوباره رد شد', body: `${task.title}${reason ? `: ${reason}` : ''}`, link: '/panel' });
+    }
+    return { success: true };
+  }
+
   async addDependency(id: string, dto: TaskDependencyDto, user: AuthenticatedUser) {
     await this.assertTaskAccess(id, user);
-    if (dto.dependsOnTaskId === id) throw new BadRequestException('وظیفه نمی‌تواند به خودش وابسته باشد.');
+    if (dto.dependsOnTaskId === id) throw new BadRequestException('task نمی‌تواند به خودش وابسته باشد.');
 
     const cycle = await this.hasDependencyCycle(id, dto.dependsOnTaskId);
-    if (cycle) throw new BadRequestException('این وابستگی یک چرخه در زنجیره وظایف ایجاد می‌کند.');
+    if (cycle) throw new BadRequestException('این وابستگی یک چرخه در زنجیره task ایجاد می‌کند.');
 
     const row = await this.prisma.taskDependency.create({
       data: { taskId: id, dependsOnTaskId: dto.dependsOnTaskId },

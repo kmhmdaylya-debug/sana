@@ -1,0 +1,99 @@
+:root {
+  --motion-ease: cubic-bezier(.2, .75, .25, 1);
+}
+
+.task-countdown {
+  --countdown-color: var(--amber-600);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  max-width: 100%;
+  padding: 4px 0 7px;
+  color: var(--countdown-color);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.task-countdown > svg { flex-shrink: 0; }
+.task-countdown::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  width: 100%;
+  height: 2px;
+  background: currentColor;
+  opacity: .65;
+  transform: scaleX(var(--deadline-progress));
+  transform-origin: right;
+  transition: transform 1s linear;
+}
+.task-countdown.is-urgent { --countdown-color: var(--red-600); }
+.task-countdown.is-expired { padding-bottom: 4px; }
+.task-countdown.is-expired::after { display: none; }
+.task-countdown-digits {
+  display: inline-block;
+  min-width: 8ch;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.task-deadline-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-heading { animation: sana-heading-in .38s var(--motion-ease) backwards; }
+  .app-content > :is(.card, .grid, .grid-2, .grid-3, .grid-4, .grid-sidebar, .col, .employee-work-section, .work-overview, .team-work-toolbar, .team-work-presence) {
+    animation: sana-fade-in .4s var(--motion-ease) .045s backwards;
+  }
+  :is(.employee-task-list, .team-work-list, .kanban-cards, .timeline-grid) > :is(.employee-task-row, .team-work-row, .kanban-card, .timeline-card),
+  .work-overview > button, .login-fields > .form-group {
+    animation: sana-item-in .36s var(--motion-ease) backwards;
+  }
+  :is(.employee-task-list, .team-work-list, .kanban-cards, .timeline-grid, .work-overview, .login-fields) > :nth-child(2) { animation-delay: .035s; }
+  :is(.employee-task-list, .team-work-list, .kanban-cards, .timeline-grid, .work-overview, .login-fields) > :nth-child(3) { animation-delay: .07s; }
+  :is(.employee-task-list, .team-work-list, .kanban-cards, .timeline-grid, .work-overview, .login-fields) > :nth-child(4) { animation-delay: .105s; }
+  :is(.employee-task-list, .team-work-list, .kanban-cards, .timeline-grid, .work-overview, .login-fields) > :nth-child(5) { animation-delay: .14s; }
+  :is(.employee-task-list, .team-work-list, .kanban-cards, .timeline-grid, .work-overview, .login-fields) > :nth-child(n+6) { animation-delay: .175s; }
+  .data-table tbody tr { animation: sana-fade-in .3s var(--motion-ease) backwards; }
+  .login-card { animation: sana-modal-in .48s var(--motion-ease) backwards; }
+  .modal-overlay { animation: sana-fade-in .18s ease-out backwards; }
+  .modal { animation: sana-modal-in .26s var(--motion-ease) backwards; }
+  :is(.profile-dropdown, .date-calendar) {
+    animation: sana-item-in .2s var(--motion-ease) backwards;
+  }
+  .toast { animation: sana-toast-in .3s var(--motion-ease) backwards; }
+  .alert { animation: sana-fade-in .25s ease-out backwards; }
+  :is(.employee-task-row, .team-work-history)[open] > :not(summary) { animation: sana-item-in .24s var(--motion-ease) backwards; }
+  .task-status-mark.is-done > svg { animation: sana-check-in .4s var(--motion-ease) backwards; }
+  .employee-task-overview { animation: sana-fade-in .35s var(--motion-ease) backwards; }
+  .task-countdown { animation: sana-item-in .3s var(--motion-ease) backwards; }
+  .task-countdown:not(.is-expired) > svg { animation: sana-hourglass 1s var(--motion-ease) 1; }
+
+  :is(.btn, .icon-button, .header-icon-btn, .employee-task-dismiss, .work-overview > button) {
+    transition: transform .18s var(--motion-ease), background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+  }
+  :is(.btn, .icon-button, .header-icon-btn, .employee-task-dismiss, .work-overview > button):active:not(:disabled) { transform: scale(.96); }
+  :is(.sidebar-link, .profile-dropdown a, .tabs > button) { transition: background .18s ease, color .18s ease, border-color .18s ease; }
+  :is(.header-icon-btn, .icon-button) > svg:not(.button-spinner) { transition: transform .22s var(--motion-ease); }
+  :is(.input, .select, .textarea) { transition: border-color .2s ease, box-shadow .2s ease, background .2s ease; }
+  :is(.timeline-progress-bar, .hero-bar, .progress-fill) { transition: width .65s var(--motion-ease); }
+  .gauge-value { transition: stroke-dashoffset .8s var(--motion-ease); }
+
+  @media (hover: hover) and (pointer: fine) {
+    :is(.btn, .icon-button, .header-icon-btn):hover:not(:active):not(:disabled) { transform: translateY(-1px); }
+    :is(.header-icon-btn, .icon-button):hover > svg:not(.button-spinner) { transform: rotate(-7deg); }
+    :is(.kanban-card, .timeline-card, .stat-card) { transition: transform .22s var(--motion-ease), border-color .22s ease, box-shadow .22s ease; }
+    :is(.kanban-card, .timeline-card, .stat-card):hover { transform: translateY(-2px); }
+  }
+}
+
+@keyframes sana-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sana-heading-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes sana-item-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes sana-modal-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes sana-toast-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes sana-check-in { 0% { transform: scale(.6); } 65% { transform: scale(1.16); } 100% { transform: scale(1); } }
+@keyframes sana-hourglass { 0%, 25% { transform: rotate(0); } 100% { transform: rotate(180deg); } }

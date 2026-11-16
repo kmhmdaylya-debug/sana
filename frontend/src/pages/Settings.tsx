@@ -44,7 +44,7 @@ const ENTITY_LABELS: Record<string, string> = {
   EMPLOYEE: 'نیرو',
   CONTRACT: 'قرارداد',
   ASSET: 'دارایی',
-  TASK: 'وظیفه',
+  TASK: 'task',
   LOAN: 'وام',
 };
 

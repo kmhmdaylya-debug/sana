@@ -23,8 +23,8 @@ export class ReportsController {
   @Get('definitions')
   @RequirePermissions(PERMISSIONS.REPORTS_VIEW)
   @ApiOperation({ summary: 'فهرست گزارش‌های قابل اجرا' })
-  listDefinitions() {
-    return this.service.listDefinitions();
+  listDefinitions(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listDefinitions(user);
   }
 
   @Get('runs')

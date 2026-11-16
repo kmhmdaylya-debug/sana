@@ -14,6 +14,8 @@ export class NotificationsService {
       userId: user.id,
       ...(query.status ? { status: query.status } : {}),
       ...(query.unread ? { readAt: null } : {}),
+      ...(query.isRead ? { readAt: query.isRead === 'true' ? { not: null } : null } : {}),
+      ...(query.search ? { OR: [{ title: { contains: query.search, mode: 'insensitive' } }, { body: { contains: query.search, mode: 'insensitive' } }] } : {}),
     };
 
     const page = pagination.page ?? 1;
@@ -30,7 +32,7 @@ export class NotificationsService {
     ]);
 
     return {
-      data: rows,
+      data: rows.map(row => ({ ...row, isRead: row.readAt !== null })),
       meta: {
         total,
         page,
@@ -63,8 +65,8 @@ export class NotificationsService {
       throw new NotFoundException('اعلان یافت نشد.');
     }
     if (!notification.readAt) {
-      await this.prisma.notification.update({
-        where: { id },
+      await this.prisma.notification.updateMany({
+        where: { id, userId: user.id, readAt: null },
         data: { readAt: new Date(), status: NotificationStatus.SENT },
       });
     }

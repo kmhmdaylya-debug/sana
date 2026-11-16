@@ -319,7 +319,7 @@ export class ApprovalsService {
    * نمونه‌های گردش
    * ------------------------------------------------------------------ */
 
-  /** ایجاد نمونه گردش و تولید وظایف مرحله اول */
+  /** ایجاد نمونه گردش و تولید task مرحله اول */
   async createInstance(dto: CreateApprovalInstanceDto, actorId: string) {
     const flow = await this.resolveFlowByCode(dto.flowCode);
     if (!flow) {
@@ -444,7 +444,7 @@ export class ApprovalsService {
     };
   }
 
-  /** جزئیات نمونه گردش به‌همراه تاریخچه وظایف */
+  /** جزئیات نمونه گردش به‌همراه تاریخچه task */
   async getInstance(id: string, user?: AuthenticatedUser) {
     const instance = await this.prisma.approvalInstance.findUnique({
       where: { id },
@@ -466,7 +466,7 @@ export class ApprovalsService {
     return this.toInstance(instance);
   }
 
-  /** صندوق کار — وظایف باز کاربر جاری */
+  /** صندوق کار — task باز کاربر جاری */
   async inbox(query: InboxQueryDto, user: AuthenticatedUser) {
     const where: Prisma.ApprovalTaskWhereInput = {
       status: ApprovalStatus.PENDING,
@@ -526,11 +526,11 @@ export class ApprovalsService {
    * ------------------------------------------------------------------ */
 
   /**
-   * ثبت تصمیم روی یک وظیفه تأیید.
+   * ثبت تصمیم روی یک task تأیید.
    * قواعد:
    *  ۱) منع خودتأییدی — ثبت‌کننده درخواست و مالک رکورد موضوع نمی‌توانند تأیید کنند.
    *  ۲) فقط یک انتقال معتبر — با به‌روزرسانی شرطی (updateMany) تضمین می‌شود.
-   *  ۳) مراحل موازی — تا تأیید همه وظایف یک مرحله، پیشروی انجام نمی‌شود.
+   *  ۳) مراحل موازی — تا تأیید همه task یک مرحله، پیشروی انجام نمی‌شود.
    */
   async decideTask(taskId: string, dto: DecideTaskDto, actor: AuthenticatedUser) {
     const task = await this.prisma.approvalTask.findUnique({
@@ -540,7 +540,7 @@ export class ApprovalsService {
         instance: { include: { flow: { include: { steps: { orderBy: { stepOrder: 'asc' } } } } } },
       },
     });
-    if (!task) throw new NotFoundException('وظیفه تأیید موردنظر یافت نشد.');
+    if (!task) throw new NotFoundException('task تأیید موردنظر یافت نشد.');
     if (task.status !== ApprovalStatus.PENDING) {
       throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
     }
@@ -735,7 +735,7 @@ export class ApprovalsService {
 
     await this.notification.notify(target.id, {
       type: NotificationType.TASK_ASSIGNED,
-      title: 'وظیفه تأیید ارجاع‌شده',
+      title: 'task تأیید ارجاع‌شده',
       body: `درخواست توسط ${actor.fullName} به شما ارجاع شد.${dto.comment ? ` یادداشت: ${dto.comment}` : ''}`,
       link: `/approvals/instances/${task.instanceId}`,
       senderId: actor.id,
@@ -795,7 +795,7 @@ export class ApprovalsService {
 
     await this.notification.notify(target, {
       type: NotificationType.TASK_ASSIGNED,
-      title: 'وظیفه تأیید ارجاع سطح بالاتر',
+      title: 'task تأیید ارجاع سطح بالاتر',
       body: `درخواست توسط ${actor.fullName} به شما ارجاع سطح بالاتر داده شد.`,
       link: `/approvals/instances/${task.instanceId}`,
       senderId: actor.id,
@@ -805,7 +805,7 @@ export class ApprovalsService {
   }
 
   /**
-   * پیشروی گردش — تنها زمانی که همه وظایف یک مرحله تعیین تکلیف شده باشند.
+   * پیشروی گردش — تنها زمانی که همه task یک مرحله تعیین تکلیف شده باشند.
    * انتقال با به‌روزرسانی شرطی نمونه (currentStepOrder) انجام می‌شود تا در
    * حالت هم‌زمانی فقط یک انتقال معتبر باشد.
    */
@@ -874,12 +874,12 @@ export class ApprovalsService {
   }
 
   /* ---------------------------------------------------------------------
-   * SLA — وظایف سررسیدشده
+   * SLA — task سررسیدشده
    * ------------------------------------------------------------------ */
 
   /**
-   * یافت وظایف بازِ سررسیدشده و اجرای اقدام تعیین‌شده در مرحله:
-   *  ESCALATE → ایجاد وظیفه برای سطح بالاتر
+   * یافت task بازِ سررسیدشده و اجرای اقدام تعیین‌شده در مرحله:
+   *  ESCALATE → ایجاد task برای سطح بالاتر
    *  SKIP     → عبور از مرحله
    *  REJECT   → رد نمونه گردش
    */
@@ -953,8 +953,8 @@ export class ApprovalsService {
       summary.escalated += 1;
       await this.notification.notify(target, {
         type: NotificationType.TASK_OVERDUE,
-        title: 'وظیفه تأیید سررسیدشده',
-        body: 'مهلت پاسخ‌گویی یک وظیفه تأیید به پایان رسید و به شما واگذار شد.',
+        title: 'task تأیید سررسیدشده',
+        body: 'مهلت پاسخ‌گویی یک task تأیید به پایان رسید و به شما واگذار شد.',
         link: `/approvals/instances/${task.instanceId}`,
       });
     }
@@ -1256,7 +1256,7 @@ export class ApprovalsService {
     return user ? [{ userId: user.id, roleCode: null }] : [];
   }
 
-  /** ساخت داده وظیفه تأیید */
+  /** ساخت داده task تأیید */
   private taskData(instanceId: string, step: any, approver: ApproverRef, now: Date) {
     return {
       instanceId,
@@ -1275,7 +1275,7 @@ export class ApprovalsService {
     return new Date(from.getTime() + hours * 3_600_000);
   }
 
-  /** بستن نمونه گردش (رد/نیازمند اصلاح) و لغو وظایف باز */
+  /** بستن نمونه گردش (رد/نیازمند اصلاح) و لغو task باز */
   private async closeInstance(instance: any, status: ApprovalStatus, now: Date) {
     await this.prisma.$transaction(async (tx) => {
       await tx.approvalInstance.updateMany({
@@ -1308,7 +1308,7 @@ export class ApprovalsService {
       );
     }
 
-    // ۳) وظیفه‌ای که به خودِ مالک درخواست تخصیص یافته است
+    // ۳) task که به خودِ مالک درخواست تخصیص یافته است
     if (task.assigneeUserId && task.assigneeUserId === actor.id && task.assigneeUserId === ownerUserId) {
       throw new ForbiddenException(
         'شما نمی‌توانید درخواستی را که خودتان ثبت کرده‌اید تأیید کنید.',
@@ -1322,7 +1322,7 @@ export class ApprovalsService {
     const isRoleHolder =
       !!task.assigneeRoleCode && actor.roleCodes.includes(task.assigneeRoleCode);
     if (!isAssignee && !isRoleHolder) {
-      throw new ForbiddenException('این وظیفه تأیید به شما واگذار نشده است.');
+      throw new ForbiddenException('این task تأیید به شما واگذار نشده است.');
     }
   }
 
@@ -1503,8 +1503,8 @@ export class ApprovalsService {
       approvers.map((a) => a.userId),
       {
         type: NotificationType.TASK_ASSIGNED,
-        title: `وظیفه تأیید جدید — ${step.name}`,
-        body: `برای شما وظیفه تأییدی در گردش «${instance.subjectType}» ایجاد شد.`,
+        title: `task تأیید جدید — ${step.name}`,
+        body: `برای شما task تأییدی در گردش «${instance.subjectType}» ایجاد شد.`,
         link: `/approvals/instances/${instance.id}`,
       },
     );
@@ -1607,7 +1607,7 @@ export class ApprovalsService {
     const employeeId = await this.resolveSubjectEmployeeId(instance);
     if (employeeId && (await this.access.canAccessEmployee(user, employeeId))) return;
 
-    // اگر کاربر وظیفه‌ای در این نمونه دارد اجازه مشاهده دارد.
+    // اگر کاربر task در این نمونه دارد اجازه مشاهده دارد.
     const hasTask = await this.prisma.approvalTask.findFirst({
       where: {
         instanceId: instance.id,

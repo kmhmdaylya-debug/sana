@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, GanttChartSquare } from 'lucide-react';
+import { Plus, Save, Trash2, GanttChartSquare } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
@@ -21,6 +21,8 @@ import { DatePicker, Tabs,
 } from '../components/ui';
 import { formatJalali, toPersianDigits, parseDateInput, toJalali } from '../lib/format';
 import { normalizeSearch } from '../lib/search';
+import { WorkCategoryPicker, WorkCategoryTag } from '../components/WorkCategory';
+import { categoryColor, getWorkCategory } from '../lib/workCategories';
 
 interface Member {
   id: string;
@@ -29,6 +31,7 @@ interface Member {
 }
 
 interface ProjectTask {
+  category?: string | null;
   id: string;
   title: string;
   phase?: string | null;
@@ -45,6 +48,7 @@ interface ProjectTask {
 }
 
 interface Project {
+  category?: string | null;
   id: string;
   code: string;
   title: string;
@@ -116,6 +120,7 @@ export default function Projects() {
     priority: 'MEDIUM',
     status: 'PLANNING',
     color: PALETTE[0],
+    category: '',
     managerId: '',
     memberIds: [] as string[],
   });
@@ -154,7 +159,8 @@ export default function Projects() {
         endDate,
         priority: form.priority,
         status: form.status,
-        color: form.color,
+        color: categoryColor(form.category) ?? form.color,
+        category: form.category || null,
         managerId: form.managerId || undefined,
         memberIds: form.memberIds,
       });
@@ -270,11 +276,8 @@ export default function Projects() {
               {Object.entries(PRIORITY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </Select>
           </Field>
-          <Field label="رنگ">
-            <Select value={form.color} onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}>
-              {PALETTE.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Select>
-          </Field>
+          <WorkCategoryPicker value={form.category} onChange={category => setForm(value => ({ ...value, category }))} disabled={saving} />
+          {!form.category && <Field label="رنگ اختصاصی"><Input type="color" aria-label="رنگ اختصاصی پروژه" value={form.color} onChange={event => setForm(value => ({ ...value, color: event.target.value }))} /></Field>}
           <Field label="اعضای پروژه">
             <Select
               multiple
@@ -335,7 +338,7 @@ function TimelineView({
   const groups = useMemo(() => {
     const map = new Map<string, Project[]>();
     for (const p of projects) {
-      const key = p.tasks[0]?.phase ?? 'سایر';
+      const key = getWorkCategory(p.category)?.label ?? p.tasks[0]?.phase ?? 'سایر';
       const list = map.get(key) ?? [];
       list.push(p);
       map.set(key, list);
@@ -351,12 +354,13 @@ function TimelineView({
             {list.map((p) => {
               const start = toDate(p.startDate);
               const end = toDate(p.endDate);
-              const color = p.color ?? PRIORITY_COLORS[p.priority] ?? '#2563eb';
+              const color = categoryColor(p.category) ?? p.color ?? PRIORITY_COLORS[p.priority] ?? '#2563eb';
               return (
                 <div key={p.id} className="timeline-card" style={{ borderRightColor: color, borderRightWidth: 5 }}>
                   <div className="timeline-card-head">
                     <div>
                       <div className="fw-600">{p.title}</div>
+                      <WorkCategoryTag value={p.category} />
                       <div className="text-muted text-xs">
                         {formatJalali(start)} تا {formatJalali(end)} · {p.code}
                       </div>
@@ -381,7 +385,7 @@ function TimelineView({
                   {p.tasks.length > 0 && (
                     <div className="timeline-stages">
                       {p.tasks.map((t) => (
-                        <div key={t.id} className="timeline-stage" style={{ background: t.color ?? color }}>
+                        <div key={t.id} className={`timeline-stage${t.category || p.category ? ' has-category-color' : ''}`} style={{ background: categoryColor(t.category ?? p.category) ?? t.color ?? color }}>
                           <span className="timeline-stage-title">{t.title}</span>
                           <span className="timeline-stage-date">
                             {formatJalali(toDate(t.startDate))} — {formatJalali(toDate(t.endDate))}
@@ -566,7 +570,7 @@ function GanttView({ projects }: { projects: Project[] }) {
             {rows.map((r) => {
               if (r.type === 'project') {
                 const p = r.project;
-                const color = p.color ?? PRIORITY_COLORS[p.priority] ?? '#2563eb';
+                const color = categoryColor(p.category) ?? p.color ?? PRIORITY_COLORS[p.priority] ?? '#2563eb';
                 return (
                   <div key={p.id} className="gantt-row gantt-row-project" style={{ top: r.rowIndex * rowHeight, height: rowHeight }}>
                     <div className="gantt-label gantt-label-project">
@@ -574,7 +578,7 @@ function GanttView({ projects }: { projects: Project[] }) {
                       <span className="fw-600">{p.title}</span>
                     </div>
                     <div
-                      className="gantt-bar gantt-bar-project"
+                      className={`gantt-bar gantt-bar-project${p.category ? ' has-category-color' : ''}`}
                       style={{ right: rightOf(p.startDate), width: barWidth(p.startDate, p.endDate), background: color }}
                       title={`${p.title} — ${formatJalali(toDate(p.startDate))} تا ${formatJalali(toDate(p.endDate))}`}
                     >
@@ -585,7 +589,7 @@ function GanttView({ projects }: { projects: Project[] }) {
                 );
               }
               const t = r.task!;
-              const color = t.color ?? r.project.color ?? '#2563eb';
+              const color = categoryColor(t.category ?? r.project.category) ?? t.color ?? r.project.color ?? '#2563eb';
               return (
                 <div key={t.id} className="gantt-row" style={{ top: r.rowIndex * rowHeight, height: rowHeight }}>
                   <div className="gantt-label">
@@ -593,7 +597,7 @@ function GanttView({ projects }: { projects: Project[] }) {
                     {t.title}
                   </div>
                   <div
-                    className="gantt-bar"
+                    className={`gantt-bar${t.category || r.project.category ? ' has-category-color' : ''}`}
                     style={{ right: rightOf(t.startDate), width: barWidth(t.startDate, t.endDate), background: color }}
                     title={`${t.title} — ${formatJalali(toDate(t.startDate))} تا ${formatJalali(toDate(t.endDate))}`}
                   >
@@ -650,6 +654,8 @@ function ProjectTasksModal({
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
+  const { hasPermission } = useAuth();
+  const [projectCategory, setProjectCategory] = useState(project.category ?? '');
   const [form, setForm] = useState({
     title: '',
     phase: '',
@@ -657,8 +663,19 @@ function ProjectTasksModal({
     endDate: '',
     assigneeId: '',
     dependsOnId: '',
-    color: PALETTE[1],
+    category: '',
   });
+
+  const saveProjectCategory = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api.patch(`/projects/${project.id}`, { category: projectCategory || null });
+      toast('success', 'دستهٔ پروژه به‌روزرسانی شد.');
+      onChanged();
+    } catch (e) { toast('error', apiErrorMessage(e)); }
+    finally { setSaving(false); }
+  };
 
   const addTask = async () => {
     setSaving(true);
@@ -673,7 +690,8 @@ function ProjectTasksModal({
         endDate,
         assigneeId: form.assigneeId || undefined,
         dependsOnId: form.dependsOnId || undefined,
-        color: form.color,
+        color: categoryColor(form.category || project.category) ?? project.color ?? undefined,
+        category: form.category || null,
       });
       toast('success', 'مرحله اضافه شد.');
       setForm({ ...form, title: '', phase: '', startDate: '', endDate: '', dependsOnId: '' });
@@ -698,6 +716,7 @@ function ProjectTasksModal({
   const columns: Column<ProjectTask>[] = [
     { key: 'title', header: 'عنوان مرحله', render: (t) => <span className="fw-600">{t.title}</span> },
     { key: 'phase', header: 'مرحله', render: (t) => t.phase ?? '—' },
+    { key: 'category', header: 'دسته', render: t => <WorkCategoryTag value={t.category ?? project.category} /> },
     { key: 'dates', header: 'بازه', render: (t) => <span className="ltr">{formatJalali(toDate(t.startDate))} — {formatJalali(toDate(t.endDate))}</span> },
     { key: 'assignee', header: 'مسئول', render: (t) => (t.assignee ? `${t.assignee.firstName} ${t.assignee.lastName}` : '—') },
     { key: 'progress', header: 'پیشرفت', render: (t) => `${toPersianDigits(t.progress)}٪` },
@@ -721,6 +740,10 @@ function ProjectTasksModal({
       footer={<Button variant="secondary" onClick={onClose}>بستن</Button>}
     >
       <div className="col" style={{ gap: 14 }}>
+        {hasPermission('projects.update') && <div className="project-category-editor">
+          <WorkCategoryPicker value={projectCategory} onChange={setProjectCategory} disabled={saving} />
+          <Button variant="outline" size="sm" disabled={saving || projectCategory === (project.category ?? '')} onClick={saveProjectCategory}><Save size={15} />ثبت دستهٔ پروژه</Button>
+        </div>}
         <div className="form-grid">
           <Field label="عنوان مرحله" required>
             <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
@@ -728,6 +751,7 @@ function ProjectTasksModal({
           <Field label="فاز / دسته">
             <Input value={form.phase} onChange={(e) => setForm((f) => ({ ...f, phase: e.target.value }))} placeholder="تحلیل، توسعه، …" />
           </Field>
+          <WorkCategoryPicker value={form.category} onChange={category => setForm(value => ({ ...value, category }))} disabled={saving} emptyLabel={getWorkCategory(project.category) ? `دستهٔ پروژه: ${getWorkCategory(project.category)!.label}` : 'دستهٔ پروژه'} />
           <Field label="تاریخ شروع" required hint="شمسی یا میلادی">
             <DatePicker className="ltr" value={form.startDate} onValueChange={(value) => setForm((f) => ({ ...f, startDate: value }))} placeholder="1404/11/01" />
           </Field>

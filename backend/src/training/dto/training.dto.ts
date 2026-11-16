@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
   IsDateString,
   IsInt,
   IsNumber,
@@ -57,7 +61,10 @@ export class CreateCourseDto {
 
   @ApiPropertyOptional({ type: [String], format: 'uuid', description: 'دوره‌های پیش‌نیاز' })
   @IsOptional()
-  @IsString({ each: true })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
   prerequisiteIds?: string[];
 }
 
@@ -94,8 +101,16 @@ export class UpdateCourseDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsBoolean()
   isActive?: boolean;
+}
+
+export class SetPrerequisitesDto {
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  prerequisiteIds: string[];
 }
 
 export class CourseQueryDto extends PaginationDto {

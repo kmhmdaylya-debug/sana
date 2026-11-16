@@ -10,7 +10,7 @@ import { normalizeSearch } from '../lib/search';
 interface Result { id: string; title: string; category: string; to: string; icon: ReactNode }
 const sources = [
   { path:'/users', permission:'users.view', category:'کاربران', icon:<Users size={17} />, title:(row:any) => row.fullName },
-  { path:'/tasks', permission:'tasks.view', category:'وظایف', icon:<ClipboardList size={17} />, title:(row:any) => row.title },
+  { path:'/tasks', permission:'tasks.view', category:'task', icon:<ClipboardList size={17} />, title:(row:any) => row.title },
   { path:'/documents', permission:'documents.view', category:'مدارک', icon:<FileText size={17} />, title:(row:any) => row.title },
   { path:'/projects', permission:'projects.view', category:'پروژه‌ها', icon:<FolderKanban size={17} />, title:(row:any) => row.title },
 ];

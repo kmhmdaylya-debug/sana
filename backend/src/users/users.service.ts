@@ -87,7 +87,13 @@ export class UsersService {
     if (dto.employeeId) await this.access.assertEmployeeAccess(actor,dto.employeeId);
     const needsProfile = !dto.employeeId && !!(dto.employeeCode || dto.positionId || dto.orgUnitId || dto.hireDate);
     if (!dto.employeeId && !needsProfile && !actor.isSuperAdmin) throw new BadRequestException('برای ایجاد حساب، پروندهٔ کارمند را انتخاب کنید.');
-    const companyId = needsProfile ? await this.access.resolveCompanyId(actor) : null;
+    const companyId = needsProfile
+      ? await this.access.resolveCompanyIdForRefs(actor, {
+          branchId: dto.branchId ?? null,
+          orgUnitId: dto.orgUnitId ?? null,
+          positionId: dto.positionId ?? null,
+        })
+      : null;
     if (companyId) {
       await this.access.assertCompanyAccess(actor,companyId);
       await this.access.assertEmployeeRelations(companyId,dto);

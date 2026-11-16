@@ -1,162 +1,134 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { createCipheriv, createHash, randomBytes } from 'crypto';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
+import { AuditAction, BackupHistory, BackupResult, Prisma, PrismaClient } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { promises as fs } from 'fs';
 import * as path from 'path';
-import { AuditAction, BackupResult, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
-import { BackupQueryDto } from './dto/backup.dto';
-
-const BACKUP_DIR = path.resolve(process.cwd(), 'backups');
+import { verifyPassword } from '../common/utils/password.util';
+import { BackupQueryDto, RestoreBackupDto } from './dto/backup.dto';
+import { archiveChecksum, decryptArchive, encryptArchive } from './backup-archive';
+import { runPostgresTool } from './postgres-tools';
 
 @Injectable()
 export class BackupService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly audit: AuditService,
-    private readonly config: ConfigService,
-  ) {}
+  private restoring = false;
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly config: ConfigService) {}
 
-  /** رمزنگاری AES-256-GCM: خروجی = iv(12) | tag(16) | ciphertext */
-  private encrypt(plain: string): Buffer {
-    const keyMaterial = this.config.get<string>('app.backup.encryptionKey');
-    if (!keyMaterial) throw new Error('کلید رمزنگاری پشتیبان تنظیم نشده است.');
-    const key = createHash('sha256').update(keyMaterial).digest();
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, iv);
-    const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-    return Buffer.concat([iv, cipher.getAuthTag(), body]);
+  private authorize(user: AuthenticatedUser) {
+    // Full database archives contain every tenant and password hashes.
+    if (!user.isSuperAdmin) throw new ForbiddenException('پشتیبان کامل سامانه فقط برای مدیر ارشد قابل دسترسی است.');
+  }
+  private directory() { return path.resolve(this.config.get<string>('app.backup.dir') ?? './backups'); }
+  private key() { return this.config.getOrThrow<string>('app.backup.encryptionKey'); }
+  private databaseUrl() { return this.config.getOrThrow<string>('app.database.url'); }
+  private publicRow(row: BackupHistory) {
+    return { id: row.id, fileName: row.fileName, size: Number(row.size), checksum: row.checksum, result: row.result, startedAt: row.startedAt, finishedAt: row.finishedAt, createdById: row.createdById };
   }
 
-  async listHistory(query: BackupQueryDto, pagination: PaginationDto) {
-    const where: Prisma.BackupHistoryWhereInput = {
-      ...(query.result ? { result: query.result } : {}),
-    };
-
-    const page = pagination.page ?? 1;
-    const limit = pagination.limit ?? 20;
+  async listHistory(query: BackupQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+    this.authorize(user);
+    const where: Prisma.BackupHistoryWhereInput = query.result ? { result: query.result } : {};
     const [total, rows] = await Promise.all([
       this.prisma.backupHistory.count({ where }),
-      this.prisma.backupHistory.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { startedAt: 'desc' },
-        include: { createdBy: { select: { id: true, fullName: true } } },
-      }),
+      this.prisma.backupHistory.findMany({ where, skip: pagination.skip, take: pagination.limit, orderBy: { startedAt: 'desc' }, include: { createdBy: { select: { id: true, fullName: true } } } }),
     ]);
-
-    return {
-      data: rows.map((b) => ({ ...b, size: Number(b.size) })),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-        hasNext: page * limit < total,
-        hasPrev: page > 1,
-      },
-      success: true,
-      timestamp: new Date().toISOString(),
-    };
+    return { data: rows.map(row => ({ ...this.publicRow(row), createdBy: row.createdBy })), meta: { total, page: pagination.page, limit: pagination.limit, totalPages: Math.max(1, Math.ceil(total / pagination.limit)), hasNext: pagination.page * pagination.limit < total, hasPrev: pagination.page > 1 }, success: true, timestamp: new Date().toISOString() };
   }
 
-  /**
-   * اجرای پشتیبان‌گیری منطقی:
-   * خروجی کامل داده‌ها را به‌صورت JSON در پوشه backups ذخیره می‌کند.
-   * (در استقرار واقعی، pg_dump توصیه می‌شود — این پیاده‌سازی برای شروع است.)
-   */
   async runBackup(user: AuthenticatedUser) {
+    this.authorize(user);
     const startedAt = new Date();
-    const fileName = `sana-backup-${startedAt.toISOString().replace(/[:.]/g, '-')}.json.enc`;
-
+    const fileName = `sana-${startedAt.toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.pgdump.enc`;
+    const filePath = path.join(this.directory(), fileName);
     try {
-      fs.mkdirSync(BACKUP_DIR, { recursive: true });
-
-      // استخراج داده‌های اصلی (بدون توکن‌ها)
-      const data = {
-        exportedAt: startedAt.toISOString(),
-        users: await this.prisma.user.findMany({
-          select: { id: true, username: true, fullName: true, email: true, status: true },
-        }),
-        roles: await this.prisma.role.findMany(),
-        permissions: await this.prisma.permission.findMany(),
-        companies: await this.prisma.company.findMany(),
-        branches: await this.prisma.branch.findMany(),
-        employees: await this.prisma.employee.findMany(),
-        contracts: await this.prisma.contract.findMany(),
-        attendanceRecords: await this.prisma.attendanceRecord.findMany(),
-        leaveRequests: await this.prisma.leaveRequest.findMany(),
-        settings: await this.prisma.setting.findMany(),
-      };
-
-      const json = JSON.stringify(data, null, 2);
-      const filePath = path.join(BACKUP_DIR, fileName);
-      // فایل پشتیبان رمزنگاری‌شده و فقط برای مالک قابل خواندن ذخیره می‌شود
-      fs.writeFileSync(filePath, this.encrypt(json), { mode: 0o600 });
-
-      const stats = fs.statSync(filePath);
-      const checksum = createHash('sha256').update(json).digest('hex').slice(0, 64);
-
-      const row = await this.prisma.backupHistory.create({
-        data: {
-          fileName,
-          size: BigInt(stats.size),
-          checksum,
-          location: filePath,
-          result: BackupResult.SUCCESS,
-          createdById: user.id,
-          startedAt,
-          finishedAt: new Date(),
-        },
-      });
-
-      await this.audit.record(user.id, {
-        action: AuditAction.BACKUP,
-        entity: 'BackupHistory',
-        entityId: row.id,
-        after: { fileName, size: stats.size },
-      });
-
-      return {
-        data: { id: row.id, fileName, size: stats.size, checksum },
-        success: true,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (err: any) {
-      const row = await this.prisma.backupHistory.create({
-        data: {
-          fileName,
-          result: BackupResult.FAILED,
-          error: String(err?.message ?? err),
-          createdById: user.id,
-          startedAt,
-          finishedAt: new Date(),
-        },
-      });
-      await this.audit.record(user.id, {
-        action: AuditAction.BACKUP,
-        entity: 'BackupHistory',
-        entityId: row.id,
-        note: 'پشتیبان‌گیری ناموفق',
-      });
-      throw err;
+      const dump = await runPostgresTool(this.config.get<string>('app.backup.pgDumpPath') ?? 'pg_dump', ['--format=custom', '--no-owner', '--no-privileges'], this.databaseUrl());
+      const encrypted = encryptArchive(dump, this.key());
+      if (!decryptArchive(encrypted, this.key()).equals(dump)) throw new Error('Archive verification failed');
+      await fs.mkdir(this.directory(), { recursive: true, mode: 0o700 });
+      await fs.writeFile(filePath, encrypted, { flag: 'wx', mode: 0o600 });
+      const row = await this.prisma.backupHistory.create({ data: { fileName, location: filePath, size: BigInt(encrypted.length), checksum: archiveChecksum(encrypted), result: BackupResult.SUCCESS, createdById: user.id, startedAt, finishedAt: new Date() } });
+      await this.audit.record(user.id, { action: AuditAction.BACKUP, entity: 'BackupHistory', entityId: row.id, after: { fileName, size: encrypted.length } });
+      return { data: this.publicRow(row), success: true, timestamp: new Date().toISOString() };
+    } catch {
+      await this.prisma.backupHistory.create({ data: { fileName, result: BackupResult.FAILED, error: 'تهیه یا اعتبارسنجی آرشیو PostgreSQL ناموفق بود.', createdById: user.id, startedAt, finishedAt: new Date() } });
+      await this.audit.record(user.id, { action: AuditAction.BACKUP, entity: 'BackupHistory', after: { result: 'FAILED' } });
+      throw new ServiceUnavailableException('پشتیبان‌گیری انجام نشد؛ تنظیمات ابزار PostgreSQL و فضای ذخیره‌سازی را بررسی کنید.');
     }
   }
 
-  async get(id: string) {
-    const row = await this.prisma.backupHistory.findUnique({
-      where: { id },
-      include: { createdBy: { select: { id: true, fullName: true } } },
-    });
+  async get(id: string, user: AuthenticatedUser) {
+    this.authorize(user);
+    const row = await this.prisma.backupHistory.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('رکورد پشتیبان یافت نشد.');
-    return {
-      data: { ...row, size: Number(row.size) },
-      success: true,
-      timestamp: new Date().toISOString(),
-    };
+    return { data: this.publicRow(row), success: true, timestamp: new Date().toISOString() };
+  }
+
+  private async archive(id: string) {
+    const row = await this.prisma.backupHistory.findUnique({ where: { id } });
+    if (!row || row.result !== 'SUCCESS') throw new NotFoundException('فایل پشتیبان معتبر یافت نشد.');
+    try {
+      const root = await fs.realpath(this.directory());
+      const location = await fs.realpath(path.join(root, path.basename(row.fileName)));
+      if (path.dirname(location) !== root || path.basename(location) !== row.fileName) throw new Error('Invalid backup path');
+      const stats = await fs.stat(location);
+      if (!stats.isFile() || stats.size > 256 * 1024 * 1024) throw new Error('Invalid backup size');
+      const encrypted = await fs.readFile(location);
+      if (archiveChecksum(encrypted) !== row.checksum) throw new Error('Checksum mismatch');
+      const dump = decryptArchive(encrypted, this.key());
+      await runPostgresTool(this.config.get<string>('app.backup.pgRestorePath') ?? 'pg_restore', ['--list'], this.databaseUrl(), dump);
+      return { row, encrypted, dump };
+    } catch {
+      throw new BadRequestException('فایل پشتیبان موجود نیست، خراب است یا کلید آن معتبر نیست.');
+    }
+  }
+
+  async download(id: string, user: AuthenticatedUser) {
+    this.authorize(user);
+    const { row, encrypted } = await this.archive(id);
+    await this.audit.recordExport(user.id, 'BackupHistory', id);
+    return { buffer: encrypted, fileName: row.fileName };
+  }
+
+  async restore(dto: RestoreBackupDto, user: AuthenticatedUser) {
+    this.authorize(user);
+    const configured = this.config.get<string>('app.backup.restoreDatabaseUrl');
+    if (!configured) throw new ServiceUnavailableException('دیتابیس جداگانهٔ بازیابی در سرور تنظیم نشده است.');
+    const destination = new URL(configured);
+    const source = new URL(this.databaseUrl());
+    const name = decodeURIComponent(destination.pathname.slice(1));
+    if (!/^sana_restore_[a-zA-Z0-9_]+$/.test(name) || destination.pathname === source.pathname || name !== dto.confirmationDatabase) throw new BadRequestException('بازیابی فقط در دیتابیس مجزای تأییدشده با پیشوند sana_restore_ مجاز است.');
+    const current = await this.prisma.user.findUnique({ where: { id: user.id } });
+    if (!current?.isSuperAdmin || current.status !== 'ACTIVE' || current.deletedAt || !await verifyPassword(current.passwordHash, dto.currentPassword)) throw new ForbiddenException('احراز هویت مجدد مدیر ارشد ناموفق بود.');
+    if (this.restoring) throw new ConflictException('یک عملیات بازیابی در حال اجراست.');
+    const { dump } = await this.archive(dto.backupId);
+    const target = new PrismaClient({ datasources: { db: { url: configured } }, log: [] });
+    this.restoring = true;
+    try {
+      const result = await target.$transaction(async tx => {
+        const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(1935765057) AS locked`;
+        if (!lock.locked) throw new ConflictException('بازیابی دیگری در حال اجراست.');
+        const [tables] = await tx.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema')`;
+        if (Number(tables.count) !== 0) throw new BadRequestException('دیتابیس مقصد باید خالی باشد؛ هیچ داده‌ای جایگزین نشد.');
+        const safety = await this.runBackup(user);
+        await runPostgresTool(this.config.get<string>('app.backup.pgRestorePath') ?? 'pg_restore', ['--exit-on-error', '--single-transaction', '--no-owner', '--no-privileges', '--dbname', name], configured, dump);
+        const now = new Date();
+        await tx.userSession.updateMany({ data: { revokedAt: now } });
+        await tx.refreshToken.updateMany({ data: { revokedAt: now } });
+        return { database: name, safetyBackupId: safety.data.id };
+      }, { timeout: 300000, maxWait: 10000 });
+      await this.audit.record(user.id, { action: AuditAction.RESTORE, entity: 'BackupHistory', entityId: dto.backupId, after: result });
+      return { data: result, success: true, timestamp: new Date().toISOString() };
+    } catch (error) {
+      await this.audit.record(user.id, { action: AuditAction.RESTORE, entity: 'BackupHistory', entityId: dto.backupId, after: { result: 'FAILED' } });
+      if (error instanceof BadRequestException || error instanceof ConflictException || error instanceof ServiceUnavailableException) throw error;
+      throw new ServiceUnavailableException('بازیابی ناموفق بود؛ دیتابیس اصلی تغییر نکرده است.');
+    } finally {
+      this.restoring = false;
+      await target.$disconnect();
+    }
   }
 }

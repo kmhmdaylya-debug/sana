@@ -3,6 +3,9 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsIn,
+  IsInt,
+  Max,
+  Min,
   IsOptional,
   IsString,
   IsUUID,
@@ -26,6 +29,10 @@ export class RunReportDto {
   @IsUUID('4')
   companyId?: string;
 
+  @IsOptional()
+  @IsUUID('4')
+  orgUnitId?: string;
+
   @ApiPropertyOptional({ example: '2026-05-01' })
   @IsOptional()
   @IsDateString({})
@@ -39,11 +46,17 @@ export class RunReportDto {
   @ApiPropertyOptional({ description: 'سال جلالی (برای گزارش‌های ماهانه)' })
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Min(1300)
+  @Max(1600)
   year?: number;
 
   @ApiPropertyOptional({ description: 'ماه جلالی ۱ تا ۱۲' })
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
   month?: number;
 }
 

@@ -15,6 +15,7 @@
     "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "test": "jest --config jest.config.js",
+    "test:integration": "node scripts/test-integration.cjs",
     "test:watch": "jest --config jest.config.js --watch",
     "test:cov": "jest --config jest.config.js --coverage",
     "prisma:generate": "prisma generate",

@@ -9,6 +9,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto, LoginDto } from './dto/auth.dto';
@@ -22,6 +23,7 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'ورود با نام کاربری یا شماره موبایل' })
   login(@Body() dto: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {

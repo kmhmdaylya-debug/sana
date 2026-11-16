@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsInt,
@@ -10,6 +13,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
@@ -851,6 +855,10 @@ export class BulkHolidayDto {
   calendarId: string;
 
   @ApiProperty({ type: [HolidayDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(366)
+  @ValidateNested({ each: true })
   @Type(() => HolidayDto)
   holidays: HolidayDto[];
 }

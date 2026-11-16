@@ -34,6 +34,7 @@ export class DashboardService {
       where, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       select: {
         id: true, title: true, description: true, status: true, dueDate: true, delayReason: true,
+        category: true, retryStatus: true, retryRequestedAt: true, retryRequester: { select: { fullName: true } },
         createdAt: true, completedAt: true, createdBy: { select: { fullName: true } },
         assignees: { select: { user: { select: { fullName: true } }, employee: { select: { firstName: true, lastName: true } } } },
         comments: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, content: true, createdAt: true, author: { select: { fullName: true } } } },

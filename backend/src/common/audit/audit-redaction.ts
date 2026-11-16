@@ -1,4 +1,4 @@
-const confidentialKey = /password|token|secret|credential|national.?id|sheba|iban|account.?number|card.?number|salary|wage|amount|benefit|deduction|first.?name|last.?name|full.?name|father|birth|mobile|phone|email|address|emergency|note|reason|description|body|payload|config.?json/i;
+const confidentialKey = /password|token|secret|credential|national.?id|sheba|iban|account.?number|card.?number|salary|wage|amount|benefit|deduction|first.?name|last.?name|full.?name|father|birth|mobile|phone|email|address|emergency|note|reason|description|body|payload|config.?json|^value$/i;
 
 /** Keep audit structure and identifiers, never credentials or HR payload values. */
 export function stringifyAudit(value: unknown): string | null {

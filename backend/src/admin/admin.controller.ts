@@ -48,8 +48,8 @@ export class AdminController {
   @Get('correspondences')
   @RequirePermissions(PERMISSIONS.ADMIN_VIEW)
   @ApiOperation({ summary: 'فهرست نامه‌های اداری' })
-  listCorrespondences(@Query() query: CorrespondenceQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listCorrespondences(query, pagination);
+  listCorrespondences(@Query() query: CorrespondenceQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listCorrespondences(query, pagination, user);
   }
   @Post('correspondences')
   @RequirePermissions(PERMISSIONS.ADMIN_MANAGE)
@@ -78,8 +78,8 @@ export class AdminController {
   @Get('meetings')
   @RequirePermissions(PERMISSIONS.ADMIN_VIEW)
   @ApiOperation({ summary: 'فهرست جلسات' })
-  listMeetings(@Query() query: MeetingQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listMeetings(query, pagination);
+  listMeetings(@Query() query: MeetingQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listMeetings(query, pagination, user);
   }
   @Post('meetings')
   @RequirePermissions(PERMISSIONS.ADMIN_MANAGE)
@@ -108,8 +108,8 @@ export class AdminController {
   @Get('surveys')
   @RequirePermissions(PERMISSIONS.ADMIN_VIEW)
   @ApiOperation({ summary: 'فهرست نظرسنجی‌ها' })
-  listSurveys(@Query() query: SurveyQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listSurveys(query, pagination);
+  listSurveys(@Query() query: SurveyQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listSurveys(query, pagination, user);
   }
   @Post('surveys')
   @RequirePermissions(PERMISSIONS.ADMIN_MANAGE)
@@ -132,8 +132,8 @@ export class AdminController {
   @Get('suggestions')
   @RequirePermissions(PERMISSIONS.ADMIN_VIEW)
   @ApiOperation({ summary: 'فهرست پیشنهادها' })
-  listSuggestions(@Query() query: SuggestionQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listSuggestions(query, pagination);
+  listSuggestions(@Query() query: SuggestionQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listSuggestions(query, pagination, user);
   }
   @Post('suggestions')
   @RequirePermissions(PERMISSIONS.ADMIN_VIEW)
@@ -148,19 +148,19 @@ export class AdminController {
     return this.service.decideSuggestion(id, dto, user);
   }
   @Get('confidential-reports')
-  @RequirePermissions(PERMISSIONS.ADMIN_MANAGE)
+  @RequirePermissions(PERMISSIONS.CONFIDENTIAL_REPORTS_MANAGE)
   @ApiOperation({ summary: 'فهرست گزارش‌های محرمانه' })
-  listConfidentialReports(@Query() query: ConfidentialReportQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listConfidentialReports(query, pagination);
+  listConfidentialReports(@Query() query: ConfidentialReportQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listConfidentialReports(query, pagination, user);
   }
   @Post('confidential-reports')
-  @RequirePermissions(PERMISSIONS.ADMIN_MANAGE)
+  @RequirePermissions(PERMISSIONS.CONFIDENTIAL_REPORTS_MANAGE)
   @ApiOperation({ summary: 'ثبت گزارش محرمانه' })
   createConfidentialReport(@Body() dto: CreateConfidentialReportDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.createConfidentialReport(dto, user);
   }
   @Patch('confidential-reports/:id')
-  @RequirePermissions(PERMISSIONS.ADMIN_MANAGE)
+  @RequirePermissions(PERMISSIONS.CONFIDENTIAL_REPORTS_MANAGE)
   @ApiOperation({ summary: 'به‌روزرسانی بررسی گزارش' })
   updateConfidentialReport(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateConfidentialReportDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.updateConfidentialReport(id, dto, user);
@@ -168,7 +168,7 @@ export class AdminController {
   @Get('surveys/:id/results')
   @RequirePermissions(PERMISSIONS.ADMIN_MANAGE)
   @ApiOperation({ summary: 'نتایج نظرسنجی' })
-  surveyResults(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.surveyResults(id);
+  surveyResults(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.surveyResults(id, user);
   }
 }

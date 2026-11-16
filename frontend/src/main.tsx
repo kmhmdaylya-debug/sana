@@ -9,6 +9,7 @@ import './styles/tokens.css';
 import './styles/shell.css';
 import './styles/controls.css';
 import './styles/workspace.css';
+import './styles/motion.css';
 import { applyTheme, readTheme } from './lib/theme';
 
 applyTheme(readTheme());

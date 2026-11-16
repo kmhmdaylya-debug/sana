@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -27,6 +28,7 @@ export class CreateAnnouncementDto {
   @ApiPropertyOptional({ default: 'ALL', description: 'ALL / ORG_UNIT / BRANCH / POSITION' })
   @IsOptional()
   @IsString()
+  @IsIn(['ALL', 'ORG_UNIT', 'BRANCH', 'POSITION'])
   @MaxLength(30)
   targetType?: string;
 

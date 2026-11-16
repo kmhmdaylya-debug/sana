@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ClipboardList, Clock, FolderKanban, Receipt, Wallet, CircleAlert, CalendarDays, ChevronDown, Play, X } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Check, ClipboardList, FolderKanban, Receipt, Wallet, CalendarDays, ChevronDown, Pin, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
+import TaskCountdown from '../components/TaskCountdown';
+import TaskStatusMark from '../components/TaskStatusMark';
+import { WorkCategoryTag } from '../components/WorkCategory';
+import { categoryColor, categoryStyle } from '../lib/workCategories';
 import { DatePicker,
   Badge,
   Button,
@@ -40,6 +45,7 @@ interface PanelSummary {
 }
 
 interface PanelStage {
+  category?: string | null;
   id: string;
   title: string;
   phase?: string | null;
@@ -57,6 +63,7 @@ interface PanelStage {
 }
 
 interface PanelProject {
+  category?: string | null;
   id: string;
   code: string;
   title: string;
@@ -166,7 +173,9 @@ const toDate = (v: string) => new Date(v);
 export default function EmployeePanel() {
   const toast = useToast();
   const { user } = useAuth();
-  const [tab, setTab] = useState<'tasks' | 'projects' | 'leaves' | 'missions' | 'payroll' | 'profile'>('tasks');
+  const [searchParams] = useSearchParams();
+  const requestedView = searchParams.get('view');
+  const tab = ['projects', 'leaves', 'missions', 'payroll', 'profile'].includes(requestedView ?? '') ? requestedView : 'tasks';
   const [summary, setSummary] = useState<PanelSummary | null>(null);
   const [projects, setProjects] = useState<PanelProject[]>([]);
   const [leaves, setLeaves] = useState<PanelLeave[]>([]);
@@ -246,20 +255,9 @@ export default function EmployeePanel() {
   return (
     <>
       <PageHeader
-        title="پنل کارمند"
+        title="task"
         subtitle={[user?.fullName, user?.employee?.position?.title, user?.employee?.orgUnit?.name].filter(Boolean).join(' · ')}
       />
-
-      <div className="employee-panel-nav mb">
-        <Select aria-label="خدمات پرسنلی" value={tab} onChange={(e) => setTab(e.target.value as typeof tab)}>
-          <option value="tasks">وظایف</option>
-          <option value="projects">پروژه‌های من</option>
-          <option value="leaves">مرخصی‌ها</option>
-          <option value="missions">مأموریت‌ها</option>
-          <option value="payroll">حقوق من</option>
-          <option value="profile">پروندهٔ من</option>
-        </Select>
-      </div>
 
       {tab === 'tasks' ? <MyTasks /> : tab === 'projects' ? (
           <section className="employee-work-section" aria-labelledby="my-projects-heading">
@@ -328,6 +326,8 @@ export default function EmployeePanel() {
    ========================================================================== */
 
 interface AssignedTask {
+  category?: string | null;
+  retryStatus?: string | null;
   id: string;
   title: string;
   description?: string | null;
@@ -342,9 +342,30 @@ function MyTasks() {
   const list = useList<AssignedTask>('/panel/tasks');
   const toast = useToast();
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [savingResult, setSavingResult] = useState<'START' | 'DONE' | 'UNABLE' | 'RETRY' | null>(null);
   const [unableTask, setUnableTask] = useState<AssignedTask | null>(null);
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState('');
+  const completed = list.rows.filter(task => task.status === 'DONE').length;
+  const openTasks = list.rows.filter(task => !['DONE', 'CANCELLED'].includes(task.status)).length;
+  const working = list.rows.filter(task => task.status === 'IN_PROGRESS' && !task.delayReason).length;
+  const progress = completed + openTasks ? Math.round(completed * 100 / (completed + openTasks)) : 0;
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) void list.reload(); };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [list.reload]);
+  const requestRetry = async (task: AssignedTask) => {
+    if (savingId || task.retryStatus === 'PENDING') return;
+    setSavingId(task.id);
+    setSavingResult('RETRY');
+    try {
+      await api.post(`/panel/tasks/${task.id}/retry-request`);
+      toast('success', 'درخواست انجام دوباره برای مدیر ارسال شد.');
+      await list.reload();
+    } catch (e) { toast('error', apiErrorMessage(e)); }
+    finally { setSavingId(null); setSavingResult(null); }
+  };
   const dismiss = async (task: AssignedTask) => {
     if (savingId) return;
     setSavingId(task.id);
@@ -362,6 +383,7 @@ function MyTasks() {
       setReasonError('دلیل انجام نشدن کار را بنویسید.');
       return;
     }
+    setSavingResult(result);
     setSavingId(task.id);
     try {
       await api.post(`/panel/tasks/${task.id}/result`, { result, ...(result === 'UNABLE' ? { reason: reason.trim() } : {}) });
@@ -373,45 +395,65 @@ function MyTasks() {
       toast('error', apiErrorMessage(e));
     } finally {
       setSavingId(null);
+      setSavingResult(null);
     }
   };
   return (
     <section className="employee-work-section employee-tasks" aria-labelledby="my-tasks-heading">
       <div className="employee-tasks-header">
-        <h3 id="my-tasks-heading" className="employee-work-heading"><ClipboardList size={18} /> وظایف من</h3>
-        {!list.loading && !list.error && <span className="employee-tasks-count">{toPersianDigits(list.total)} وظیفه</span>}
+        <h3 id="my-tasks-heading" className="employee-work-heading"><ClipboardList size={18} /> task من</h3>
+        <div className="employee-task-header-actions">{!list.loading && !list.error && <span className="employee-tasks-count">{toPersianDigits(list.total)} task</span>}<Button variant="outline" size="sm" title="تازه‌سازی task" aria-label="تازه‌سازی task" disabled={list.loading || !!savingId} onClick={list.reload}><RefreshCw size={15} /></Button></div>
       </div>
+      {!list.loading && !list.error && list.rows.length > 0 && <div className="employee-task-overview">
+        <dl className="employee-task-stats">
+          <div><dt>کار باز</dt><dd>{toPersianDigits(openTasks)}</dd></div>
+          <div><dt>در حال انجام</dt><dd>{toPersianDigits(working)}</dd></div>
+          <div><dt>انجام‌شده</dt><dd>{toPersianDigits(completed)}</dd></div>
+        </dl>
+        <div className="employee-task-progress">
+          <span className="task-progress-ring" role="progressbar" aria-label="پیشرفت task" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{ '--task-progress': `${progress}%` } as CSSProperties}><strong>{toPersianDigits(progress)}٪</strong></span>
+          <span>پیشرفت کارها</span>
+        </div>
+      </div>}
       {list.loading ? <div className="skeleton" style={{ height: 180, marginTop: 12 }} /> : list.error ? (
         <div className="alert alert-danger" role="alert">{list.error} <Button variant="secondary" onClick={list.reload}>تلاش دوباره</Button></div>
       ) : list.rows.length ? <>
         <div className="employee-task-list">
           {list.rows.map((task) => {
+            const pinned = task.status === 'IN_PROGRESS' && !task.delayReason;
             const overdue = isPastDueDate(task.dueDate) && !['DONE', 'CANCELLED'].includes(task.status);
             const TaskContainer = task.status === 'DONE' ? 'details' : 'article';
-            const heading = <div className="employee-task-title">
+            const heading = <div className="employee-task-heading"><TaskStatusMark status={task.status} blocked={!!task.delayReason} /><div className="employee-task-title">
                 <h4>{task.title}</h4>
-                {task.status === 'DONE' ? <span className="employee-task-result employee-task-complete"><CheckCircle2 size={16} /> انجام شد</span> : task.status === 'CANCELLED' ? <span className="text-muted text-sm">لغو شده</span> : task.status === 'IN_PROGRESS' && !task.delayReason ? <span className="text-muted text-sm"><Clock size={14} /> در حال انجام</span> : null}
-              </div>;
-            return <TaskContainer key={task.id} className={`employee-task-row${task.status === 'DONE' ? ' is-complete' : task.status === 'CANCELLED' ? ' is-cancelled' : task.delayReason || overdue ? ' is-blocked' : ''}`}>
+                {task.status === 'DONE' ? <span className="employee-task-result employee-task-complete">انجام شد</span> : task.status === 'CANCELLED' ? <span className="text-muted text-sm">لغو شده</span> : task.delayReason ? <span className="employee-task-result employee-task-failed">انجام نشد</span> : pinned ? <span className="employee-task-result employee-task-pinned" title="پین‌شده در بالای فهرست" aria-label="در حال انجام؛ پین‌شده"><Pin size={15} /> در حال انجام</span> : null}
+              </div></div>;
+            return <TaskContainer key={task.id} style={categoryStyle(task.category)} className={`employee-task-row${task.category ? ' has-category' : ''}${pinned ? ' is-pinned' : ''}${task.status === 'DONE' ? ' is-complete' : task.status === 'CANCELLED' ? ' is-cancelled' : task.delayReason ? ' is-blocked' : overdue ? ' is-overdue' : ''}`}>
               {task.status === 'DONE' ? <summary className="employee-task-summary">{heading}<ChevronDown className="employee-task-chevron" size={18} /><button type="button" className="employee-task-dismiss" title="حذف از فهرست من" aria-label={`حذف ${task.title} از فهرست من`} disabled={!!savingId} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void dismiss(task); }}><X size={16} /></button></summary> : heading}
               <div className="employee-task-details">
               {task.description && <p className="employee-task-description">{task.description}</p>}
               <div className="employee-task-meta text-xs">
                 <span className={`employee-task-date${overdue ? ' is-overdue' : ''}`}><CalendarDays size={15} />{task.dueDate ? `مهلت: ${formatJalali(task.dueDate)}${overdue ? ' · عقب‌افتاده' : ''}` : 'بدون مهلت'}</span>
+                <TaskCountdown dueDate={task.dueDate} status={task.status} />
+                <WorkCategoryTag value={task.category} />
                 {['HIGH', 'CRITICAL'].includes(task.priority) && <span className="employee-task-priority">اولویت: {statusLabel(task.priority)}</span>}
                 {task.projectName && <span className="text-muted">{task.projectName}</span>}
               </div>
               {task.delayReason && <div className="employee-task-reason"><strong>دلیل انجام نشدن:</strong> {task.delayReason}</div>}
+              {task.retryStatus === 'PENDING' && <p className="task-retry-pending" role="status"><RotateCcw size={15} />در انتظار تأیید مدیر برای انجام دوباره</p>}
+              {task.retryStatus === 'REJECTED' && <p className="task-retry-rejected">درخواست انجام دوباره تأیید نشد.</p>}
               {!['DONE', 'CANCELLED'].includes(task.status) && <div className="employee-task-actions">
-                {(task.status === 'NEW' || task.delayReason) && <Button className="employee-task-start" disabled={!!savingId} onClick={() => report(task, 'START')}><Play size={17} /> {task.delayReason ? 'ادامه می‌دهم' : 'شروع کردم'}</Button>}
-                <Button variant="success" loading={savingId === task.id && !unableTask} disabled={!!savingId} onClick={() => report(task, 'DONE')}><CheckCircle2 size={17} /> انجام شد</Button>
-                <Button variant="outline" disabled={!!savingId} onClick={() => { setUnableTask(task); setReason(task.delayReason ?? ''); setReasonError(''); }}><CircleAlert size={17} /> نتوانستم انجام بدهم</Button>
+                {task.status === 'NEW' && !task.delayReason && <Button className="employee-task-start" loading={savingId === task.id && savingResult === 'START'} disabled={!!savingId} onClick={() => report(task, 'START')}>شروع</Button>}
+                {task.delayReason && task.retryStatus !== 'PENDING' && <Button className="employee-task-retry" variant="outline" loading={savingId === task.id && savingResult === 'RETRY'} disabled={!!savingId} onClick={() => requestRetry(task)}><RotateCcw size={16} />درخواست انجام دوباره</Button>}
+                {!task.delayReason && <>
+                <Button className="employee-task-icon employee-task-done" variant="success" title="انجام شد" aria-label="انجام شد" loading={savingId === task.id && savingResult === 'DONE'} disabled={!!savingId} onClick={() => report(task, 'DONE')}><Check size={20} aria-hidden="true" /></Button>
+                <Button className="employee-task-icon employee-task-unable" variant="danger" title="نتوانستم انجام بدهم" aria-label="نتوانستم انجام بدهم" disabled={!!savingId} onClick={() => { setUnableTask(task); setReason(task.delayReason ?? ''); setReasonError(''); }}><X size={20} aria-hidden="true" /></Button>
+                </>}
               </div>}
               </div>
             </TaskContainer>;
           })}
         </div>
-      </> : <div className="empty-state">وظیفه‌ای برای نمایش نیست.</div>}
+      </> : <div className="empty-state">task برای نمایش نیست.</div>}
       <Modal open={!!unableTask} title="دلیل انجام نشدن کار" onClose={() => { if (!savingId) setUnableTask(null); }} footer={<>
         <Button loading={!!savingId} onClick={() => unableTask && report(unableTask, 'UNABLE')}>ثبت دلیل</Button>
         <Button variant="secondary" disabled={!!savingId} onClick={() => setUnableTask(null)}>انصراف</Button>
@@ -440,6 +482,7 @@ function ProjectsTab({ projects }: { projects: PanelProject[] }) {
             subtitle={`${p.code} · ${formatJalali(toDate(p.startDate))} تا ${formatJalali(toDate(p.endDate))}`}
             actions={
               <div style={{ display: 'flex', gap: 6 }}>
+                <WorkCategoryTag value={p.category} />
                 <Badge kind={p.status === 'ACTIVE' ? 'green' : p.status === 'COMPLETED' ? 'blue' : 'amber'}>
                   {statusLabel(p.status)}
                 </Badge>
@@ -450,7 +493,7 @@ function ProjectsTab({ projects }: { projects: PanelProject[] }) {
             }
           >
             <div className="timeline-progress mb">
-              <div className="timeline-progress-bar" style={{ width: `${p.progress}%`, background: p.color ?? '#a3a878' }} />
+                    <div className="timeline-progress-bar" style={{ width: `${p.progress}%`, background: categoryColor(p.category) ?? p.color ?? '#a3a878' }} />
             </div>
             <div className="text-muted text-xs mb">
               پیشرفت کل پروژه: {toPersianDigits(p.progress)}٪ · مدیر: {p.manager ? `${p.manager.firstName} ${p.manager.lastName}` : '—'}
@@ -460,8 +503,9 @@ function ProjectsTab({ projects }: { projects: PanelProject[] }) {
               <summary className="employee-stage-summary">مراحل من ({toPersianDigits(myStages.length)})</summary>
             <div className="col" style={{ gap: 8, marginTop: 10 }}>
               {myStages.map((t) => (
-                <div key={t.id} className="panel-stage">
+                <div key={t.id} className="panel-stage" style={categoryStyle(t.category ?? p.category)}>
                   <div className="panel-stage-main">
+                    <WorkCategoryTag value={t.category ?? p.category} />
                     <div className="flex" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <span className="fw-600">{t.title}</span>
                       {t.phase && <Badge kind="gray">{t.phase}</Badge>}

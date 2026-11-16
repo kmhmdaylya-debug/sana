@@ -11,9 +11,10 @@ export interface Column<T> {
 }
 
 const collator = new Intl.Collator('fa', { numeric: true, sensitivity: 'base' });
-export function DataTable<T extends Record<string, any>>({ columns, rows, loading, error, onRetry, emptyMessage = 'موردی برای نمایش وجود ندارد.', rowActions }: {
+export function DataTable<T extends Record<string, any>>({ columns, rows, loading, error, onRetry, emptyMessage = 'موردی برای نمایش وجود ندارد.', rowActions, rowClassName }: {
   columns: Column<T>[]; rows: T[]; loading?: boolean; error?: string; onRetry?: () => void;
   emptyMessage?: string; rowActions?: (row: T) => ReactNode;
+  rowClassName?: (row: T) => string;
 }) {
   const [sort, setSort] = useState<{ key: string; direction: 1 | -1 } | null>(null);
   const ordered = useMemo(() => {
@@ -40,7 +41,7 @@ export function DataTable<T extends Record<string, any>>({ columns, rows, loadin
           {canSort ? <button type="button" className="table-sort" title={`مرتب‌سازی ${c.header} در همین صفحه`} onClick={() => setSort(active ? (sort.direction === 1 ? { key: c.key, direction: -1 } : null) : { key: c.key, direction: 1 })}>{c.header}{active ? (sort.direction === 1 ? <ArrowUp size={13} /> : <ArrowDown size={13} />) : <ArrowUpDown size={13} />}</button> : c.header}
         </th>;
       })}{rowActions && <th scope="col" className="table-action-heading">عملیات</th>}</tr></thead>
-      <tbody>{ordered.map((row, idx) => <tr key={row.id ?? idx}>{columns.map(c => <td key={c.key} data-label={c.header}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>)}{rowActions && <td><div className="table-actions">{rowActions(row)}</div></td>}</tr>)}</tbody>
+      <tbody>{ordered.map((row, idx) => <tr key={row.id ?? idx} className={rowClassName?.(row)}>{columns.map(c => <td key={c.key} data-label={c.header}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>)}{rowActions && <td><div className="table-actions">{rowActions(row)}</div></td>}</tr>)}</tbody>
     </table>
   </div>;
 }

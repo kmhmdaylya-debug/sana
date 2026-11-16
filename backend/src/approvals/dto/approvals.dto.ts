@@ -216,7 +216,7 @@ export class ApprovalInstanceQueryDto extends PaginationDto {
   @IsString()
   status?: string;
 
-  @ApiPropertyOptional({ description: 'فقط نمونه‌هایی که وظیفه باز برای من دارند' })
+  @ApiPropertyOptional({ description: 'فقط نمونه‌هایی که task باز برای من دارند' })
   @IsOptional()
   @IsBoolean()
   @ToBoolean()
@@ -230,14 +230,14 @@ export class ApprovalInstanceQueryDto extends PaginationDto {
 }
 
 export class InboxQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ description: 'فقط وظایف سررسیدشده' })
+  @ApiPropertyOptional({ description: 'فقط task سررسیدشده' })
   @IsOptional()
   @IsBoolean()
   @ToBoolean()
   overdueOnly?: boolean;
 }
 
-/** تصمیم‌گیری درباره یک وظیفه تأیید */
+/** تصمیم‌گیری درباره یک task تأیید */
 export class DecideTaskDto {
   @ApiProperty({ enum: ApprovalDecision, example: ApprovalDecision.APPROVE })
   @IsEnum(ApprovalDecision, { message: 'نوع تصمیم معتبر نیست.' })
@@ -256,7 +256,7 @@ export class DecideTaskDto {
 }
 
 export class ExpireOverdueDto {
-  @ApiPropertyOptional({ default: 100, description: 'حداکثر تعداد وظیفه پردازش‌شده در هر بار' })
+  @ApiPropertyOptional({ default: 100, description: 'حداکثر تعداد task پردازش‌شده در هر بار' })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'تعداد باید عدد صحیح باشد.' })

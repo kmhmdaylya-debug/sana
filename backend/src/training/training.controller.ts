@@ -14,6 +14,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { TrainingService } from './training.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import {
+  SetPrerequisitesDto,
   CreateCertificateDto,
   CreateCourseDto,
   CreateTrainingRecordDto,
@@ -38,30 +39,30 @@ export class TrainingController {
   @Get('courses')
   @RequirePermissions(PERMISSIONS.TRAINING_VIEW)
   @ApiOperation({ summary: 'فهرست دوره‌های آموزشی' })
-  listCourses(@Query() query: CourseQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listCourses(query, pagination);
+  listCourses(@Query() query: CourseQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listCourses(query, pagination, user);
   }
   @Post('courses')
   @RequirePermissions(PERMISSIONS.TRAINING_MANAGE)
   @ApiOperation({ summary: 'تعریف دوره آموزشی' })
   createCourse(@Body() dto: CreateCourseDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.createCourse(dto, user.id);
+    return this.service.createCourse(dto, user);
   }
   @Patch('courses/:id')
   @RequirePermissions(PERMISSIONS.TRAINING_MANAGE)
   @ApiOperation({ summary: 'ویرایش دوره آموزشی' })
   updateCourse(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCourseDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.updateCourse(id, dto, user.id);
+    return this.service.updateCourse(id, dto, user);
   }
   @Put('courses/:id/prerequisites')
   @RequirePermissions(PERMISSIONS.TRAINING_MANAGE)
   @ApiOperation({ summary: 'تنظیم دوره‌های پیش‌نیاز' })
   setPrerequisites(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('prerequisiteIds') prerequisiteIds: string[],
+    @Body() dto: SetPrerequisitesDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.setPrerequisites(id, Array.isArray(prerequisiteIds) ? prerequisiteIds : [], user.id);
+    return this.service.setPrerequisites(id, dto.prerequisiteIds, user);
   }
   @Get('records')
   @RequirePermissions(PERMISSIONS.TRAINING_VIEW)
@@ -102,7 +103,7 @@ export class TrainingController {
   @Get('courses/:id')
   @RequirePermissions(PERMISSIONS.TRAINING_VIEW)
   @ApiOperation({ summary: 'جزئیات دوره با پیش‌نیازها' })
-  getCourse(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.getCourse(id);
+  getCourse(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getCourse(id, user);
   }
 }

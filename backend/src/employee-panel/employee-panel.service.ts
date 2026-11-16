@@ -57,8 +57,14 @@ export class EmployeePanelService {
     };
     const data = await this.prisma.task.findMany({
         where,
-        orderBy: [{ status: 'asc' }, { dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
-        select: { id: true, title: true, description: true, status: true, priority: true, dueDate: true, projectName: true, delayReason: true },
+        orderBy: [{ status: 'asc' }, { dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'asc' }],
+        select: { id: true, title: true, description: true, status: true, priority: true, dueDate: true, projectName: true, delayReason: true, category: true, retryStatus: true, retryRequestedAt: true },
+    });
+    // Stable partition keeps active work pinned without disturbing its deadline order.
+    data.sort((a, b) => {
+      const aPinned = a.status === 'IN_PROGRESS' && !a.delayReason;
+      const bPinned = b.status === 'IN_PROGRESS' && !b.delayReason;
+      return Number(bPinned) - Number(aPinned);
     });
     return { data, meta: { total: data.length, page: 1, limit: data.length, totalPages: 1 }, success: true };
   }
@@ -71,16 +77,18 @@ export class EmployeePanelService {
     const completed = dto.result === 'DONE';
     const task = await this.prisma.$transaction(async (tx) => {
       const before = await tx.task.findFirst({ where: { id: taskId, assignees: { some: assignment } } });
-      if (!before) throw new ForbiddenException('این وظیفه به شما واگذار نشده است.');
-      if (['CANCELLED', 'DONE'].includes(before.status)) throw new BadRequestException('نتیجهٔ این وظیفه قبلاً نهایی شده است.');
+      if (!before) throw new ForbiddenException('این task به شما واگذار نشده است.');
+      if (['CANCELLED', 'DONE'].includes(before.status)) throw new BadRequestException('نتیجهٔ این task قبلاً نهایی شده است.');
+      if (before.delayReason && dto.result !== 'UNABLE') throw new BadRequestException('برای ادامهٔ این کار، ابتدا درخواست انجام دوباره را ثبت کنید و منتظر تأیید مدیر بمانید.');
+      if (before.retryStatus === 'PENDING') throw new BadRequestException('درخواست انجام دوباره در انتظار بررسی مدیر است.');
       if (dto.result === 'START' && before.status === 'IN_PROGRESS' && !before.delayReason) {
         throw new BadRequestException('این کار قبلاً شروع شده است.');
       }
       const updated = await tx.task.updateMany({
-        where: { id: taskId, status: before.status, delayReason: before.delayReason ?? null, assignees: { some: assignment } },
-        data: { status: completed ? 'DONE' : 'IN_PROGRESS', delayReason: dto.result === 'UNABLE' ? reason : null, completedAt: completed ? new Date() : null, ...(completed ? { progress: 100 } : {}) },
+        where: { id: taskId, status: before.status, delayReason: before.delayReason ?? null, retryStatus: before.retryStatus ?? null, assignees: { some: assignment } },
+        data: { status: completed ? 'DONE' : 'IN_PROGRESS', delayReason: dto.result === 'UNABLE' ? reason : null, completedAt: completed ? new Date() : null, retryStatus: null, retryRequestedAt: null, retryRequestedById: null, ...(completed ? { progress: 100 } : {}) },
       });
-      if (!updated.count) throw new BadRequestException('وظیفه تغییر کرده است؛ صفحه را تازه کنید.');
+      if (!updated.count) throw new BadRequestException('task تغییر کرده است؛ صفحه را تازه کنید.');
       await tx.taskAssignee.updateMany({ where: assignment, data: { completedAt: completed ? new Date() : null } });
       if (completed) await tx.taskAssignee.updateMany({ where: { taskId }, data: { dismissedAt: null } });
       const content = dto.result === 'START' ? (before.delayReason ? 'مشکل برطرف شد؛ کار از سر گرفته شد.' : 'کار شروع شد.') : completed ? 'کار انجام شد.' : `کار انجام نشد: ${reason}`;
@@ -89,7 +97,7 @@ export class EmployeePanelService {
     });
     await this.audit.record(user.id, { action: AuditAction.UPDATE, entity: 'Task', entityId: taskId, before: { status: task.status, reason: task.delayReason }, after: { status: completed ? 'DONE' : 'IN_PROGRESS', result: dto.result, reason: dto.result === 'UNABLE' ? reason : null } });
     if (dto.result !== 'START' && task.createdById && task.createdById !== user.id) {
-      await this.notifications.notify(task.createdById, { title: completed ? 'وظیفه انجام شد' : 'دلیل انجام نشدن وظیفه ثبت شد', body: `${task.title}${completed ? '' : `: ${reason}`}`, link: '/tasks' });
+      await this.notifications.notify(task.createdById, { title: completed ? 'task انجام شد' : 'دلیل انجام نشدن task ثبت شد', body: `${task.title}${completed ? '' : `: ${reason}`}`, link: '/tasks' });
     }
     return { success: true };
   }
@@ -101,6 +109,29 @@ export class EmployeePanelService {
       data: { dismissedAt: new Date() },
     });
     if (!updated.count) throw new BadRequestException('فقط کار انجام‌شده و واگذارشده به خودتان قابل حذف از فهرست است.');
+    return { success: true };
+  }
+
+  async requestRetry(taskId: string, user: AuthenticatedUser) {
+    const employeeId = await this.requireEmployee(user);
+    const assignment = { taskId, OR: [{ userId: user.id }, { employeeId }] };
+    const before = await this.prisma.$transaction(async tx => {
+      const task = await tx.task.findFirst({ where: { id: taskId, assignees: { some: assignment } } });
+      if (!task) throw new ForbiddenException('این task به شما واگذار نشده است.');
+      if (!task.delayReason || ['DONE', 'CANCELLED'].includes(task.status)) throw new BadRequestException('فقط برای کار انجام‌نشده می‌توانید درخواست انجام دوباره بدهید.');
+      if (task.retryStatus === 'PENDING') throw new BadRequestException('درخواست قبلی هنوز در انتظار بررسی مدیر است.');
+      const result = await tx.task.updateMany({
+        where: { id: taskId, status: task.status, delayReason: task.delayReason, retryStatus: task.retryStatus ?? null, assignees: { some: assignment } },
+        data: { retryStatus: 'PENDING', retryRequestedAt: new Date(), retryRequestedById: user.id },
+      });
+      if (!result.count) throw new BadRequestException('task تغییر کرده است؛ صفحه را تازه کنید.');
+      await tx.taskComment.create({ data: { taskId, authorId: user.id, content: 'درخواست انجام دوبارهٔ کار برای مدیر ارسال شد.' } });
+      return task;
+    });
+    await this.audit.record(user.id, { action: AuditAction.UPDATE, entity: 'Task', entityId: taskId, after: { retryStatus: 'PENDING' } });
+    if (before.createdById && before.createdById !== user.id) {
+      await this.notifications.notify(before.createdById, { title: 'درخواست انجام دوبارهٔ کار', body: before.title, link: '/tasks' });
+    }
     return { success: true };
   }
 

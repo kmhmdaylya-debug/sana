@@ -8,8 +8,16 @@ import { getDefaultCompanyId } from '../lib/org';
 import { formatJalali, parseDateInput, toPersianDigits, isPastDueDate } from '../lib/format';
 import { DatePicker, Button, Field, Input, Modal, PageHeader, Pagination, Select, Textarea, useToast } from './ui';
 import TeamPresence from './TeamPresence';
+import TaskCountdown from './TaskCountdown';
+import TaskStatusMark from './TaskStatusMark';
+import { WorkCategoryPicker, WorkCategoryTag } from './WorkCategory';
+import TaskRetryReview from './TaskRetryReview';
+import { categoryStyle, WORK_CATEGORIES } from '../lib/workCategories';
 
 interface Work {
+  category?: string | null;
+  retryStatus?: string | null;
+  retryRequester?: { fullName: string } | null;
   id: string;
   title: string;
   description: string | null;
@@ -23,7 +31,7 @@ interface Work {
   comments: { id: string; content: string; createdAt: string; author: { fullName: string } | null }[];
 }
 
-const labels: Record<string, string> = { NEW: 'شروع نشده', IN_PROGRESS: 'در حال انجام', BLOCKED: 'دارای مشکل', DONE: 'انجام‌شده', CANCELLED: 'لغوشده' };
+const labels: Record<string, string> = { NEW: 'شروع نشده', IN_PROGRESS: 'در حال انجام', BLOCKED: 'انجام نشد', DONE: 'انجام‌شده', CANCELLED: 'لغوشده' };
 const stateOf = (task: Work) => !['DONE', 'CANCELLED'].includes(task.status) && task.delayReason ? 'BLOCKED' : task.status;
 const dateTime = (date: string) => new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', dateStyle: 'short', timeStyle: 'short' }).format(new Date(date));
 
@@ -31,6 +39,7 @@ export default function TeamWork() {
   const { hasPermission } = useAuth();
   const [tasks, setTasks] = useState<Work[]>([]);
   const [filter, setFilter] = useState('ACTIVE');
+  const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -52,7 +61,7 @@ export default function TeamWork() {
     window.addEventListener('focus', refresh);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [load]);
-  const visible = tasks.filter((task) => filter === 'ALL' || (filter === 'ACTIVE' ? !['DONE', 'CANCELLED'].includes(task.status) : stateOf(task) === filter));
+  const visible = tasks.filter((task) => (!category || task.category === category) && (filter === 'ALL' || (filter === 'ACTIVE' ? !['DONE', 'CANCELLED'].includes(task.status) : stateOf(task) === filter)));
   return <>
     <PageHeader title="کارهای تیم" actions={hasPermission('tasks.create') && <Button onClick={() => setCreating(true)}><Plus size={17} /> واگذاری کار</Button>} />
     <div className="work-overview" role="group" aria-label="خلاصه کارهای تیم">
@@ -61,7 +70,7 @@ export default function TeamWork() {
         { key:'IN_PROGRESS', label:'در حال انجام', count:tasks.filter(task => stateOf(task) === 'IN_PROGRESS').length, icon:<Clock size={20} /> },
         { key:'BLOCKED', label:'دارای مشکل', count:tasks.filter(task => stateOf(task) === 'BLOCKED').length, icon:<CircleAlert size={20} />, className:'has-problem' },
         { key:'DONE', label:'انجام‌شده', count:tasks.filter(task => task.status === 'DONE').length, icon:<CheckCircle2 size={20} />, className:'is-done' },
-      ].map(item => <button type="button" key={item.key} className={item.className} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)}>{item.icon}<span><strong>{loading || error ? '—' : toPersianDigits(item.count)}</strong><small>{item.label}</small></span></button>)}
+      ].map(item => <button type="button" key={item.key} data-state={item.key.toLowerCase()} className={item.className} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)}>{item.icon}<span><strong>{loading || error ? '—' : toPersianDigits(item.count)}</strong><small>{item.label}</small></span></button>)}
     </div>
     <div className="team-work-toolbar">
       <Select aria-label="وضعیت کارها" value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -69,9 +78,10 @@ export default function TeamWork() {
         <option value="ALL">همه کارها</option>
         {Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label} ({toPersianDigits(tasks.filter((task) => stateOf(task) === key).length)})</option>)}
       </Select>
+      <Select aria-label="دسته‌بندی کارها" value={category} onChange={event => setCategory(event.target.value)}><option value="">همهٔ دسته‌ها</option>{WORK_CATEGORIES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</Select>
       <span className="text-muted text-sm">{toPersianDigits(visible.length)} کار</span>
       <Button variant="outline" size="sm" aria-label="تازه‌سازی کارها" title="تازه‌سازی کارها" onClick={() => void load()}><RefreshCw size={16} /></Button>
-      {hasPermission('tasks.view') && <Link to="/tasks" className="text-sm">ویرایش وظایف</Link>}
+      {hasPermission('tasks.view') && <Link to="/tasks" className="text-sm">ویرایش task</Link>}
     </div>
     {error && <div className="alert alert-danger" role="alert">{error} <Button variant="secondary" onClick={() => void load()}>تلاش دوباره</Button></div>}
     {loading ? <div className="skeleton" style={{ height: 180 }} /> : !error && <div className="team-work-list">
@@ -79,10 +89,11 @@ export default function TeamWork() {
       {visible.map((task) => {
         const state = stateOf(task);
         const overdue = isPastDueDate(task.dueDate) && !['DONE', 'CANCELLED'].includes(state);
-        return <article key={task.id} className={`team-work-row state-${state.toLowerCase()}`}>
-          <div className="team-work-title"><h3>{task.title}</h3><span className="team-work-state">{state === 'BLOCKED' ? <CircleAlert size={15} /> : <Clock size={15} />}{labels[state] ?? state}</span></div>
-          <div className="team-work-meta"><span><UserRound size={15} />{task.assignees.map((a) => a.user?.fullName ?? (a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : '')).filter(Boolean).join('، ') || 'بدون مسئول'}</span>{task.dueDate && <span className={overdue ? 'text-danger' : ''}>مهلت: {formatJalali(task.dueDate)}{overdue ? ' · عقب‌افتاده' : ''}</span>}</div>
+        return <article key={task.id} style={categoryStyle(task.category)} className={`team-work-row state-${state.toLowerCase()}${task.category ? ' has-category' : ''}`}>
+          <div className="team-work-title"><div className="team-work-heading"><TaskStatusMark status={state} /><h3>{task.title}</h3></div><span className="team-work-state">{labels[state] ?? state}</span></div>
+          <div className="team-work-meta"><span><UserRound size={15} />{task.assignees.map((a) => a.user?.fullName ?? (a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : '')).filter(Boolean).join('، ') || 'بدون مسئول'}</span>{task.dueDate && <span className={overdue ? 'text-danger' : ''}>مهلت: {formatJalali(task.dueDate)}{overdue ? ' · عقب‌افتاده' : ''}</span>}<TaskCountdown dueDate={task.dueDate} status={task.status} /><WorkCategoryTag value={task.category} /></div>
           {state === 'BLOCKED' && <p className="team-work-problem"><strong>مشکل:</strong> {task.delayReason}</p>}
+          {hasPermission('tasks.update') && <TaskRetryReview task={task} onReviewed={() => load()} />}
           <details className="team-work-history">
             <summary>جزئیات و تاریخچه <ChevronDown size={15} /></summary>
             {task.description && <p className="team-work-description">{task.description}</p>}
@@ -105,6 +116,7 @@ function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: ()
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [category, setCategory] = useState('');
   const [assignee, setAssignee] = useState<{ id: string; fullName: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
@@ -116,7 +128,7 @@ function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: ()
       if (dueDate && !date) throw new Error('تاریخ مهلت معتبر نیست.');
       const companyId = await getDefaultCompanyId();
       if (!companyId) throw new Error('شرکتی ثبت نشده است.');
-      await api.post('/tasks', { companyId, title: title.trim(), description, assigneeUserIds: [assignee.id], ...(date ? { dueDate: date } : {}) });
+      await api.post('/tasks', { companyId, title: title.trim(), description, category: category || null, assigneeUserIds: [assignee.id], ...(date ? { dueDate: date } : {}) });
       toast('success', 'کار واگذار شد.');
       onCreated();
     } catch (e) { toast('error', e instanceof Error && !('response' in e) ? e.message : apiErrorMessage(e)); }
@@ -126,6 +138,7 @@ function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: ()
     <div className="col" style={{ gap: 14 }}>
       <Field label="عنوان کار" required><Input aria-label="عنوان کار" maxLength={240} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
       <Field label="شرح کار"><Textarea aria-label="شرح کار" value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+      <WorkCategoryPicker value={category} onChange={setCategory} disabled={saving} />
       <Field label="مهلت"><DatePicker aria-label="مهلت" placeholder="۱۴۰۵/۰۸/۳۰" value={dueDate} onValueChange={(value) => setDueDate(value)} /></Field>
       <Field label="مسئول کار" required>
         <Input aria-label="جستجوی کارمند" placeholder="نام کارمند" value={people.search} onChange={(e) => people.setSearch(e.target.value)} />

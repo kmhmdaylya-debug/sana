@@ -12,7 +12,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
-import { CreateTaskDto, TaskCommentDto, TaskDependencyDto, TaskQueryDto, UpdateTaskDto } from './dto/tasks.dto';
+import { CreateTaskDto, ReviewTaskRetryDto, TaskCommentDto, TaskDependencyDto, TaskQueryDto, UpdateTaskDto } from './dto/tasks.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
@@ -30,27 +30,34 @@ export class TasksController {
 
   @Get()
   @RequirePermissions(PERMISSIONS.TASKS_VIEW)
-  @ApiOperation({ summary: 'فهرست وظایف' })
+  @ApiOperation({ summary: 'فهرست task' })
   list(@Query() query: TaskQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.list(query, pagination, user);
   }
   @Post()
   @RequirePermissions(PERMISSIONS.TASKS_CREATE)
-  @ApiOperation({ summary: 'ایجاد وظیفه' })
+  @ApiOperation({ summary: 'ایجاد task' })
   create(@Body() dto: CreateTaskDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.create(dto, user);
   }
   @Patch(':id')
   @RequirePermissions(PERMISSIONS.TASKS_UPDATE)
-  @ApiOperation({ summary: 'ویرایش وظیفه (وضعیت/پیشرفت/مسئولان)' })
+  @ApiOperation({ summary: 'ویرایش task (وضعیت/پیشرفت/مسئولان)' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTaskDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.update(id, dto, user);
   }
   @Delete(':id')
   @RequirePermissions(PERMISSIONS.TASKS_DELETE)
-  @ApiOperation({ summary: 'حذف وظیفه' })
+  @ApiOperation({ summary: 'حذف task' })
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.remove(id, user);
+  }
+
+  @Post(':id/retry-request/review')
+  @RequirePermissions(PERMISSIONS.TASKS_UPDATE)
+  @ApiOperation({ summary: 'تأیید یا رد درخواست انجام دوبارهٔ کار' })
+  reviewRetry(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReviewTaskRetryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.reviewRetry(id, dto, user);
   }
   @Post(':id/comments')
   @RequirePermissions(PERMISSIONS.TASKS_VIEW)
@@ -72,7 +79,7 @@ export class TasksController {
   }
   @Get(':id')
   @RequirePermissions(PERMISSIONS.TASKS_VIEW)
-  @ApiOperation({ summary: 'جزئیات وظیفه' })
+  @ApiOperation({ summary: 'جزئیات task' })
   get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.get(id, user);
   }

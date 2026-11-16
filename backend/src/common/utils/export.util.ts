@@ -12,7 +12,9 @@ export interface ExportColumn {
 export function buildCsvBuffer(headers: string[], rows: (string | number | null | undefined)[][]): Buffer {
   const escape = (value: string | number | null | undefined): string => {
     if (value === null || value === undefined) return '';
-    const s = String(value);
+    const raw = String(value);
+    // Spreadsheet applications otherwise interpret user-controlled text as formulas.
+    const s = typeof value === 'string' && /^[\s\u0000-\u001f]*[=+@-]/.test(raw) ? `'${raw}` : raw;
     if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };

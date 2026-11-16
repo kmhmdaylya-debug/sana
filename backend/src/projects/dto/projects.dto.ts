@@ -12,7 +12,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ProjectPriority, ProjectStatus } from '@prisma/client';
+import { ProjectPriority, ProjectStatus, WorkCategory } from '@prisma/client';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 // ---------------------------------------------------------------------------
@@ -20,6 +20,11 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 // ---------------------------------------------------------------------------
 
 export class CreateProjectDto {
+  @ApiPropertyOptional({ enum: WorkCategory })
+  @IsOptional()
+  @IsEnum(WorkCategory)
+  category?: WorkCategory | null;
+
   @ApiProperty({ example: 'PRJ-1404-01' })
   @IsString({ message: 'کد پروژه الزامی است.' })
   @MaxLength(40)
@@ -79,6 +84,11 @@ export class CreateProjectDto {
 }
 
 export class UpdateProjectDto {
+  @ApiPropertyOptional({ enum: WorkCategory })
+  @IsOptional()
+  @IsEnum(WorkCategory)
+  category?: WorkCategory | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -186,12 +196,17 @@ export class TimelineQueryDto {
 }
 
 // ---------------------------------------------------------------------------
-// وظیفهٔ پروژه (بخش گانت چارت)
+// task پروژه (بخش گانت چارت)
 // ---------------------------------------------------------------------------
 
 export class CreateProjectTaskDto {
+  @ApiPropertyOptional({ enum: WorkCategory })
+  @IsOptional()
+  @IsEnum(WorkCategory)
+  category?: WorkCategory | null;
+
   @ApiProperty({ example: 'طراحی رابط کاربری' })
-  @IsString({ message: 'عنوان وظیفه الزامی است.' })
+  @IsString({ message: 'عنوان task الزامی است.' })
   @MinLength(2)
   @MaxLength(200)
   title: string;
@@ -240,7 +255,7 @@ export class CreateProjectTaskDto {
   @IsUUID('4', { message: 'شناسهٔ مسئول معتبر نیست.' })
   assigneeId?: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'وظیفهٔ پیش‌نیاز (برای خط وابستگی)' })
+  @ApiPropertyOptional({ format: 'uuid', description: 'task پیش‌نیاز (برای خط وابستگی)' })
   @IsOptional()
   @IsUUID('4', { message: 'شناسهٔ پیش‌نیاز معتبر نیست.' })
   dependsOnId?: string;
@@ -253,6 +268,11 @@ export class CreateProjectTaskDto {
 }
 
 export class UpdateProjectTaskDto {
+  @ApiPropertyOptional({ enum: WorkCategory })
+  @IsOptional()
+  @IsEnum(WorkCategory)
+  category?: WorkCategory | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

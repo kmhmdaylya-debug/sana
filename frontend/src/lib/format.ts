@@ -425,9 +425,9 @@ export const APPLICANT_STATUS_LABELS: Record<string, string> = {
 };
 
 export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
-  TASK_ASSIGNED: 'وظیفه جدید',
-  TASK_DUE_SOON: 'یادآوری مهلت وظیفه',
-  TASK_CHANGED: 'تغییر وظیفه',
+  TASK_ASSIGNED: 'task جدید',
+  TASK_DUE_SOON: 'یادآوری مهلت task',
+  TASK_CHANGED: 'تغییر task',
   TASK_OVERDUE: 'عقب‌ماندگی از مهلت',
   REQUEST_RESULT: 'نتیجه درخواست',
   SHIFT_CHANGED: 'تغییر شیفت',

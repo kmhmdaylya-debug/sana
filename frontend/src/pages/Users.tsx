@@ -255,7 +255,7 @@ export default function Users() {
             <Field label="ایمیل"><Input className="ltr" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></Field>
             <Field label="موبایل"><Input className="ltr" value={form.mobile} onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))} /></Field>
           </div>
-          <Field label="نیروی متصل" hint="برای دسترسی به پروندهٔ پرسنلی، مرخصی، حقوق و پنل کارمند">
+          <Field label="نیروی متصل" hint="برای دسترسی به پروندهٔ پرسنلی، مرخصی، حقوق و بخش task">
             <Select value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))}>
               <option value="">— بدون پروندهٔ پرسنلی —</option>
               {employees.rows.map((e) => (
@@ -311,7 +311,7 @@ export default function Users() {
             <Field label="ایمیل"><Input className="ltr" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))} /></Field>
             <Field label="موبایل"><Input className="ltr" value={createForm.mobile} onChange={(e) => setCreateForm((f) => ({ ...f, mobile: e.target.value }))} /></Field>
           </div>
-          <Field label="نیروی متصل" hint="برای دسترسی به پروندهٔ پرسنلی، مرخصی، حقوق و پنل کارمند">
+          <Field label="نیروی متصل" hint="برای دسترسی به پروندهٔ پرسنلی، مرخصی، حقوق و بخش task">
             <Select value={createForm.employeeId} onChange={(e) => setCreateForm((f) => ({ ...f, employeeId: e.target.value }))}>
               <option value="">— بدون پروندهٔ پرسنلی —</option>
               {employees.rows.map((e) => (

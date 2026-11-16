@@ -76,7 +76,7 @@ export const PERMISSIONS = {
   EVALUATIONS_RATE: 'evaluations.rate',
   EVALUATIONS_APPROVE: 'evaluations.approve',
 
-  // وظایف
+  // task
   TASKS_VIEW: 'tasks.view',
   TASKS_CREATE: 'tasks.create',
   TASKS_UPDATE: 'tasks.update',
@@ -267,7 +267,7 @@ export const PERMISSION_GROUPS: { group: string; label: string; codes: Permissio
   },
   {
     group: 'tasks',
-    label: 'وظایف',
+    label: 'task',
     codes: [
       PERMISSIONS.TASKS_VIEW,
       PERMISSIONS.TASKS_CREATE,

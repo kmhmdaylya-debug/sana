@@ -1,12 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditAction } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { AccessService } from '../common/access/access.service';
+import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { AuditService } from '../common/audit/audit.service';
 import {
   BranchQueryDto,
@@ -47,14 +50,16 @@ export class OrgService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly access: AccessService,
   ) {}
 
   // =========================================================================
   // شرکت
   // =========================================================================
 
-  async listCompanies(query: CompanyQueryDto) {
+  async listCompanies(query: CompanyQueryDto, user: AuthenticatedUser) {
     const where: Prisma.CompanyWhereInput = {
+      AND: [await this.companyFilter(user)],
       deletedAt: null,
       ...(query.code ? { code: { contains: query.code, mode: 'insensitive' } } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
@@ -84,16 +89,17 @@ export class OrgService {
   }
 
   /** فهرست سبک شرکت‌ها برای dropdown */
-  async companyOptions() {
+  async companyOptions(user: AuthenticatedUser) {
     const rows = await this.prisma.company.findMany({
-      where: { deletedAt: null, isActive: true },
+      where: { deletedAt: null, isActive: true, AND: [await this.companyFilter(user)] },
       orderBy: { name: 'asc' },
       select: { id: true, code: true, name: true },
     });
     return rows;
   }
 
-  async getCompany(id: string) {
+  async getCompany(id: string, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, id);
     const company = await this.prisma.company.findUnique({
       where: { id },
       include: {
@@ -114,7 +120,9 @@ export class OrgService {
     return company;
   }
 
-  async createCompany(dto: CreateCompanyDto, actorId: string) {
+  async createCompany(dto: CreateCompanyDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    if (!user.isSuperAdmin) throw new ForbiddenException('ایجاد شرکت فقط برای مدیر ارشد مجاز است.');
     const code = dto.code.trim();
     const duplicate = await this.prisma.company.findFirst({ where: { code, deletedAt: null } });
     if (duplicate) throw new ConflictException(`کد شرکت «${code}» قبلاً ثبت شده است.`);
@@ -146,8 +154,9 @@ export class OrgService {
     return company;
   }
 
-  async updateCompany(id: string, dto: UpdateCompanyDto, actorId: string) {
-    const company = await this.getCompany(id);
+  async updateCompany(id: string, dto: UpdateCompanyDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const company = await this.getCompany(id, user);
 
     if (dto.code && dto.code.trim() !== company.code) {
       const duplicate = await this.prisma.company.findFirst({
@@ -186,8 +195,9 @@ export class OrgService {
   }
 
   /** حذف منطقی شرکت */
-  async deleteCompany(id: string, actorId: string) {
-    const company = await this.getCompany(id);
+  async deleteCompany(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const company = await this.getCompany(id, user);
     await this.prisma.company.update({
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
@@ -205,8 +215,9 @@ export class OrgService {
   // شعبه
   // =========================================================================
 
-  async listBranches(query: BranchQueryDto) {
+  async listBranches(query: BranchQueryDto, user: AuthenticatedUser) {
     const where: Prisma.BranchWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       deletedAt: null,
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
@@ -234,9 +245,9 @@ export class OrgService {
     return this.page(rows, total, query);
   }
 
-  async branchOptions() {
+  async branchOptions(user: AuthenticatedUser) {
     return this.prisma.branch.findMany({
-      where: { deletedAt: null, isActive: true },
+      where: { deletedAt: null, isActive: true, AND: [await this.access.companyWhereFor(user)] },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -248,7 +259,7 @@ export class OrgService {
     });
   }
 
-  async getBranch(id: string) {
+  async getBranch(id: string, user: AuthenticatedUser) {
     const branch = await this.prisma.branch.findUnique({
       where: { id },
       include: {
@@ -257,11 +268,13 @@ export class OrgService {
       },
     });
     if (!branch || branch.deletedAt) throw new NotFoundException('شعبه موردنظر یافت نشد.');
+    await this.access.assertCompanyAccess(user, branch.companyId);
     return branch;
   }
 
-  async createBranch(dto: CreateBranchDto, actorId: string) {
-    await this.ensureCompany(dto.companyId);
+  async createBranch(dto: CreateBranchDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.ensureCompany(dto.companyId, user);
     const code = dto.code.trim();
     const duplicate = await this.prisma.branch.findFirst({
       where: { companyId: dto.companyId, code, deletedAt: null },
@@ -293,10 +306,12 @@ export class OrgService {
     return branch;
   }
 
-  async updateBranch(id: string, dto: UpdateBranchDto, actorId: string) {
-    const branch = await this.getBranch(id);
+  async updateBranch(id: string, dto: UpdateBranchDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const branch = await this.getBranch(id, user);
+    if ('companyId' in dto && dto.companyId && dto.companyId !== branch.companyId) throw new BadRequestException('انتقال رکورد سازمانی بین شرکت‌ها از این مسیر مجاز نیست.');
 
-    if (dto.companyId && dto.companyId !== branch.companyId) await this.ensureCompany(dto.companyId);
+    if (dto.companyId && dto.companyId !== branch.companyId) await this.ensureCompany(dto.companyId, user);
 
     const targetCompanyId = dto.companyId ?? branch.companyId;
     if (dto.code && dto.code.trim() !== branch.code) {
@@ -333,8 +348,9 @@ export class OrgService {
     return updated;
   }
 
-  async deleteBranch(id: string, actorId: string) {
-    const branch = await this.getBranch(id);
+  async deleteBranch(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const branch = await this.getBranch(id, user);
     await this.prisma.branch.update({
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
@@ -352,8 +368,9 @@ export class OrgService {
   // محل کار
   // =========================================================================
 
-  async listWorkLocations(query: WorkLocationQueryDto) {
+  async listWorkLocations(query: WorkLocationQueryDto, user: AuthenticatedUser) {
     const where: Prisma.WorkLocationWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.branchId ? { branchId: query.branchId } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
@@ -385,7 +402,7 @@ export class OrgService {
     return this.page(rows, total, query);
   }
 
-  async getWorkLocation(id: string) {
+  async getWorkLocation(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.workLocation.findUnique({
       where: { id },
       include: {
@@ -394,11 +411,13 @@ export class OrgService {
       },
     });
     if (!row) throw new NotFoundException('محل کار موردنظر یافت نشد.');
+    await this.access.assertCompanyAccess(user, row.companyId);
     return row;
   }
 
-  async createWorkLocation(dto: CreateWorkLocationDto, actorId: string) {
-    await this.ensureCompany(dto.companyId);
+  async createWorkLocation(dto: CreateWorkLocationDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.ensureCompany(dto.companyId, user);
     if (dto.branchId) await this.ensureBranch(dto.branchId, dto.companyId);
     const code = dto.code.trim();
     const duplicate = await this.prisma.workLocation.findFirst({
@@ -433,9 +452,11 @@ export class OrgService {
     return row;
   }
 
-  async updateWorkLocation(id: string, dto: UpdateWorkLocationDto, actorId: string) {
-    const row = await this.getWorkLocation(id);
-    if (dto.companyId) await this.ensureCompany(dto.companyId);
+  async updateWorkLocation(id: string, dto: UpdateWorkLocationDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getWorkLocation(id, user);
+    if ('companyId' in dto && dto.companyId && dto.companyId !== row.companyId) throw new BadRequestException('انتقال رکورد سازمانی بین شرکت‌ها از این مسیر مجاز نیست.');
+    if (dto.companyId) await this.ensureCompany(dto.companyId, user);
     if (dto.branchId) await this.ensureBranch(dto.branchId, dto.companyId ?? row.companyId);
 
     const targetCompanyId = dto.companyId ?? row.companyId;
@@ -475,8 +496,9 @@ export class OrgService {
     return updated;
   }
 
-  async deleteWorkLocation(id: string, actorId: string) {
-    const row = await this.getWorkLocation(id);
+  async deleteWorkLocation(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getWorkLocation(id, user);
     await this.prisma.workLocation.update({ where: { id }, data: { isActive: false } });
     await this.audit.record(actorId, {
       action: AuditAction.DELETE,
@@ -491,8 +513,9 @@ export class OrgService {
   // مرکز هزینه
   // =========================================================================
 
-  async listCostCenters(query: CostCenterQueryDto) {
+  async listCostCenters(query: CostCenterQueryDto, user: AuthenticatedUser) {
     const where: Prisma.CostCenterWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.parentId ? { parentId: query.parentId } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
@@ -524,7 +547,7 @@ export class OrgService {
     return this.page(rows, total, query);
   }
 
-  async getCostCenter(id: string) {
+  async getCostCenter(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.costCenter.findUnique({
       where: { id },
       include: {
@@ -534,11 +557,13 @@ export class OrgService {
       },
     });
     if (!row) throw new NotFoundException('مرکز هزینه موردنظر یافت نشد.');
+    await this.access.assertCompanyAccess(user, row.companyId);
     return row;
   }
 
-  async createCostCenter(dto: CreateCostCenterDto, actorId: string) {
-    await this.ensureCompany(dto.companyId);
+  async createCostCenter(dto: CreateCostCenterDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.ensureCompany(dto.companyId, user);
     const code = dto.code.trim();
     const duplicate = await this.prisma.costCenter.findFirst({
       where: { companyId: dto.companyId, code },
@@ -574,10 +599,12 @@ export class OrgService {
     return row;
   }
 
-  async updateCostCenter(id: string, dto: UpdateCostCenterDto, actorId: string) {
-    const row = await this.getCostCenter(id);
+  async updateCostCenter(id: string, dto: UpdateCostCenterDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getCostCenter(id, user);
+    if ('companyId' in dto && dto.companyId && dto.companyId !== row.companyId) throw new BadRequestException('انتقال رکورد سازمانی بین شرکت‌ها از این مسیر مجاز نیست.');
     const targetCompanyId = dto.companyId ?? row.companyId;
-    if (dto.companyId) await this.ensureCompany(dto.companyId);
+    if (dto.companyId) await this.ensureCompany(dto.companyId, user);
 
     if (dto.code && dto.code.trim() !== row.code) {
       const duplicate = await this.prisma.costCenter.findFirst({
@@ -628,8 +655,9 @@ export class OrgService {
     return updated;
   }
 
-  async deleteCostCenter(id: string, actorId: string) {
-    const row = await this.getCostCenter(id);
+  async deleteCostCenter(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getCostCenter(id, user);
     await this.prisma.costCenter.update({ where: { id }, data: { isActive: false } });
     await this.audit.record(actorId, {
       action: AuditAction.DELETE,
@@ -644,8 +672,9 @@ export class OrgService {
   // واحد سازمانی
   // =========================================================================
 
-  async listOrgUnits(query: OrgUnitQueryDto) {
+  async listOrgUnits(query: OrgUnitQueryDto, user: AuthenticatedUser) {
     const where: Prisma.OrgUnitWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       deletedAt: null,
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.branchId ? { branchId: query.branchId } : {}),
@@ -682,9 +711,9 @@ export class OrgService {
   }
 
   /** فهرست سبک واحدهای سازمانی برای dropdown */
-  async orgUnitOptions() {
+  async orgUnitOptions(user: AuthenticatedUser) {
     const rows = await this.prisma.orgUnit.findMany({
-      where: { deletedAt: null, isActive: true },
+      where: { deletedAt: null, isActive: true, AND: [await this.access.companyWhereFor(user)] },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -700,8 +729,9 @@ export class OrgService {
   }
 
   /** درخت سازمانی — واحدها به‌صورت تودرتو */
-  async orgTree(query: OrgTreeQueryDto) {
+  async orgTree(query: OrgTreeQueryDto, user: AuthenticatedUser) {
     const where: Prisma.OrgUnitWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       deletedAt: null,
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.branchId ? { branchId: query.branchId } : {}),
@@ -744,7 +774,7 @@ export class OrgService {
     return roots;
   }
 
-  async getOrgUnit(id: string) {
+  async getOrgUnit(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.orgUnit.findUnique({
       where: { id },
       include: {
@@ -755,11 +785,14 @@ export class OrgService {
       },
     });
     if (!row || row.deletedAt) throw new NotFoundException('واحد سازمانی موردنظر یافت نشد.');
+    await this.access.assertCompanyAccess(user, row.companyId);
     return row;
   }
 
-  async createOrgUnit(dto: CreateOrgUnitDto, actorId: string) {
-    await this.ensureCompany(dto.companyId);
+  async createOrgUnit(dto: CreateOrgUnitDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.ensureCompany(dto.companyId, user);
+    await this.access.assertEmployeeRelations(dto.companyId, dto);
     const code = dto.code.trim();
     const duplicate = await this.prisma.orgUnit.findFirst({
       where: { companyId: dto.companyId, code, deletedAt: null },
@@ -792,10 +825,13 @@ export class OrgService {
     return row;
   }
 
-  async updateOrgUnit(id: string, dto: UpdateOrgUnitDto, actorId: string) {
-    const row = await this.getOrgUnit(id);
+  async updateOrgUnit(id: string, dto: UpdateOrgUnitDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getOrgUnit(id, user);
+    if ('companyId' in dto && dto.companyId && dto.companyId !== row.companyId) throw new BadRequestException('انتقال رکورد سازمانی بین شرکت‌ها از این مسیر مجاز نیست.');
     const targetCompanyId = dto.companyId ?? row.companyId;
-    if (dto.companyId) await this.ensureCompany(dto.companyId);
+    await this.access.assertEmployeeRelations(targetCompanyId, { branchId: dto.branchId ?? row.branchId, managerId: dto.managerId ?? row.managerId });
+    if (dto.companyId) await this.ensureCompany(dto.companyId, user);
 
     if (dto.code && dto.code.trim() !== row.code) {
       const duplicate = await this.prisma.orgUnit.findFirst({
@@ -839,8 +875,9 @@ export class OrgService {
     return updated;
   }
 
-  async deleteOrgUnit(id: string, actorId: string) {
-    const row = await this.getOrgUnit(id);
+  async deleteOrgUnit(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getOrgUnit(id, user);
     const children = await this.prisma.orgUnit.count({ where: { parentId: id, deletedAt: null } });
     if (children > 0) {
       throw new BadRequestException('این واحد سازمانی زیرمجموعه دارد و قابل حذف نیست.');
@@ -862,8 +899,9 @@ export class OrgService {
   // سمت سازمانی
   // =========================================================================
 
-  async listPositions(query: PositionQueryDto) {
+  async listPositions(query: PositionQueryDto, user: AuthenticatedUser) {
     const where: Prisma.PositionWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.orgUnitId ? { orgUnitId: query.orgUnitId } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
@@ -897,9 +935,9 @@ export class OrgService {
   }
 
   /** فهرست سبک سمت‌ها برای dropdown */
-  async positionOptions() {
+  async positionOptions(user: AuthenticatedUser) {
     const rows = await this.prisma.position.findMany({
-      where: { isActive: true },
+      where: { isActive: true, AND: [await this.access.companyWhereFor(user)] },
       orderBy: { title: 'asc' },
       select: {
         id: true,
@@ -914,7 +952,7 @@ export class OrgService {
     return rows;
   }
 
-  async getPosition(id: string) {
+  async getPosition(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.position.findUnique({
       where: { id },
       include: {
@@ -924,11 +962,13 @@ export class OrgService {
       },
     });
     if (!row) throw new NotFoundException('سمت سازمانی موردنظر یافت نشد.');
+    await this.access.assertCompanyAccess(user, row.companyId);
     return row;
   }
 
-  async createPosition(dto: CreatePositionDto, actorId: string) {
-    await this.ensureCompany(dto.companyId);
+  async createPosition(dto: CreatePositionDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.ensureCompany(dto.companyId, user);
     const code = dto.code.trim();
     const duplicate = await this.prisma.position.findFirst({
       where: { companyId: dto.companyId, code },
@@ -960,10 +1000,12 @@ export class OrgService {
     return row;
   }
 
-  async updatePosition(id: string, dto: UpdatePositionDto, actorId: string) {
-    const row = await this.getPosition(id);
+  async updatePosition(id: string, dto: UpdatePositionDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getPosition(id, user);
+    if ('companyId' in dto && dto.companyId && dto.companyId !== row.companyId) throw new BadRequestException('انتقال رکورد سازمانی بین شرکت‌ها از این مسیر مجاز نیست.');
     const targetCompanyId = dto.companyId ?? row.companyId;
-    if (dto.companyId) await this.ensureCompany(dto.companyId);
+    if (dto.companyId) await this.ensureCompany(dto.companyId, user);
 
     if (dto.code && dto.code.trim() !== row.code) {
       const duplicate = await this.prisma.position.findFirst({
@@ -999,8 +1041,9 @@ export class OrgService {
     return updated;
   }
 
-  async deletePosition(id: string, actorId: string) {
-    const row = await this.getPosition(id);
+  async deletePosition(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getPosition(id, user);
     await this.prisma.position.update({ where: { id }, data: { isActive: false } });
     await this.audit.record(actorId, {
       action: AuditAction.DELETE,
@@ -1015,8 +1058,9 @@ export class OrgService {
   // تقویم کاری
   // =========================================================================
 
-  async listCalendars(query: CalendarQueryDto) {
+  async listCalendars(query: CalendarQueryDto, user: AuthenticatedUser) {
     const where: Prisma.CalendarWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.search ? { name: { contains: query.search, mode: 'insensitive' } } : {}),
     };
@@ -1038,7 +1082,7 @@ export class OrgService {
     return this.page(rows, total, query);
   }
 
-  async getCalendar(id: string) {
+  async getCalendar(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.calendar.findUnique({
       where: { id },
       include: {
@@ -1047,11 +1091,13 @@ export class OrgService {
       },
     });
     if (!row) throw new NotFoundException('تقویم کاری موردنظر یافت نشد.');
+    await this.access.assertCompanyAccess(user, row.companyId);
     return row;
   }
 
-  async createCalendar(dto: CreateCalendarDto, actorId: string) {
-    await this.ensureCompany(dto.companyId);
+  async createCalendar(dto: CreateCalendarDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.ensureCompany(dto.companyId, user);
     const name = dto.name.trim();
     const duplicate = await this.prisma.calendar.findFirst({
       where: { companyId: dto.companyId, name },
@@ -1079,10 +1125,12 @@ export class OrgService {
     return row;
   }
 
-  async updateCalendar(id: string, dto: UpdateCalendarDto, actorId: string) {
-    const row = await this.getCalendar(id);
+  async updateCalendar(id: string, dto: UpdateCalendarDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getCalendar(id, user);
+    if ('companyId' in dto && dto.companyId && dto.companyId !== row.companyId) throw new BadRequestException('انتقال رکورد سازمانی بین شرکت‌ها از این مسیر مجاز نیست.');
     const targetCompanyId = dto.companyId ?? row.companyId;
-    if (dto.companyId) await this.ensureCompany(dto.companyId);
+    if (dto.companyId) await this.ensureCompany(dto.companyId, user);
 
     if (dto.name && dto.name.trim() !== row.name) {
       const duplicate = await this.prisma.calendar.findFirst({
@@ -1114,8 +1162,9 @@ export class OrgService {
     return updated;
   }
 
-  async deleteCalendar(id: string, actorId: string) {
-    const row = await this.getCalendar(id);
+  async deleteCalendar(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getCalendar(id, user);
     await this.prisma.calendar.delete({ where: { id } });
     await this.audit.record(actorId, {
       action: AuditAction.DELETE,
@@ -1130,8 +1179,9 @@ export class OrgService {
   // تعطیلات
   // =========================================================================
 
-  async listHolidays(query: HolidayQueryDto) {
+  async listHolidays(query: HolidayQueryDto, user: AuthenticatedUser) {
     const where: Prisma.HolidayWhereInput = {
+      AND: [{ calendar: await this.access.companyWhereFor(user) }],
       ...(query.calendarId ? { calendarId: query.calendarId } : {}),
       ...(query.from || query.to
         ? {
@@ -1159,9 +1209,11 @@ export class OrgService {
   }
 
   /** ثبت گروهی تعطیلات */
-  async bulkCreateHolidays(dto: BulkCreateHolidayDto, actorId: string) {
+  async bulkCreateHolidays(dto: BulkCreateHolidayDto, user: AuthenticatedUser) {
+    const actorId = user.id;
     const calendar = await this.prisma.calendar.findUnique({ where: { id: dto.calendarId } });
     if (!calendar) throw new NotFoundException('تقویم کاری موردنظر یافت نشد.');
+    await this.access.assertCompanyAccess(user, calendar.companyId);
 
     const existing = await this.prisma.holiday.findMany({
       where: { calendarId: dto.calendarId },
@@ -1206,9 +1258,11 @@ export class OrgService {
     };
   }
 
-  async deleteHoliday(id: string, actorId: string) {
+  async deleteHoliday(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
     const holiday = await this.prisma.holiday.findUnique({ where: { id } });
     if (!holiday) throw new NotFoundException('تعطیلی موردنظر یافت نشد.');
+    await this.getCalendar(holiday.calendarId, user);
     await this.prisma.holiday.delete({ where: { id } });
     await this.audit.record(actorId, {
       action: AuditAction.DELETE,
@@ -1223,7 +1277,13 @@ export class OrgService {
   // کمکی‌ها
   // =========================================================================
 
-  private async ensureCompany(companyId: string) {
+  private async companyFilter(user: AuthenticatedUser): Promise<Prisma.CompanyWhereInput> {
+    const ids = await this.access.allowedCompanyIds(user);
+    return ids === null ? {} : { id: { in: ids } };
+  }
+
+  private async ensureCompany(companyId: string, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, companyId);
     const company = await this.prisma.company.findFirst({
       where: { id: companyId, deletedAt: null },
       select: { id: true },

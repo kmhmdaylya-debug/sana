@@ -27,14 +27,14 @@ export class EmployeePanelController {
 
   @Get('tasks')
   @RequirePermissions(PERMISSIONS.PANEL_VIEW)
-  @ApiOperation({ summary: 'وظایف واگذارشده به من' })
+  @ApiOperation({ summary: 'task واگذارشده به من' })
   myTasks(@Query() query: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.myTasks(query, user);
   }
 
   @Post('tasks/:taskId/result')
   @RequirePermissions(PERMISSIONS.PANEL_VIEW)
-  @ApiOperation({ summary: 'ثبت نتیجهٔ وظیفهٔ واگذارشده به من' })
+  @ApiOperation({ summary: 'ثبت نتیجهٔ task واگذارشده به من' })
   taskResult(@Param('taskId', ParseUUIDPipe) taskId: string, @Body() dto: PanelTaskResultDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.taskResult(taskId, dto, user);
   }
@@ -44,6 +44,13 @@ export class EmployeePanelController {
   @ApiOperation({ summary: 'حذف کار انجام‌شده فقط از فهرست شخصی کارمند' })
   dismissTask(@Param('taskId', ParseUUIDPipe) taskId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.dismissTask(taskId, user);
+  }
+
+  @Post('tasks/:taskId/retry-request')
+  @RequirePermissions(PERMISSIONS.PANEL_VIEW)
+  @ApiOperation({ summary: 'درخواست انجام دوبارهٔ task انجام‌نشده' })
+  requestRetry(@Param('taskId', ParseUUIDPipe) taskId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.requestRetry(taskId, user);
   }
 
   @Get()

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import {
   SuggestionStatus,
 } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { AccessService } from '../common/access/access.service';
 import { AuditService } from '../common/audit/audit.service';
 import { NotificationService } from '../common/notifications/notification.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
@@ -40,6 +42,7 @@ import {
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly access: AccessService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
   ) {}
@@ -48,8 +51,9 @@ export class AdminService {
   // مکاتبات اداری
   // =========================================================================
 
-  async listCorrespondences(query: CorrespondenceQueryDto, pagination: PaginationDto) {
+  async listCorrespondences(query: CorrespondenceQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.CorrespondenceWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.direction ? { direction: query.direction } : {}),
       ...(query.status ? { status: query.status } : {}),
@@ -96,6 +100,7 @@ export class AdminService {
   }
 
   async createCorrespondence(dto: CreateCorrespondenceDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
     const duplicate = await this.prisma.correspondence.findUnique({ where: { referenceNo: dto.referenceNo.trim() } });
     if (duplicate) throw new BadRequestException(`شماره نامه «${dto.referenceNo}» قبلاً ثبت شده است.`);
 
@@ -130,6 +135,7 @@ export class AdminService {
   async updateCorrespondence(id: string, dto: UpdateCorrespondenceDto, user: AuthenticatedUser) {
     const row = await this.prisma.correspondence.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('نامه یافت نشد.');
+    await this.access.assertCompanyAccess(user, row.companyId);
 
     await this.prisma.correspondence.update({
       where: { id },
@@ -157,10 +163,12 @@ export class AdminService {
   async referCorrespondence(id: string, dto: CreateReferralDto, user: AuthenticatedUser) {
     const correspondence = await this.prisma.correspondence.findUnique({ where: { id } });
     if (!correspondence) throw new NotFoundException('نامه یافت نشد.');
+    await this.access.assertCompanyAccess(user, correspondence.companyId);
     if (!dto.toUserId && !dto.toEmployeeId) {
       throw new BadRequestException('یکی از toUserId یا toEmployeeId الزامی است.');
     }
 
+    await this.access.assertCompanyMember(user, correspondence.companyId, { userId: dto.toUserId, employeeId: dto.toEmployeeId });
     let toUserId = dto.toUserId;
     if (!toUserId && dto.toEmployeeId) {
       const emp = await this.prisma.employee.findUnique({
@@ -206,7 +214,10 @@ export class AdminService {
   async respondReferral(referralId: string, dto: RespondReferralDto, user: AuthenticatedUser) {
     const referral = await this.prisma.correspondenceReferral.findUnique({ where: { id: referralId } });
     if (!referral) throw new NotFoundException('ارجاع یافت نشد.');
-    if (referral.toUserId && referral.toUserId !== user.id && !user.isSuperAdmin) {
+    const parent = await this.prisma.correspondence.findUnique({ where: { id: referral.correspondenceId }, select: { companyId: true } });
+    if (!parent) throw new NotFoundException('نامه یافت نشد.');
+    await this.access.assertCompanyAccess(user, parent.companyId);
+    if (!user.isSuperAdmin && referral.toUserId !== user.id && (!user.employeeId || referral.toEmployeeId !== user.employeeId)) {
       throw new BadRequestException('فقط گیرنده ارجاع می‌تواند پاسخ دهد.');
     }
     if (referral.status === 'ANSWERED') throw new BadRequestException('به این ارجاع قبلاً پاسخ داده شده است.');
@@ -238,8 +249,9 @@ export class AdminService {
   // جلسات
   // =========================================================================
 
-  async listMeetings(query: MeetingQueryDto, pagination: PaginationDto) {
+  async listMeetings(query: MeetingQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.MeetingWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.search ? { title: { contains: query.search } } : {}),
@@ -278,6 +290,11 @@ export class AdminService {
   }
 
   async createMeeting(dto: CreateMeetingDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
+    for (const participant of dto.participants) {
+      if (!participant.employeeId && !participant.userId) throw new BadRequestException('شرکت‌کننده را انتخاب کنید.');
+      await this.access.assertCompanyMember(user, dto.companyId, participant);
+    }
     const meeting = await this.prisma.meeting.create({
       data: {
         companyId: dto.companyId,
@@ -327,6 +344,7 @@ export class AdminService {
   async updateMeeting(id: string, dto: UpdateMeetingDto, user: AuthenticatedUser) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id } });
     if (!meeting) throw new NotFoundException('جلسه یافت نشد.');
+    await this.access.assertCompanyAccess(user, meeting.companyId);
 
     await this.prisma.meeting.update({
       where: { id },
@@ -356,7 +374,9 @@ export class AdminService {
   async addMeetingAction(meetingId: string, dto: MeetingActionDto, user: AuthenticatedUser) {
     const meeting = await this.prisma.meeting.findUnique({ where: { id: meetingId } });
     if (!meeting) throw new NotFoundException('جلسه یافت نشد.');
+    await this.access.assertCompanyAccess(user, meeting.companyId);
 
+    await this.access.assertCompanyMember(user, meeting.companyId, { employeeId: dto.responsibleId, userId: dto.responsibleUserId });
     const row = await this.prisma.meetingAction.create({
       data: {
         meetingId,
@@ -385,6 +405,10 @@ export class AdminService {
   async completeMeetingAction(actionId: string, user: AuthenticatedUser) {
     const action = await this.prisma.meetingAction.findUnique({ where: { id: actionId } });
     if (!action) throw new NotFoundException('مصوبه یافت نشد.');
+    const meeting = await this.prisma.meeting.findUnique({ where: { id: action.meetingId }, select: { companyId: true } });
+    if (!meeting) throw new NotFoundException('جلسه یافت نشد.');
+    await this.access.assertCompanyAccess(user, meeting.companyId);
+    if (!this.access.hasPermission(user, 'admin.manage') && action.responsibleUserId !== user.id && (!user.employeeId || action.responsibleId !== user.employeeId)) throw new ForbiddenException('فقط مسئول مصوبه می‌تواند آن را تکمیل کند.');
     if (action.status === 'DONE') throw new BadRequestException('این مصوبه قبلاً تکمیل شده است.');
 
     await this.prisma.meetingAction.update({
@@ -410,8 +434,9 @@ export class AdminService {
   // نظرسنجی
   // =========================================================================
 
-  async listSurveys(query: SurveyQueryDto, pagination: PaginationDto) {
+  async listSurveys(query: SurveyQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.SurveyWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.search ? { title: { contains: query.search } } : {}),
@@ -449,6 +474,7 @@ export class AdminService {
   }
 
   async createSurvey(dto: CreateSurveyDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
     const row = await this.prisma.survey.create({
       data: {
         companyId: dto.companyId,
@@ -486,6 +512,7 @@ export class AdminService {
   async updateSurvey(id: string, dto: UpdateSurveyDto, user: AuthenticatedUser) {
     const survey = await this.prisma.survey.findUnique({ where: { id } });
     if (!survey) throw new NotFoundException('نظرسنجی یافت نشد.');
+    await this.access.assertCompanyAccess(user, survey.companyId);
 
     await this.prisma.survey.update({
       where: { id },
@@ -514,6 +541,7 @@ export class AdminService {
   async submitSurveyResponse(surveyId: string, dto: SubmitSurveyResponseDto, user: AuthenticatedUser) {
     const survey = await this.prisma.survey.findUnique({ where: { id: surveyId } });
     if (!survey) throw new NotFoundException('نظرسنجی یافت نشد.');
+    await this.access.assertCompanyAccess(user, survey.companyId);
     if (survey.status !== SurveyStatus.OPEN) throw new BadRequestException('این نظرسنجی باز نیست.');
 
     const duplicate = await this.prisma.surveyResponse.findFirst({
@@ -543,7 +571,7 @@ export class AdminService {
   }
 
   /** نتایج نظرسنجی (فقط مدیران) */
-  async surveyResults(surveyId: string) {
+  async surveyResults(surveyId: string, user: AuthenticatedUser) {
     const survey = await this.prisma.survey.findUnique({
       where: { id: surveyId },
       include: {
@@ -552,6 +580,7 @@ export class AdminService {
       },
     });
     if (!survey) throw new NotFoundException('نظرسنجی یافت نشد.');
+    await this.access.assertCompanyAccess(user, survey.companyId);
 
     return {
       data: {
@@ -579,8 +608,9 @@ export class AdminService {
   // پیشنهادها
   // =========================================================================
 
-  async listSuggestions(query: SuggestionQueryDto, pagination: PaginationDto) {
+  async listSuggestions(query: SuggestionQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.SuggestionWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.search ? { title: { contains: query.search } } : {}),
@@ -618,6 +648,7 @@ export class AdminService {
   }
 
   async createSuggestion(dto: CreateSuggestionDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
     const row = await this.prisma.suggestion.create({
       data: {
         companyId: dto.companyId,
@@ -648,7 +679,9 @@ export class AdminService {
   async decideSuggestion(id: string, dto: DecideSuggestionDto, user: AuthenticatedUser) {
     const suggestion = await this.prisma.suggestion.findUnique({ where: { id } });
     if (!suggestion) throw new NotFoundException('پیشنهاد یافت نشد.');
+    await this.access.assertCompanyAccess(user, suggestion.companyId);
 
+    await this.access.assertCompanyMember(user, suggestion.companyId, { userId: dto.responsibleId });
     await this.prisma.suggestion.update({
       where: { id },
       data: {
@@ -686,8 +719,9 @@ export class AdminService {
   // گزارش محرمانه
   // =========================================================================
 
-  async listConfidentialReports(query: ConfidentialReportQueryDto, pagination: PaginationDto) {
+  async listConfidentialReports(query: ConfidentialReportQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.ConfidentialReportWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
@@ -721,6 +755,7 @@ export class AdminService {
 
   /** ثبت گزارش محرمانه — فقط مدیران ارشد به آن دسترسی دارند */
   async createConfidentialReport(dto: CreateConfidentialReportDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
     const row = await this.prisma.confidentialReport.create({
       data: {
         companyId: dto.companyId,
@@ -749,6 +784,7 @@ export class AdminService {
   async updateConfidentialReport(id: string, dto: UpdateConfidentialReportDto, user: AuthenticatedUser) {
     const report = await this.prisma.confidentialReport.findUnique({ where: { id } });
     if (!report) throw new NotFoundException('گزارش یافت نشد.');
+    await this.access.assertCompanyAccess(user, report.companyId);
 
     await this.prisma.confidentialReport.update({
       where: { id },

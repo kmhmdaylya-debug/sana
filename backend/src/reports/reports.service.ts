@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, Prisma, ReportStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AccessService } from '../common/access/access.service';
 import { AuditService } from '../common/audit/audit.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { employeeVisibility } from '../employees/employee-privacy';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { jalaliToGregorian } from '../attendance/jalali.util';
 import { buildExportBuffer, contentTypeFor, ExportColumn } from '../common/utils/export.util';
@@ -14,6 +15,11 @@ export interface ReportDefinition {
   title: string;
   description: string;
 }
+
+const REPORT_PERMISSIONS: Record<string, string> = {
+  'employees.directory': 'employees.view', 'attendance.monthly': 'attendance.view',
+  'leaves.summary': 'leaves.view', 'contracts.expiring': 'contracts.view', 'training.records': 'training.view',
+};
 
 const REPORT_DEFINITIONS: ReportDefinition[] = [
   { code: 'employees.directory', title: 'فهرست نیروها', description: 'مشخصات کامل نیروهای در حوزه دسترسی' },
@@ -32,10 +38,11 @@ export class ReportsService {
   ) {}
 
   /** فهرست گزارش‌های قابل اجرا */
-  listDefinitions() {
+  listDefinitions(user: AuthenticatedUser) {
+    const definitions = REPORT_DEFINITIONS.filter(item => this.access.hasPermission(user, REPORT_PERMISSIONS[item.code]));
     return {
-      data: REPORT_DEFINITIONS,
-      meta: { total: REPORT_DEFINITIONS.length, page: 1, limit: REPORT_DEFINITIONS.length, totalPages: 1, hasNext: false, hasPrev: false },
+      data: definitions.map(item => ({ ...item, needsMonth: item.code === 'attendance.monthly', needsDateRange: item.code === 'leaves.summary' })),
+      meta: { total: definitions.length, page: 1, limit: definitions.length, totalPages: 1, hasNext: false, hasPrev: false },
       success: true,
       timestamp: new Date().toISOString(),
     };
@@ -83,6 +90,10 @@ export class ReportsService {
     const definition = REPORT_DEFINITIONS.find((d) => d.code === dto.reportCode);
     if (!definition) throw new NotFoundException(`گزارش «${dto.reportCode}» یافت نشد.`);
 
+    if (!this.access.hasPermission(user, REPORT_PERMISSIONS[dto.reportCode])) throw new ForbiddenException('مجوز مشاهده اطلاعات این گزارش را ندارید.');
+    if (dto.companyId) await this.access.assertCompanyAccess(user, dto.companyId);
+    if (dto.reportCode === 'attendance.monthly' && (!dto.year || !dto.month)) throw new BadRequestException('سال و ماه جلالی را انتخاب کنید.');
+    if (dto.from && dto.to && new Date(dto.from) > new Date(dto.to)) throw new BadRequestException('بازه تاریخ معتبر نیست.');
     const run = await this.prisma.reportRun.create({
       data: {
         userId: user.id,
@@ -118,7 +129,7 @@ export class ReportsService {
     } catch (err: any) {
       await this.prisma.reportRun.update({
         where: { id: run.id },
-        data: { status: ReportStatus.FAILED, error: String(err?.message ?? err), finishedAt: new Date() },
+        data: { status: ReportStatus.FAILED, error: 'تولید گزارش ناموفق بود.', finishedAt: new Date() },
       });
       throw err;
     }
@@ -137,9 +148,9 @@ export class ReportsService {
       case 'leaves.summary':
         return this.reportLeavesSummary(dto, user);
       case 'contracts.expiring':
-        return this.reportContractsExpiring(user);
+        return this.reportContractsExpiring(dto, user);
       case 'training.records':
-        return this.reportTrainingRecords(user);
+        return this.reportTrainingRecords(dto, user);
       default:
         throw new BadRequestException('کد گزارش پشتیبانی نمی‌شود.');
     }
@@ -151,7 +162,7 @@ export class ReportsService {
 
   private async reportEmployeesDirectory(dto: RunReportDto, user: AuthenticatedUser) {
     const rows = await this.prisma.employee.findMany({
-      where: { deletedAt: null, AND: [this.access.employeeWhereFor(user)] },
+      where: { deletedAt: null, AND: [this.reportEmployeeWhere(dto, user)] },
       include: {
         company: { select: { code: true, name: true } },
         branch: { select: { name: true } },
@@ -168,7 +179,7 @@ export class ReportsService {
         { header: 'کد پرسنلی', key: 'code', width: 14 },
         { header: 'نام', key: 'firstName' },
         { header: 'نام خانوادگی', key: 'lastName' },
-        { header: 'کد ملی', key: 'nationalId' },
+        ...(employeeVisibility(user).personal ? [{ header: 'کد ملی', key: 'nationalId' }] : []),
         { header: 'شرکت', key: 'company' },
         { header: 'شعبه', key: 'branch' },
         { header: 'واحد سازمانی', key: 'orgUnit' },
@@ -176,13 +187,13 @@ export class ReportsService {
         { header: 'نوع استخدام', key: 'employmentType' },
         { header: 'تاریخ استخدام', key: 'hireDate', date: true },
         { header: 'وضعیت', key: 'status' },
-        { header: 'موبایل', key: 'mobile' },
+        ...(employeeVisibility(user).personal ? [{ header: 'موبایل', key: 'mobile' }] : []),
       ] satisfies ExportColumn[],
       rows: rows.map((e) => ({
         code: e.code,
         firstName: e.firstName,
         lastName: e.lastName,
-        nationalId: e.nationalId ?? '',
+        ...(employeeVisibility(user).personal ? { nationalId: e.nationalId ?? '' } : {}),
         company: e.company?.name ?? '',
         branch: e.branch?.name ?? '',
         orgUnit: e.orgUnit?.name ?? '',
@@ -190,21 +201,21 @@ export class ReportsService {
         employmentType: e.employmentType,
         hireDate: e.hireDate,
         status: e.status,
-        mobile: e.mobile ?? '',
+        ...(employeeVisibility(user).personal ? { mobile: e.mobile ?? '' } : {}),
       })),
       filename: `employees-directory-${new Date().toISOString().slice(0, 10)}`,
     };
   }
 
   private async reportAttendanceMonthly(dto: RunReportDto, user: AuthenticatedUser) {
-    const year = dto.year ?? new Date().getFullYear();
-    const month = dto.month ?? 1;
+    const year = dto.year!;
+    const month = dto.month!;
     const { start, end } = await this.jalaliMonthBounds(year, month);
 
     const records = await this.prisma.attendanceRecord.findMany({
       where: {
         workDate: { gte: start, lt: end },
-        employee: this.access.employeeWhereFor(user),
+        employee: this.reportEmployeeWhere(dto, user),
       },
       include: {
         employee: { select: { code: true, firstName: true, lastName: true } },
@@ -264,7 +275,7 @@ export class ReportsService {
       where: {
         status: 'APPROVED',
         startAt: { gte: from, lte: to },
-        employee: this.access.employeeWhereFor(user),
+        employee: this.reportEmployeeWhere(dto, user),
       },
       include: {
         employee: { select: { code: true, firstName: true, lastName: true } },
@@ -283,7 +294,7 @@ export class ReportsService {
         { header: 'از', key: 'startAt', date: true },
         { header: 'تا', key: 'endAt', date: true },
         { header: 'ساعت', key: 'hours' },
-        { header: 'دلیل', key: 'reason' },
+        ...(employeeVisibility(user).personal ? [{ header: 'دلیل', key: 'reason' }] : []),
       ] satisfies ExportColumn[],
       rows: rows.map((r) => ({
         code: r.employee.code,
@@ -293,13 +304,13 @@ export class ReportsService {
         startAt: r.startAt,
         endAt: r.endAt,
         hours: Math.round((r.durationMinutes / 60) * 10) / 10,
-        reason: r.reason ?? '',
+        ...(employeeVisibility(user, r.employeeId).personal ? { reason: r.reason ?? '' } : {}),
       })),
       filename: `leaves-${dto.from ?? 'all'}-${dto.to ?? ''}`,
     };
   }
 
-  private async reportContractsExpiring(user: AuthenticatedUser) {
+  private async reportContractsExpiring(dto: RunReportDto, user: AuthenticatedUser) {
     const to = new Date();
     to.setDate(to.getDate() + 90);
     const from = new Date();
@@ -307,7 +318,7 @@ export class ReportsService {
     const contracts = await this.prisma.contract.findMany({
       where: {
         deletedAt: null,
-        employee: this.access.employeeWhereFor(user),
+        employee: this.reportEmployeeWhere(dto, user),
         versions: { some: { endDate: { gte: from, lte: to } } },
       },
       include: {
@@ -336,9 +347,9 @@ export class ReportsService {
     };
   }
 
-  private async reportTrainingRecords(user: AuthenticatedUser) {
+  private async reportTrainingRecords(dto: RunReportDto, user: AuthenticatedUser) {
     const rows = await this.prisma.trainingRecord.findMany({
-      where: { employee: this.access.employeeWhereFor(user) },
+      where: { employee: this.reportEmployeeWhere(dto, user) },
       include: {
         employee: { select: { code: true, firstName: true, lastName: true } },
         course: { select: { code: true, title: true } },
@@ -370,6 +381,10 @@ export class ReportsService {
       })),
       filename: `training-records-${new Date().toISOString().slice(0, 10)}`,
     };
+  }
+
+  private reportEmployeeWhere(dto: RunReportDto, user: AuthenticatedUser): Prisma.EmployeeWhereInput {
+    return { AND: [this.access.employeeWhereFor(user)], ...(dto.companyId ? { companyId: dto.companyId } : {}), ...(dto.orgUnitId ? { orgUnitId: dto.orgUnitId } : {}) };
   }
 
   /** مرز ماه شمسی (میلی‌مبدأ محلی) */
