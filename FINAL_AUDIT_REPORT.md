@@ -59,3 +59,28 @@ as verification of the security fixes in this audit.
 ## Production Decision
 
 NOT READY. Confirmed P0 findings and untested operational workflows remain.
+
+## Local Login Recovery (2026-11-16)
+
+- The authoritative database is the existing Docker container `sana-db`, using
+  volume `sana-hrms_sana-pgdata`. Other local PostgreSQL/PGlite directories are
+  unrelated and must not be used as evidence of Sana database health.
+- Container port configuration existed, but the live host binding was absent.
+  Restarting the existing container after freeing port 5433 restored
+  `127.0.0.1:5433 -> 5432`. No container, volume, user or business record was reset.
+- Before restart, a full custom-format `pg_dump` was encrypted with the configured
+  backup key. Artifact:
+  `backups/before-login-fix-2026-11-16T11-32-36-227Z.pgdump.enc` (454429 bytes).
+  AES-256-GCM envelope: ASCII `SANA-PGDUMP-v1\n`, 12-byte IV, 16-byte tag, ciphertext;
+  key is SHA-256 of the configured backup key material. Decryption read-back
+  matched the original dump. SHA-256 of encrypted artifact:
+  `2a3fb48041ff675488980d8c0c349c5d624f59c43858502c923db1555d2719d2`.
+  Isolated database restore is still NOT tested.
+- Verified through the Vite proxy: login HTTP 200, authenticated profile HTTP 200,
+  logout HTTP 200, reuse of the same access token after logout HTTP 401;
+  login page HTTP 200. Backend startup error log is empty after recovery.
+- Existing configured passwords matched four active account hashes. Other five
+  passwords were not recovered or reset. No credentials or password hashes are
+  stored in this report.
+- Backend and frontend are running locally on ports 4114 and 5183 respectively.
+  These checks establish local login recovery, not completion of the full audit.
