@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
+import { useAuth } from '../lib/auth';
 import {
   Badge,
   Button,
@@ -35,6 +36,7 @@ interface PermGroup {
 }
 
 export default function Roles() {
+  const { user } = useAuth();
   const toast = useToast();
   const list = useList<RoleRow>('/roles');
   const [groups, setGroups] = useState<PermGroup[]>([]);
@@ -80,7 +82,7 @@ export default function Roles() {
   };
 
   const save = async () => {
-    if (!editing) return;
+    if (!editing || saving || !user?.isSuperAdmin) return;
     setSaving(true);
     try {
       await api.patch(`/roles/${editing.id}`, { name, description: description || undefined, permissions: Array.from(checked) });
@@ -95,6 +97,7 @@ export default function Roles() {
   };
 
   const create = async () => {
+    if (saving || !user?.isSuperAdmin) return;
     if (createChecked.size === 0) {
       toast('warning', 'حداقل یک مجوز انتخاب کنید.');
       return;
@@ -149,16 +152,16 @@ export default function Roles() {
       <PageHeader
         title="نقش‌ها و مجوزها"
         subtitle="مدیریت نقش‌ها و ماتریس دسترسی"
-        actions={<Button onClick={() => setCreateOpen(true)}><Plus size={15} /> نقش جدید</Button>}
+        actions={user?.isSuperAdmin ? <Button onClick={() => setCreateOpen(true)}><Plus size={15} /> نقش جدید</Button> : undefined}
       />
       <Card>
         <DataTable error={list.error} onRetry={list.reload}
           columns={cols}
           rows={list.rows}
           loading={list.loading}
-          rowActions={(r) => (
+          rowActions={(r) => user?.isSuperAdmin && r.code !== 'SUPER_ADMIN' ? (
             <Button size="sm" variant="outline" onClick={() => openEdit(r)}>ویرایش مجوزها</Button>
-          )}
+          ) : null}
         />
       </Card>
 

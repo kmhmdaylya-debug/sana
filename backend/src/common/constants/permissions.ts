@@ -26,6 +26,8 @@ export const PERMISSIONS = {
   EMPLOYEES_DELETE: 'employees.delete',
   EMPLOYEES_EXPORT: 'employees.export',
   EMPLOYEES_VIEW_SENSITIVE: 'employees.view.sensitive',
+  EMPLOYEES_VIEW_BANK: 'employees.view.bank',
+  EMPLOYEES_VIEW_SALARY: 'employees.view.salary',
 
   // قرارداد و مدارک
   CONTRACTS_VIEW: 'contracts.view',
@@ -145,6 +147,7 @@ export const PERMISSIONS = {
   USERS_VIEW: 'users.view',
   USERS_CREATE: 'users.create',
   USERS_UPDATE: 'users.update',
+  USERS_MANAGE_SUPERADMIN: 'users.manage.superadmin',
   USERS_DELETE: 'users.delete',
   USERS_MANAGE_ROLES: 'users.manage.roles',
   USERS_MANAGE_SESSIONS: 'users.manage.sessions',
@@ -188,6 +191,8 @@ export const PERMISSION_GROUPS: { group: string; label: string; codes: Permissio
       PERMISSIONS.EMPLOYEES_DELETE,
       PERMISSIONS.EMPLOYEES_EXPORT,
       PERMISSIONS.EMPLOYEES_VIEW_SENSITIVE,
+      PERMISSIONS.EMPLOYEES_VIEW_BANK,
+      PERMISSIONS.EMPLOYEES_VIEW_SALARY,
     ],
   },
   {
@@ -372,6 +377,7 @@ export const PERMISSION_GROUPS: { group: string; label: string; codes: Permissio
       PERMISSIONS.USERS_VIEW,
       PERMISSIONS.USERS_CREATE,
       PERMISSIONS.USERS_UPDATE,
+      PERMISSIONS.USERS_MANAGE_SUPERADMIN,
       PERMISSIONS.USERS_DELETE,
       PERMISSIONS.USERS_MANAGE_ROLES,
       PERMISSIONS.USERS_MANAGE_SESSIONS,

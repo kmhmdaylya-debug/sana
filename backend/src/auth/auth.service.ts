@@ -2,12 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { AuditAction, NotificationSeverity, UserStatus } from '@prisma/client';
+import { AuditAction, NotificationSeverity, Prisma, UserStatus } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AccessService } from '../common/access/access.service';
@@ -25,12 +25,11 @@ export interface TokenPair {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  tokenId: string;
 }
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -49,7 +48,7 @@ export class AuthService {
     const ip = this.audit.extractIp(request);
 
     const user = await this.prisma.user.findFirst({
-      where: isMobile ? { mobile: identifier.replace(/\D/g, '') } : { username: identifier },
+      where: isMobile ? { mobile: identifier.replace(/\D/g, '') } : { username: { equals: identifier, mode: 'insensitive' } },
     });
 
     // هر خطای احراز هویت پیام یکسان می‌دهد تا وجود حساب یا وضعیت قفل فاش نشود
@@ -72,22 +71,16 @@ export class AuthService {
     if (!valid) {
       const maxAttempts = this.config.get<number>('app.security.maxLoginAttempts') ?? 5;
       const lockMinutes = this.config.get<number>('app.security.loginLockoutMinutes') ?? 15;
-      const failed = user.failedLoginCount + 1;
-
-      if (!locked) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            failedLoginCount: failed,
-            ...(failed >= maxAttempts
-              ? {
-                  lockedUntil: new Date(Date.now() + lockMinutes * 60_000),
-                  failedLoginCount: 0,
-                }
-              : {}),
-          },
-        });
-      }
+      await this.prisma.$transaction(async db => {
+        await this.lockUser(db, user.id);
+        const current = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+        if (current.lockedUntil && current.lockedUntil > new Date()) return;
+        const failed = current.failedLoginCount + 1;
+        await db.user.update({ where: { id: user.id }, data: {
+          failedLoginCount: failed >= maxAttempts ? 0 : failed,
+          ...(failed >= maxAttempts ? { lockedUntil: new Date(Date.now() + lockMinutes * 60_000) } : {}),
+        } });
+      });
 
       await this.audit.record(
         user.id,
@@ -113,23 +106,23 @@ export class AuthService {
       throw new ForbiddenException('حساب کاربری شما غیرفعال است. با مدیر سیستم تماس بگیرید.');
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
-    });
-
-    const tokens = await this.issueTokens(user.id, user.username, !!dto.rememberMe, request);
-    this.setRefreshCookie(response, tokens.refreshToken, !!dto.rememberMe);
-
-    await this.prisma.userSession.create({
-      data: {
+    const tokens = await this.prisma.$transaction(async db => {
+      await this.lockUser(db, user.id);
+      const current = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+      if (current.passwordHash !== user.passwordHash || current.status !== UserStatus.ACTIVE || current.deletedAt || (current.lockedUntil && current.lockedUntil > new Date())) throw invalidCredentials();
+      await db.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() } });
+      const sessionId = randomUUID();
+      await db.userSession.create({ data: {
+        id: sessionId,
         userId: user.id,
         device: request.headers['x-device-name']?.toString().slice(0, 160) ?? null,
         browser: request.headers['user-agent']?.toString().slice(0, 120) ?? null,
         ip: ip ?? null,
         userAgent: request.headers['user-agent']?.toString().slice(0, 255) ?? null,
-      },
+      } });
+      return this.issueTokens(db, user.id, user.username, request, sessionId, this.refreshExpiry(!!dto.rememberMe));
     });
+    this.setRefreshCookie(response, tokens.refreshToken, !!dto.rememberMe);
 
     await this.audit.record(
       user.id,
@@ -150,82 +143,44 @@ export class AuthService {
   ): Promise<any> {
     if (!refreshToken) throw new UnauthorizedException('توکن تازه‌سازی ارسال نشده است.');
 
+    if (typeof refreshToken !== 'string' || refreshToken.length > 512) throw new UnauthorizedException('توکن تازه‌سازی نامعتبر است.');
     const tokenHash = hashToken(refreshToken);
-    const stored = await this.prisma.refreshToken.findUnique({
-      where: { tokenHash },
-      include: { user: true },
-    });
+    const found = await this.prisma.refreshToken.findUnique({ where: { tokenHash }, select: { userId: true } });
+    if (!found) throw new UnauthorizedException('توکن تازه‌سازی نامعتبر است.');
 
-    if (!stored) throw new UnauthorizedException('توکن تازه‌سازی نامعتبر است.');
+    const result = await this.prisma.$transaction(async db => {
+      // Login, rotation, logout and password reset use the same lock order.
+      await this.lockUser(db, found.userId);
+      const stored = await db.refreshToken.findUniqueOrThrow({ where: { tokenHash }, include: { user: true } });
+      const now = new Date();
+      if (stored.user.status !== UserStatus.ACTIVE || stored.user.deletedAt) throw new UnauthorizedException('نشست شما نامعتبر است.');
+      if (stored.expiresAt <= now || !this.isSessionId(stored.family)) throw new UnauthorizedException('نشست شما منقضی شده است. دوباره وارد شوید.');
+      const session = await db.userSession.findFirst({ where: { id: stored.family, userId: stored.userId, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] } });
+      if (!session) throw new UnauthorizedException('نشست شما باطل شده است.');
 
-    const rememberMe =
-      stored.expiresAt.getTime() - stored.createdAt.getTime() > 8 * 24 * 3600 * 1000;
-
-    if (stored.revokedAt) {
-      // درخواست‌های هم‌زمان (چند تب مرورگر یا StrictMode) ممکن است توکنِ قبلاً مصرف‌شده
-      // را بفرستند. در بازهٔ کوتاهی پس از چرخش، خطا نمی‌دهیم و توکن تازه صادر می‌کنیم.
-      // شرط مهم: باید توکنِ زنده‌ای در همان خانواده وجود داشته باشد؛ اگر کل خانواده باطل شده
-      // باشد (نشت توکن)، هیچ توکنی صادر نمی‌شود.
-      const graceMs = this.config.get<number>('app.jwt.refreshGraceSeconds') ?? 60;
-      const ageMs = Date.now() - stored.revokedAt.getTime();
-      const liveInFamily = await this.prisma.refreshToken.findFirst({
-        where: { family: stored.family, revokedAt: null },
-        select: { id: true },
-      });
-      if (ageMs <= graceMs * 1000 && liveInFamily) {
-        const tokens = await this.issueTokens(
-          stored.userId,
-          stored.user.username,
-          rememberMe,
-          request,
-          stored.family,
-        );
-        this.setRefreshCookie(response, tokens.refreshToken, rememberMe);
-        return { accessToken: tokens.accessToken, expiresIn: tokens.expiresIn };
+      if (stored.revokedAt && stored.revokedAt <= now) {
+        const graceSeconds = Math.max(0, Math.min(60, this.config.get<number>('app.jwt.refreshGraceSeconds') ?? 60));
+        const live = stored.replacedBy ? await db.refreshToken.findFirst({ where: { family: stored.family, userId: stored.userId, expiresAt: { gt: now }, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, select: { id: true } }) : null;
+        if (live && now.getTime() - stored.revokedAt.getTime() <= graceSeconds * 1000) {
+          // Concurrent tabs may receive access only; never fork or extend a refresh family.
+          return this.signAccess(stored.userId, stored.user.username, stored.family);
+        }
+        await this.revokeFamily(db, stored.userId, stored.family, now);
+        return null;
       }
 
-      // استفاده مجدد از توکن لغوشده در بازهٔ عادی => احتمال نشت؛ کل خانواده باطل می‌شود
-      await this.prisma.refreshToken.updateMany({
-        where: { family: stored.family, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      await this.audit.record(
-        stored.userId,
-        { action: AuditAction.LOGOUT, entity: 'RefreshToken', entityId: stored.id },
-        {
-          ...this.audit.contextFrom(request),
-          note: 'استفاده مجدد از توکن لغوشده شناسایی شد؛ همه نشست‌های خانواده باطل شد.',
-        },
-      );
-      throw new UnauthorizedException('توکن تازه‌سازی نامعتبر است. لطفاً دوباره وارد شوید.');
-    }
-
-    if (stored.expiresAt < new Date()) {
-      throw new UnauthorizedException('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
-    }
-    if (stored.user.status !== UserStatus.ACTIVE || stored.user.deletedAt) {
-      throw new ForbiddenException('حساب کاربری شما غیرفعال است.');
-    }
-
-    const tokens = await this.issueTokens(
-      stored.userId,
-      stored.user.username,
-      rememberMe,
-      request,
-      stored.family,
-    );
-
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
-      data: { revokedAt: new Date() },
+      const expiresAt = new Date(Math.min(stored.expiresAt.getTime(), stored.revokedAt?.getTime() ?? Infinity, session.revokedAt?.getTime() ?? Infinity));
+      const tokens = await this.issueTokens(db, stored.userId, stored.user.username, request, stored.family, expiresAt);
+      await db.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: now, replacedBy: tokens.tokenId } });
+      await db.userSession.update({ where: { id: session.id }, data: { lastSeenAt: now } });
+      return { ...tokens, expiresAt };
     });
-    await this.prisma.refreshToken.update({
-      where: { tokenHash: hashToken(tokens.refreshToken) },
-      data: { replacedBy: stored.id },
-    });
-
-    this.setRefreshCookie(response, tokens.refreshToken, rememberMe);
-    return { accessToken: tokens.accessToken, expiresIn: tokens.expiresIn };
+    if (!result) {
+      await this.audit.record(found.userId, { action: AuditAction.LOGOUT, entity: 'RefreshToken' }, { ...this.audit.contextFrom(request), note: 'بازپخش توکن؛ خانوادهٔ نشست باطل شد.' });
+      throw new UnauthorizedException('نشست شما باطل شده است. دوباره وارد شوید.');
+    }
+    if ('refreshToken' in result) this.setRefreshCookie(response, result.refreshToken, false, result.expiresAt);
+    return { accessToken: result.accessToken, expiresIn: result.expiresIn };
   }
 
   // ---------------------------------------------------------------------
@@ -236,22 +191,19 @@ export class AuthService {
     refreshToken: string | undefined,
     request: Request,
   ): Promise<{ success: boolean }> {
-    if (refreshToken) {
+    if (typeof refreshToken === 'string' && refreshToken.length <= 512) {
       const stored = await this.prisma.refreshToken.findUnique({
         where: { tokenHash: hashToken(refreshToken) },
       });
       if (stored) {
-        await this.prisma.refreshToken.updateMany({
-          where: { family: stored.family, revokedAt: null },
-          data: { revokedAt: new Date() },
+        userId = stored.userId;
+        await this.prisma.$transaction(async db => {
+          await this.lockUser(db, stored.userId);
+          await this.revokeFamily(db, stored.userId, stored.family, new Date());
         });
       }
     }
     if (userId) {
-      await this.prisma.userSession.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
       await this.audit.record(
         userId,
         { action: AuditAction.LOGOUT, entity: 'User', entityId: userId },
@@ -263,13 +215,12 @@ export class AuthService {
 
   /** ابطال همه نشست‌های یک کاربر (خود کاربر یا مدیر سیستم) */
   async revokeAllSessions(userId: string, request?: Request): Promise<{ count: number }> {
-    const tokens = await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    await this.prisma.userSession.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
+    const tokens = await this.prisma.$transaction(async db => {
+      await this.lockUser(db, userId);
+      const now = new Date();
+      const tokens = await db.refreshToken.updateMany({ where: { userId, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, data: { revokedAt: now } });
+      await db.userSession.updateMany({ where: { userId, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, data: { revokedAt: now } });
+      return tokens;
     });
     await this.audit.record(
       userId,
@@ -299,7 +250,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
-        userRoles: { include: { role: true } },
+        userRoles: { where: { validFrom: { lte: new Date() }, OR: [{ validTo: null }, { validTo: { gt: new Date() } }], role: { isActive: true, deletedAt: null } }, include: { role: true } },
         employee: {
           select: {
             id: true,
@@ -350,7 +301,7 @@ export class AuthService {
     request: Request,
   ): Promise<{ success: boolean }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new BadRequestException('کاربر یافت نشد.');
+    if (!user || user.deletedAt || user.status !== UserStatus.ACTIVE) throw new UnauthorizedException('نشست نامعتبر است.');
 
     const valid = await verifyPassword(user.passwordHash, dto.currentPassword);
     if (!valid) throw new BadRequestException('رمز عبور فعلی اشتباه است.');
@@ -363,20 +314,17 @@ export class AuthService {
       throw new BadRequestException('رمز عبور جدید باید با رمز عبور فعلی متفاوت باشد.');
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        passwordHash: await hashPassword(dto.newPassword),
-        passwordChangedAt: new Date(),
-        mustChangePassword: false,
-      },
+    const passwordHash = await hashPassword(dto.newPassword);
+    await this.prisma.$transaction(async db => {
+      await this.lockUser(db, userId);
+      const current = await db.user.findUniqueOrThrow({ where: { id: userId } });
+      if (current.passwordHash !== user.passwordHash || current.deletedAt || current.status !== UserStatus.ACTIVE) throw new UnauthorizedException('حساب تغییر کرده است؛ دوباره وارد شوید.');
+      const now = new Date();
+      await db.user.update({ where: { id: userId }, data: { passwordHash, passwordChangedAt: now, mustChangePassword: false } });
+      await db.refreshToken.updateMany({ where: { userId, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, data: { revokedAt: now } });
+      await db.userSession.updateMany({ where: { userId, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, data: { revokedAt: now } });
+      await db.auditLog.create({ data: { userId, action: AuditAction.PASSWORD_CHANGE, entity: 'User', entityId: userId, ...this.audit.contextFrom(request) } });
     });
-
-    await this.audit.record(
-      userId,
-      { action: AuditAction.PASSWORD_CHANGE, entity: 'User', entityId: userId },
-      this.audit.contextFrom(request),
-    );
 
     return { success: true };
   }
@@ -386,7 +334,7 @@ export class AuthService {
   // ---------------------------------------------------------------------
   async listSessions(userId: string): Promise<any[]> {
     const sessions = await this.prisma.userSession.findMany({
-      where: { userId, revokedAt: null },
+      where: { userId, OR: [{ revokedAt: null }, { revokedAt: { gt: new Date() } }] },
       orderBy: { lastSeenAt: 'desc' },
       select: {
         id: true,
@@ -404,56 +352,70 @@ export class AuthService {
   // کمکی‌ها
   // ---------------------------------------------------------------------
   private async issueTokens(
+    db: Prisma.TransactionClient,
     userId: string,
     username: string,
-    rememberMe: boolean,
     request: Request,
-    family?: string,
+    family: string,
+    expiresAt: Date,
   ): Promise<TokenPair> {
-    const accessSecret = this.config.get<string>('app.jwt.accessSecret') as string;
-    const accessExpiresIn = this.config.get<string>('app.jwt.accessExpiresIn') as string;
-    const issuer = this.config.get<string>('app.jwt.issuer') as string;
-
-    const accessToken = this.jwt.sign(
-      { sub: userId, username, type: 'access' },
-      { expiresIn: accessExpiresIn as any, issuer, secret: accessSecret },
-    );
-
-    const refreshRaw = `${randomToken(32)}.${randomToken(16).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`;
+    const refreshRaw = randomToken(48);
     const refreshTokenHash = hashToken(refreshRaw);
-
-    const days = rememberMe
-      ? this.config.get<number>('app.jwt.rememberMeExpiresDays') ?? 30
-      : this.config.get<number>('app.jwt.refreshExpiresDays') ?? 7;
-
-    await this.prisma.refreshToken.create({
+    const token = await db.refreshToken.create({
       data: {
         userId,
         tokenHash: refreshTokenHash,
-        family: family ?? randomToken(16).replace(/[^a-zA-Z0-9]/g, '').slice(0, 32),
-        expiresAt: new Date(Date.now() + days * 24 * 3600 * 1000),
+        family,
+        expiresAt,
         userAgent: request?.headers?.['user-agent']?.toString().slice(0, 255) ?? null,
         ip: this.audit.extractIp(request),
       },
     });
 
     return {
-      accessToken,
+      ...this.signAccess(userId, username, family),
       refreshToken: refreshRaw,
-      expiresIn: this.parseToSeconds(accessExpiresIn),
+      tokenId: token.id,
     };
   }
 
-  private setRefreshCookie(response: Response, token: string, rememberMe: boolean): void {
+  private signAccess(userId: string, username: string, sessionId: string) {
+    const expiresIn = this.config.get<string>('app.jwt.accessExpiresIn') ?? '15m';
+    return {
+      accessToken: this.jwt.sign({ sub: userId, username, type: 'access', sid: sessionId }, {
+        algorithm: 'HS256', secret: this.config.get<string>('app.jwt.accessSecret'), issuer: this.config.get<string>('app.jwt.issuer'), expiresIn: expiresIn as any,
+      }),
+      expiresIn: this.parseToSeconds(expiresIn),
+    };
+  }
+
+  private refreshExpiry(rememberMe: boolean) {
     const days = rememberMe
       ? this.config.get<number>('app.jwt.rememberMeExpiresDays') ?? 30
       : this.config.get<number>('app.jwt.refreshExpiresDays') ?? 7;
+    return new Date(Date.now() + days * 24 * 3600 * 1000);
+  }
+
+  private isSessionId(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private async lockUser(db: Prisma.TransactionClient, id: string) {
+    await db.$queryRaw`SELECT id FROM "User" WHERE id = ${id}::uuid FOR UPDATE`;
+  }
+
+  private async revokeFamily(db: Prisma.TransactionClient, userId: string, family: string, now: Date) {
+    await db.refreshToken.updateMany({ where: { userId, family, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, data: { revokedAt: now } });
+    if (this.isSessionId(family)) await db.userSession.updateMany({ where: { id: family, userId }, data: { revokedAt: now } });
+  }
+
+  private setRefreshCookie(response: Response, token: string, rememberMe: boolean, expiresAt = this.refreshExpiry(rememberMe)): void {
     response.cookie('refresh_token', token, {
       httpOnly: true,
       secure: this.config.get<string>('app.env') === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: days * 24 * 3600 * 1000,
+      maxAge: Math.max(0, expiresAt.getTime() - Date.now()),
     });
   }
 

@@ -22,7 +22,7 @@ export class AuditLogController {
   @Get(':id')
   @RequirePermissions(PERMISSIONS.AUDIT_VIEW)
   @ApiOperation({ summary: 'جزئیات رکورد ممیزی' })
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.get(id, user);
   }
 }

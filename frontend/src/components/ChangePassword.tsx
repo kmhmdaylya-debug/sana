@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { Button, Field, Input, Modal, useToast } from './ui';
 
 export default function ChangePassword() {
-  const { reload } = useAuth();
+  const { logout } = useAuth();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -17,6 +17,7 @@ export default function ChangePassword() {
     clear();
   };
   const submit = async () => {
+    if (saving) return;
     if (form.newPassword !== form.confirmPassword) {
       toast('error', 'تکرار گذرواژه با گذرواژهٔ جدید یکسان نیست.');
       return;
@@ -26,8 +27,8 @@ export default function ChangePassword() {
       await api.post('/auth/change-password', { currentPassword: form.currentPassword, newPassword: form.newPassword });
       setOpen(false);
       clear();
-      toast('success', 'گذرواژهٔ شما تغییر کرد.');
-      await reload();
+      toast('success', 'گذرواژه تغییر کرد؛ با گذرواژهٔ جدید وارد شوید.');
+      await logout();
     } catch (e) {
       toast('error', apiErrorMessage(e));
     } finally {

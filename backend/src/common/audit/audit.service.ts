@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditAction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { stringifyAudit } from './audit-redaction';
 
 export interface AuditContext {
   ip?: string;
@@ -40,17 +41,17 @@ export class AuditService {
           action: entry.action,
           entity: entry.entity,
           entityId: entry.entityId ?? null,
-          before: entry.before === undefined ? null : safeStringify(entry.before),
-          after: entry.after === undefined ? null : safeStringify(entry.after),
+          before: stringifyAudit(entry.before),
+          after: stringifyAudit(entry.after),
           ip: ctx.ip ?? null,
           userAgent: ctx.userAgent ?? null,
           requestId: ctx.requestId ?? null,
           note: ctx.note ?? null,
         },
       });
-    } catch (e) {
+    } catch {
       // ثبت لاگ نباید باعث شکست عملیات اصلی شود
-      this.logger.warn(`ثبت لاگ ممیزی ناموفق بود: ${(e as Error).message}`);
+      this.logger.warn('Audit write failed; confidential error details suppressed.');
     }
   }
 
@@ -80,13 +81,7 @@ export class AuditService {
 
   /** استخراج نشانی IP از درخواست HTTP */
   extractIp(request: { headers?: Record<string, any>; ip?: string; socket?: { remoteAddress?: string } }): string | null {
-    const forwarded = request?.headers?.['x-forwarded-for'];
-    if (forwarded) {
-      const first = String(forwarded).split(',')[0].trim();
-      if (first) return first;
-    }
-    const real = request?.headers?.['x-real-ip'];
-    if (real) return String(real).slice(0, 64);
+    // Express applies the configured trusted-proxy policy; raw headers are spoofable.
     return (request?.ip ?? request?.socket?.remoteAddress ?? null)?.toString().slice(0, 64) ?? null;
   }
 
@@ -100,11 +95,3 @@ export class AuditService {
   }
 }
 
-function safeStringify(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  try {
-    return JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
-  } catch {
-    return String(value);
-  }
-}

@@ -29,8 +29,20 @@ export class AssetsService {
     private readonly notifications: NotificationService,
   ) {}
 
-  async list(query: AssetQueryDto, pagination: PaginationDto) {
+  private async scope(user: AuthenticatedUser): Promise<Prisma.AssetWhereInput> {
+    if (user.isSuperAdmin || user.scope.unrestricted) return {};
+    const companyIds = await this.access.allowedCompanyIds(user);
+    return { companyId: { in: companyIds ?? [] }, OR: [
+      { companyId: { in: user.scope.companyIds } },
+      { orgUnitId: { in: user.scope.orgUnitIds } },
+      { orgUnit: { is: { branchId: { in: user.scope.branchIds } } } },
+      { currentHolder: { is: this.access.employeeWhereFor(user) } },
+    ] };
+  }
+
+  async list(query: AssetQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.AssetWhereInput = {
+      AND: [await this.scope(user)],
       deletedAt: null,
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.orgUnitId ? { orgUnitId: query.orgUnitId } : {}),
@@ -80,9 +92,9 @@ export class AssetsService {
     };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.asset.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, AND: [await this.scope(user)] },
       include: {
         orgUnit: { select: { id: true, name: true } },
         currentHolder: { select: { id: true, code: true, firstName: true, lastName: true } },
@@ -110,7 +122,8 @@ export class AssetsService {
     };
   }
 
-  async create(dto: CreateAssetDto, actorId: string) {
+  async create(dto: CreateAssetDto, user: AuthenticatedUser) {
+    await this.access.assertOrganizationAccess(user, dto.companyId, null, dto.orgUnitId);
     const duplicate = await this.prisma.asset.findUnique({ where: { code: dto.code.trim() } });
     if (duplicate) throw new BadRequestException(`کد دارایی «${dto.code}» قبلاً ثبت شده است.`);
 
@@ -133,7 +146,7 @@ export class AssetsService {
       },
     });
 
-    await this.audit.record(actorId, {
+    await this.audit.record(user.id, {
       action: AuditAction.CREATE,
       entity: 'Asset',
       entityId: row.id,
@@ -147,8 +160,10 @@ export class AssetsService {
     };
   }
 
-  async update(id: string, dto: UpdateAssetDto, actorId: string) {
-    await this.getEntity(id);
+  async update(id: string, dto: UpdateAssetDto, user: AuthenticatedUser) {
+    const asset = await this.getEntity(id, user);
+    if (dto.orgUnitId !== undefined) await this.access.assertOrganizationAccess(user, asset.companyId, null, dto.orgUnitId);
+    if (dto.status !== undefined && dto.status !== asset.status && (dto.status === AssetStatus.ASSIGNED || asset.currentHolderId)) throw new BadRequestException('وضعیت تحویل دارایی را از عملیات تحویل و عودت تغییر دهید.');
     const row = await this.prisma.asset.update({
       where: { id },
       data: {
@@ -163,7 +178,7 @@ export class AssetsService {
         ...(dto.orgUnitId !== undefined ? { orgUnitId: dto.orgUnitId } : {}),
       },
     });
-    await this.audit.record(actorId, {
+    await this.audit.record(user.id, {
       action: AuditAction.UPDATE,
       entity: 'Asset',
       entityId: id,
@@ -176,13 +191,13 @@ export class AssetsService {
     };
   }
 
-  async remove(id: string, actorId: string) {
-    const asset = await this.getEntity(id);
+  async remove(id: string, user: AuthenticatedUser) {
+    const asset = await this.getEntity(id, user);
     if (asset.status === AssetStatus.ASSIGNED) {
       throw new BadRequestException('دارایی در اختیار نیروست؛ ابتدا آن را بازپس‌گیری کنید.');
     }
     await this.prisma.asset.update({ where: { id }, data: { deletedAt: new Date() } });
-    await this.audit.record(actorId, {
+    await this.audit.record(user.id, {
       action: AuditAction.DELETE,
       entity: 'Asset',
       entityId: id,
@@ -191,9 +206,9 @@ export class AssetsService {
     return { success: true, timestamp: new Date().toISOString() };
   }
 
-  private async getEntity(id: string) {
-    const asset = await this.prisma.asset.findFirst({
-      where: { id, deletedAt: null },
+  private async getEntity(id: string, user: AuthenticatedUser, db: Prisma.TransactionClient = this.prisma) {
+    const asset = await db.asset.findFirst({
+      where: { id, deletedAt: null, AND: [await this.scope(user)] },
       include: { currentHolder: { select: { id: true, userId: true } } },
     });
     if (!asset) throw new NotFoundException('دارایی موردنظر یافت نشد.');
@@ -205,7 +220,10 @@ export class AssetsService {
   // =========================================================================
 
   async handover(dto: CreateHandoverDto, user: AuthenticatedUser) {
-    const asset = await this.getEntity(dto.assetId);
+    const asset = await this.getEntity(dto.assetId, user);
+    await this.access.assertEmployeeRelations(asset.companyId, { managerId: dto.toEmployeeId });
+    if (dto.fromEmployeeId && dto.fromEmployeeId !== asset.currentHolderId) throw new BadRequestException('تحویل‌دهنده با دارندهٔ فعلی دارایی یکسان نیست.');
+    if (asset.currentHolderId) await this.access.assertEmployeeAccess(user, asset.currentHolderId);
 
     if (dto.handoverType === AssetHandoverType.DELIVER || dto.handoverType === AssetHandoverType.TRANSFER) {
       if (!dto.toEmployeeId) throw new BadRequestException('تحویل‌گیرنده الزامی است.');
@@ -217,7 +235,12 @@ export class AssetsService {
       throw new BadRequestException('این دارایی هم‌اکنون در اختیار نیروی دیگری است.');
     }
 
-    const handover = await this.prisma.assetHandover.create({
+    const handover = await this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "Asset" WHERE id = ${asset.id}::uuid FOR UPDATE`;
+      const current = await this.getEntity(asset.id, user, db);
+      if (current.currentHolderId !== asset.currentHolderId || current.status !== asset.status) throw new BadRequestException('دارایی هم‌زمان تغییر کرده است؛ دوباره تلاش کنید.');
+      if (dto.handoverType !== AssetHandoverType.DELIVER && !current.currentHolderId) throw new BadRequestException('دارایی در اختیار کارمندی نیست.');
+      const handover = await db.assetHandover.create({
       data: {
         assetId: asset.id,
         fromEmployeeId: dto.handoverType === AssetHandoverType.RETURN ? asset.currentHolderId : (dto.fromEmployeeId ?? asset.currentHolderId),
@@ -230,16 +253,19 @@ export class AssetsService {
 
     // به‌روزرسانی وضعیت دارایی
     if (dto.handoverType === AssetHandoverType.RETURN) {
-      await this.prisma.asset.update({
+      await db.asset.update({
         where: { id: asset.id },
         data: { status: AssetStatus.IN_STOCK, currentHolderId: null },
       });
     } else if (dto.toEmployeeId) {
-      await this.prisma.asset.update({
+      await db.asset.update({
         where: { id: asset.id },
         data: { status: AssetStatus.ASSIGNED, currentHolderId: dto.toEmployeeId },
       });
     }
+      await db.auditLog.create({ data: { userId: user.id, action: AuditAction.UPDATE, entity: 'AssetHandover', entityId: handover.id, after: JSON.stringify({ assetId: asset.id, handoverType: dto.handoverType }) } });
+      return handover;
+    });
 
     await this.audit.record(user.id, {
       action: AuditAction.UPDATE,
@@ -276,7 +302,7 @@ export class AssetsService {
   // =========================================================================
 
   async addMaintenance(id: string, dto: CreateMaintenanceDto, user: AuthenticatedUser) {
-    await this.getEntity(id);
+    await this.getEntity(id, user);
     const row = await this.prisma.assetMaintenance.create({
       data: {
         assetId: id,
@@ -302,7 +328,7 @@ export class AssetsService {
   }
 
   async addDepreciation(id: string, dto: CreateDepreciationDto, user: AuthenticatedUser) {
-    const asset = await this.getEntity(id);
+    const asset = await this.getEntity(id, user);
     const duplicate = await this.prisma.assetDepreciation.findUnique({
       where: { assetId_periodYear_periodMonth: { assetId: id, periodYear: dto.periodYear, periodMonth: dto.periodMonth } },
     });

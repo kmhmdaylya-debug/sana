@@ -991,9 +991,9 @@ export class ApprovalsService {
     if (!fn) return;
     try {
       await fn(ctx);
-    } catch (e) {
+    } catch {
       this.logger.error(
-        `اجرای هندلر «${method}» برای موضوع ${ctx.subjectType} ناموفق بود: ${(e as Error).message}`,
+        `Approval handler failed: ${method}`,
       );
     }
   }
@@ -1158,7 +1158,7 @@ export class ApprovalsService {
       const approvers = await this.resolveApprovers(step, ctx);
       if (!approvers.length) {
         this.logger.warn(
-          `مرحله «${step.name}» از گردش تأیید تأییدکننده‌ای ندارد و رد شد.`,
+          'Approval step has no approver.',
         );
         continue;
       }

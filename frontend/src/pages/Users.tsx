@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { KeyRound, LogOut, Plus } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
+import { useAuth } from '../lib/auth';
 import {
   Badge,
   Button,
@@ -28,6 +29,7 @@ interface UserRow {
   mobile?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED';
   isSuperAdmin?: boolean;
+  isProtected?: boolean;
   lastLoginAt?: string | null;
   employee?: { id: string; code: string; firstName: string; lastName: string } | null;
   roles?: { id: string; name: string; code: string }[];
@@ -40,6 +42,7 @@ interface RoleOption {
   name: string;
   description?: string;
   userCount?: number;
+  permissions?: string[];
 }
 
 interface EmployeeOption {
@@ -53,6 +56,7 @@ interface EmployeeOption {
 const USER_STATUS_LABELS = { ACTIVE: 'فعال', INACTIVE: 'غیرفعال', SUSPENDED: 'تعلیق‌شده', ARCHIVED: 'بایگانی‌شده' };
 
 export default function Users() {
+  const { user, hasPermission } = useAuth();
   const toast = useToast();
   const list = useList<UserRow>('/users');
   const roles = useList<RoleOption>('/roles');
@@ -66,8 +70,16 @@ export default function Users() {
   const [resetId, setResetId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const resetTarget = list.rows.find(row => row.id === resetId);
+  const protectedEdit = !!(editing?.isProtected || editing?.isSuperAdmin);
+  const protectedReset = !!(resetTarget?.isProtected || resetTarget?.isSuperAdmin);
+  const assignableRoles = roles.rows.filter(role => user?.isSuperAdmin || (role.code !== 'SUPER_ADMIN' && (role.permissions ?? []).every(code => code !== '*' && code !== 'users.manage.superadmin' && hasPermission(code))));
+  const closeEdit = () => { if (!saving) { setEditing(null); setCurrentPassword(''); } };
+  const closeReset = () => { if (!saving) { setResetId(null); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); } };
 
   const openEdit = (u: UserRow) => {
+    setCurrentPassword('');
     setEditing(u);
     setForm({
       fullName: u.fullName ?? '',
@@ -80,7 +92,7 @@ export default function Users() {
   };
 
   const saveEdit = async () => {
-    if (!editing) return;
+    if (!editing || saving) return;
     setSaving(true);
     try {
       await api.patch(`/users/${editing.id}`, {
@@ -89,10 +101,12 @@ export default function Users() {
         mobile: form.mobile || undefined,
         status: form.status,
         employeeId: form.employeeId || undefined,
-        roleIds: form.roleIds,
+        ...(hasPermission('users.manage.roles') ? { roleIds: form.roleIds } : {}),
+        ...(protectedEdit ? { currentPassword } : {}),
       });
       toast('success', 'کاربر ویرایش شد.');
       setEditing(null);
+      setCurrentPassword('');
       list.reload();
     } catch (e) {
       toast('error', apiErrorMessage(e));
@@ -102,6 +116,7 @@ export default function Users() {
   };
 
   const createUser = async () => {
+    if (saving) return;
     setSaving(true);
     try {
       await api.post('/users', {
@@ -126,18 +141,19 @@ export default function Users() {
   };
 
   const resetPassword = async () => {
-    if (!resetId) return;
+    if (!resetId || saving) return;
     if (newPassword !== confirmPassword) {
       toast('error', 'تکرار گذرواژه با گذرواژهٔ جدید یکسان نیست.');
       return;
     }
     setSaving(true);
     try {
-      await api.post(`/users/${resetId}/reset-password`, { password: newPassword });
+      await api.post(`/users/${resetId}/reset-password`, { password: newPassword, ...(protectedReset ? { currentPassword } : {}) });
       toast('success', 'گذرواژه بازنشانی شد.');
       setResetId(null);
       setNewPassword('');
       setConfirmPassword('');
+      setCurrentPassword('');
     } catch (e) {
       toast('error', apiErrorMessage(e));
     } finally {
@@ -146,16 +162,21 @@ export default function Users() {
   };
 
   const revokeSessions = async (id: string) => {
+    if (saving) return;
+    setSaving(true);
     try {
       await api.post(`/users/${id}/revoke-sessions`);
       toast('success', 'نشست‌های کاربر باطل شد.');
     } catch (e) {
       toast('error', apiErrorMessage(e));
+    } finally {
+      setSaving(false);
     }
   };
 
   const deleteUser = async () => {
-    if (!deleteId) return;
+    if (!deleteId || saving) return;
+    setSaving(true);
     try {
       await api.delete(`/users/${deleteId}`);
       toast('success', 'کاربر حذف شد (غیرفعال شد).');
@@ -163,6 +184,8 @@ export default function Users() {
       list.reload();
     } catch (e) {
       toast('error', apiErrorMessage(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -184,7 +207,7 @@ export default function Users() {
       <PageHeader
         title="کاربران"
         subtitle={`حساب‌های ورود به سامانه — ${toPersianDigits(list.total)} کاربر`}
-        actions={<Button onClick={() => setCreateOpen(true)}><Plus size={15} /> کاربر جدید</Button>}
+        actions={hasPermission('users.create') ? <Button onClick={() => setCreateOpen(true)}><Plus size={15} /> کاربر جدید</Button> : undefined}
       />
       <Card>
         <div className="list-toolbar-wrap">
@@ -194,16 +217,16 @@ export default function Users() {
           columns={cols}
           rows={list.rows}
           loading={list.loading}
-          rowActions={(r) => (
+          rowActions={(r) => (!user?.isSuperAdmin && (r.isProtected || r.isSuperAdmin)) ? null : (
             <>
-              <Button size="sm" variant="outline" onClick={() => openEdit(r)}>ویرایش</Button>
-              <Button size="sm" variant="outline" onClick={() => { setResetId(r.id); setNewPassword(''); setConfirmPassword(''); }} title="بازنشانی گذرواژه" aria-label={`بازنشانی گذرواژهٔ ${r.fullName}`}>
+              {hasPermission('users.update') && <Button size="sm" variant="outline" onClick={() => openEdit(r)}>ویرایش</Button>}
+              {hasPermission('users.update') && <Button size="sm" variant="outline" onClick={() => { setResetId(r.id); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }} title="بازنشانی گذرواژه" aria-label={`بازنشانی گذرواژهٔ ${r.fullName}`}>
                 <KeyRound size={13} />
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => revokeSessions(r.id)} title="ابطال نشست‌ها">
+              </Button>}
+              {hasPermission('users.manage.sessions') && <Button size="sm" variant="outline" disabled={saving} onClick={() => revokeSessions(r.id)} title="ابطال نشست‌ها">
                 <LogOut size={13} />
-              </Button>
-              {r.status === 'ACTIVE' && !r.isSuperAdmin && (
+              </Button>}
+              {hasPermission('users.delete') && r.id !== user?.id && r.status === 'ACTIVE' && !r.isSuperAdmin && !r.isProtected && (
                 <Button size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>حذف</Button>
               )}
             </>
@@ -218,11 +241,11 @@ export default function Users() {
       <Modal
         open={!!editing}
         title={`ویرایش کاربر ${editing?.username ?? ''}`}
-        onClose={() => setEditing(null)}
+        onClose={closeEdit}
         footer={
           <>
-            <Button onClick={saveEdit} loading={saving}>ذخیره</Button>
-            <Button variant="secondary" onClick={() => setEditing(null)}>انصراف</Button>
+            <Button onClick={saveEdit} loading={saving} disabled={protectedEdit && !currentPassword}>ذخیره</Button>
+            <Button variant="secondary" disabled={saving} onClick={closeEdit}>انصراف</Button>
           </>
         }
       >
@@ -245,6 +268,7 @@ export default function Users() {
           <Field label="نقش‌ها" hint="می‌توانید چند نقش انتخاب کنید — مجوزها از نقش‌ها گرفته می‌شود">
             <Select
               multiple
+              disabled={!hasPermission('users.manage.roles')}
               size={Math.min(8, Math.max(3, form.roleIds.length))}
               value={form.roleIds}
               onChange={(e) => {
@@ -252,7 +276,7 @@ export default function Users() {
                 setForm((f) => ({ ...f, roleIds: values }));
               }}
             >
-              {roles.rows.map((r) => (
+              {roles.rows.filter(role => assignableRoles.includes(role) || form.roleIds.includes(role.id)).map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name} ({r.code}){r.userCount ? ` — ${toPersianDigits(r.userCount)} کاربر` : ''}
                 </option>
@@ -260,10 +284,11 @@ export default function Users() {
             </Select>
           </Field>
           <Field label="وضعیت حساب">
-            <Select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as UserRow['status'] }))}>
+            <Select disabled={editing?.isSuperAdmin} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as UserRow['status'] }))}>
               {Object.entries(USER_STATUS_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
             </Select>
           </Field>
+          {protectedEdit && <Field label="گذرواژهٔ فعلی شما" required><Input type="password" className="ltr" autoComplete="current-password" maxLength={128} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} /></Field>}
         </div>
       </Modal>
 
@@ -271,11 +296,11 @@ export default function Users() {
       <Modal
         open={createOpen}
         title="ایجاد کاربر جدید"
-        onClose={() => setCreateOpen(false)}
+        onClose={() => { if (!saving) setCreateOpen(false); }}
         footer={
           <>
             <Button onClick={createUser} loading={saving}>ایجاد</Button>
-            <Button variant="secondary" onClick={() => setCreateOpen(false)}>انصراف</Button>
+            <Button variant="secondary" disabled={saving} onClick={() => setCreateOpen(false)}>انصراف</Button>
           </>
         }
       >
@@ -306,7 +331,7 @@ export default function Users() {
                 setCreateForm((f) => ({ ...f, roleIds: values }));
               }}
             >
-              {roles.rows.map((r) => (
+              {assignableRoles.filter(() => hasPermission('users.manage.roles')).map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name} ({r.code}){r.userCount ? ` — ${toPersianDigits(r.userCount)} کاربر` : ''}
                 </option>
@@ -327,15 +352,16 @@ export default function Users() {
       <Modal
         open={!!resetId}
         title="بازنشانی گذرواژه"
-        onClose={() => setResetId(null)}
+        onClose={closeReset}
         footer={
           <>
-            <Button onClick={resetPassword} loading={saving} disabled={!newPassword || !confirmPassword}>بازنشانی</Button>
-            <Button variant="secondary" onClick={() => setResetId(null)}>انصراف</Button>
+            <Button onClick={resetPassword} loading={saving} disabled={!newPassword || !confirmPassword || (protectedReset && !currentPassword)}>بازنشانی</Button>
+            <Button variant="secondary" disabled={saving} onClick={closeReset}>انصراف</Button>
           </>
         }
       >
         <div className="col" style={{ gap: 14 }}>
+          {protectedReset && <Field label="گذرواژهٔ فعلی شما" required><Input type="password" className="ltr" autoComplete="current-password" maxLength={128} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} /></Field>}
           <Field label="گذرواژهٔ جدید" required hint="حداقل ۱۰ کاراکتر شامل حرف بزرگ، حرف کوچک، عدد و نماد">
             <Input type="password" className="ltr" autoComplete="new-password" maxLength={128} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           </Field>

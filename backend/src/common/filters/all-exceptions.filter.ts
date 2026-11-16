@@ -16,7 +16,6 @@ interface ErrorBody {
   errors?: Record<string, string[]> | string[];
   path: string;
   timestamp: string;
-  stack?: string;
 }
 
 /** فیلتر یکپارچه برای مدیریت خطاها و بازگرداندن پاسخ استاندارد فارسی */
@@ -60,26 +59,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = 'اتصال به پایگاه داده برقرار نشد. سرویس را بررسی کنید.';
     }
 
+    const path = (request.originalUrl ?? request.url).split('?')[0].replace(/[\r\n]/g, '').slice(0, 300);
+    const diagnostic = `${request.method} ${path} -> ${status}`;
+    if (status >= 500) this.logger.error(diagnostic);
+    else this.logger.warn(diagnostic);
     if (status >= 500) {
-      this.logger.error(
-        `${request.method} ${request.url} -> ${status} :: ${(exception as Error)?.message ?? exception}`,
-        (exception as Error)?.stack,
-      );
-    } else {
-      this.logger.warn(`${request.method} ${request.url} -> ${status} :: ${message}`);
+      message = 'خطای غیرمنتظره‌ای در سامانه رخ داد. لطفاً دوباره تلاش کنید.';
+      errors = undefined;
     }
 
     const body: ErrorBody = {
       success: false,
       statusCode: status,
       message,
-      path: request.url,
+      path,
       timestamp: new Date().toISOString(),
     };
     if (errors) body.errors = errors;
-    if (process.env.NODE_ENV !== 'production' && exception instanceof Error) {
-      body.stack = exception.stack;
-    }
 
     response.status(status).json(body);
   }

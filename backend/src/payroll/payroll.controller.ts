@@ -68,13 +68,13 @@ export class PayrollController {
   @RequirePermissions(PERMISSIONS.PAYROLL_UPDATE)
   @ApiOperation({ summary: 'ویرایش مؤلفه پرداخت' })
   updateComponent(@Param('id') id: string, @Body() dto: UpdatePayComponentDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.updateComponent(id, dto, user.id);
+    return this.service.updateComponent(id, dto, user.id, user);
   }
   @Delete('components/:id')
   @RequirePermissions(PERMISSIONS.PAYROLL_UPDATE)
   @ApiOperation({ summary: 'غیرفعال‌سازی مؤلفه پرداخت' })
   deleteComponent(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.deleteComponent(id, user.id);
+    return this.service.deleteComponent(id, user.id, user);
   }
   @Post('components/:id/rule-versions')
   @RequirePermissions(PERMISSIONS.PAYROLL_UPDATE)
@@ -84,7 +84,7 @@ export class PayrollController {
     @Body() dto: CreatePayRuleVersionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.createRuleVersion(componentId, dto, user.id);
+    return this.service.createRuleVersion(componentId, dto, user.id, user);
   }
   @Get('periods')
   @RequirePermissions(PERMISSIONS.PAYROLL_VIEW)
@@ -153,14 +153,14 @@ export class PayrollController {
   @Get('components/:id')
   @RequirePermissions(PERMISSIONS.PAYROLL_VIEW)
   @ApiOperation({ summary: 'جزئیات مؤلفه پرداخت' })
-  getComponent(@Param('id') id: string) {
-    return this.service.getComponent(id);
+  getComponent(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getComponent(id, user);
   }
   @Get('components/:id/rule-versions')
   @RequirePermissions(PERMISSIONS.PAYROLL_VIEW)
   @ApiOperation({ summary: 'نسخه‌های قانون محاسبه مؤلفه' })
-  listRuleVersions(@Param('id') componentId: string) {
-    return this.service.listRuleVersions(componentId);
+  listRuleVersions(@Param('id') componentId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listRuleVersions(componentId, user);
   }
   @Get('periods/:id')
   @RequirePermissions(PERMISSIONS.PAYROLL_VIEW)

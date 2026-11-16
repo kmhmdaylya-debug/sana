@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  Max,
   Min,
 } from 'class-validator';
 import { AssetHandoverType, AssetStatus } from '@prisma/client';
@@ -64,6 +65,8 @@ export class CreateAssetDto {
   @ApiPropertyOptional({ description: 'قیمت خرید (ریال)' })
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   purchasePrice?: number;
 
@@ -217,6 +220,8 @@ export class CreateMaintenanceDto {
   @ApiPropertyOptional({ description: 'هزینه (ریال)' })
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   cost?: number;
 
@@ -247,15 +252,20 @@ export class CreateDepreciationDto {
   @ApiProperty({ minimum: 1, maximum: 12 })
   @IsInt()
   @Min(1)
+  @Max(12)
   periodMonth: number;
 
   @ApiProperty({ description: 'مبلغ استهلاک دوره (ریال)' })
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   amount: number;
 
   @ApiProperty({ description: 'ارزش دفتری پس از استهلاک (ریال)' })
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   bookValue: number;
 }

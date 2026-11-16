@@ -5,6 +5,7 @@ import { AuditService } from '../common/audit/audit.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { AuditLogQueryDto } from './dto/audit-log.dto';
+import { sanitizeStoredAudit } from '../common/audit/audit-redaction';
 
 @Injectable()
 export class AuditLogService {
@@ -15,6 +16,7 @@ export class AuditLogService {
 
   async list(query: AuditLogQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.AuditLogWhereInput = {
+      AND: [this.scope(user)],
       ...(query.userId ? { userId: query.userId } : {}),
       ...(query.action ? { action: query.action } : {}),
       ...(query.entity ? { entity: { contains: query.entity, mode: 'insensitive' } } : {}),
@@ -43,13 +45,13 @@ export class AuditLogService {
     ]);
 
     await this.audit.record(user.id, {
-      action: AuditAction.CREATE,
+      action: AuditAction.VIEW_SENSITIVE,
       entity: 'AuditLog',
       note: 'مشاهده لاگ ممیزی',
     });
 
     return {
-      data: rows,
+      data: rows.map(row => this.publicRow(row)),
       meta: {
         total,
         page,
@@ -63,16 +65,25 @@ export class AuditLogService {
     };
   }
 
-  async get(id: string) {
-    const row = await this.prisma.auditLog.findUnique({
-      where: { id },
+  async get(id: string, user: AuthenticatedUser) {
+    const row = await this.prisma.auditLog.findFirst({
+      where: { id, AND: [this.scope(user)] },
       include: { user: { select: { id: true, fullName: true, username: true } } },
     });
     if (!row) throw new NotFoundException('رکورد ممیزی یافت نشد.');
     return {
-      data: row,
+      data: this.publicRow(row),
       success: true,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  private scope(user: AuthenticatedUser): Prisma.AuditLogWhereInput {
+    // Audit rows have no tenant field: actor-based company joins are not reliable.
+    return user.isSuperAdmin ? {} : { userId: user.id };
+  }
+
+  private publicRow<T extends { before: string | null; after: string | null }>(row: T) {
+    return { ...row, before: sanitizeStoredAudit(row.before), after: sanitizeStoredAudit(row.after) };
   }
 }

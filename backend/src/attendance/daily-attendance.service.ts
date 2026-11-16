@@ -32,7 +32,7 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
 
   private run() {
     if (this.running) return this.running;
-    this.running = this.closeFinishedDays().catch((error) => this.logger.error(`Daily attendance: ${(error as Error).message}`)).finally(() => { this.running = null; });
+    this.running = this.closeFinishedDays().catch(() => this.logger.error('Daily attendance closing failed; confidential details suppressed.')).finally(() => { this.running = null; });
     return this.running;
   }
 

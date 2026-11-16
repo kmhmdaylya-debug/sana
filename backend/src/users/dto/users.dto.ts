@@ -13,6 +13,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ScopeType, UserStatus, EmploymentType } from '@prisma/client';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -87,6 +88,7 @@ export class CreateUserDto {
   @IsOptional()
   @IsArray()
   @Type(() => ScopeAssignmentDto)
+  @ValidateNested({ each: true })
   scope?: ScopeAssignmentDto[];
 
   @ApiPropertyOptional({ description: 'کاربر باید در اولین ورود رمز را تغییر دهد' })
@@ -157,6 +159,11 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto {
+  @ApiPropertyOptional({ description: 'گذرواژهٔ فعلی مدیر برای تأیید تغییر حساب محافظت‌شده' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  currentPassword?: string;
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -195,6 +202,7 @@ export class UpdateUserDto {
   @IsOptional()
   @IsArray()
   @Type(() => ScopeAssignmentDto)
+  @ValidateNested({ each: true })
   scope?: ScopeAssignmentDto[];
 
   @ApiPropertyOptional()
@@ -205,6 +213,11 @@ export class UpdateUserDto {
 }
 
 export class ResetPasswordDto {
+  @ApiPropertyOptional({ description: 'گذرواژهٔ فعلی مدیر برای تأیید تغییر حساب محافظت‌شده' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  currentPassword?: string;
   @ApiProperty()
   @IsString({ message: 'رمز عبور جدید الزامی است.' })
   @MinLength(8)

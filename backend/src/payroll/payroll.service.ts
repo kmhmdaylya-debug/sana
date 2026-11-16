@@ -96,7 +96,7 @@ export class PayrollService {
   async listComponents(query: PayComponentQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const allowed = await this.allowedCompanyIds(user);
     const where: Prisma.PayComponentWhereInput = {
-      ...(allowed === null ? {} : { companyId: { in: allowed } }),
+      AND: [allowed === null ? {} : { companyId: { in: allowed } }],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
@@ -170,12 +170,13 @@ export class PayrollService {
     };
   }
 
-  async getComponent(id: string) {
+  async getComponent(id: string, user: AuthenticatedUser) {
     const component = await this.prisma.payComponent.findUnique({
       where: { id },
       include: { ruleVersions: { orderBy: { version: 'desc' } } },
     });
     if (!component) throw new NotFoundException('جزء حقوق موردنظر یافت نشد.');
+    await this.assertCompanyAccess(user, component.companyId);
     return {
       ...this.componentToPublic(component),
       ruleVersions: (component.ruleVersions ?? []).map((rv) => ({
@@ -191,12 +192,12 @@ export class PayrollService {
   }
 
   async createComponent(dto: CreatePayComponentDto, actorId: string, user: AuthenticatedUser) {
-    await this.assertCompanyAccess(user);
     let companyId = dto.companyId;
     if (!companyId) {
       const allowed = await this.allowedCompanyIds(user);
       if (allowed && allowed.length === 1) companyId = allowed[0];
     }
+    await this.assertCompanyAccess(user, companyId);
     if (!companyId) {
       throw new BadRequestException('شناسه شرکت برای ایجاد جزء حقوق الزامی است.');
     }
@@ -230,9 +231,10 @@ export class PayrollService {
     return this.componentToPublic(component);
   }
 
-  async updateComponent(id: string, dto: UpdatePayComponentDto, actorId: string) {
+  async updateComponent(id: string, dto: UpdatePayComponentDto, actorId: string, user: AuthenticatedUser) {
     const component = await this.prisma.payComponent.findUnique({ where: { id } });
     if (!component) throw new NotFoundException('جزء حقوق موردنظر یافت نشد.');
+    await this.assertCompanyAccess(user, component.companyId);
 
     const before = {
       name: component.name,
@@ -271,9 +273,10 @@ export class PayrollService {
     return this.componentToPublic(updated);
   }
 
-  async deleteComponent(id: string, actorId: string) {
+  async deleteComponent(id: string, actorId: string, user: AuthenticatedUser) {
     const component = await this.prisma.payComponent.findUnique({ where: { id } });
     if (!component) throw new NotFoundException('جزء حقوق موردنظر یافت نشد.');
+    await this.assertCompanyAccess(user, component.companyId);
 
     const usage = await this.prisma.payrollItem.count({ where: { componentId: id } });
     if (usage > 0) {
@@ -301,9 +304,10 @@ export class PayrollService {
   // نسخه‌های قاعده محاسبه (PayRuleVersion)
   // ==========================================================================
 
-  async listRuleVersions(componentId: string) {
+  async listRuleVersions(componentId: string, user: AuthenticatedUser) {
     const component = await this.prisma.payComponent.findUnique({ where: { id: componentId } });
     if (!component) throw new NotFoundException('جزء حقوق موردنظر یافت نشد.');
+    await this.assertCompanyAccess(user, component.companyId);
     const rows = await this.prisma.payRuleVersion.findMany({
       where: { componentId },
       orderBy: { version: 'desc' },
@@ -335,9 +339,10 @@ export class PayrollService {
   /**
    * ایجاد نسخه جدید قاعده. نسخه‌های قبلی هرگز تغییر نمی‌کنند (اصل «نسخه‌بندی تغییرناپذیر»).
    */
-  async createRuleVersion(componentId: string, dto: CreatePayRuleVersionDto, actorId: string) {
+  async createRuleVersion(componentId: string, dto: CreatePayRuleVersionDto, actorId: string, user: AuthenticatedUser) {
     const component = await this.prisma.payComponent.findUnique({ where: { id: componentId } });
     if (!component) throw new NotFoundException('جزء حقوق موردنظر یافت نشد.');
+    await this.assertCompanyAccess(user, component.companyId);
 
     const effectiveFrom = this.parseDateOnly(dto.effectiveFrom, 'تاریخ شروع اعتبار');
     const effectiveTo = dto.effectiveTo ? this.parseDateOnly(dto.effectiveTo, 'تاریخ پایان اعتبار') : null;
@@ -396,7 +401,7 @@ export class PayrollService {
   async listPeriods(query: PayrollPeriodQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const allowed = await this.allowedCompanyIds(user);
     const where: Prisma.PayrollPeriodWhereInput = {
-      ...(allowed === null ? {} : { companyId: { in: allowed } }),
+      AND: [allowed === null ? {} : { companyId: { in: allowed } }],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.year ? { year: query.year } : {}),
       ...(query.month ? { month: query.month } : {}),
@@ -1490,15 +1495,7 @@ export class PayrollService {
 
   /** شناسه شرکت‌هایی که کاربر به آن‌ها دسترسی دارد (null یعنی دسترسی کامل) */
   private async allowedCompanyIds(user: AuthenticatedUser): Promise<string[] | null> {
-    if (user.scope?.unrestricted || user.isSuperAdmin) return null;
-    const ids = new Set<string>(user.scope?.companyIds ?? []);
-    const employees = await this.prisma.employee.findMany({
-      where: this.access.employeeWhereFor(user),
-      select: { companyId: true },
-      distinct: ['companyId'],
-    });
-    employees.forEach((e) => ids.add(e.companyId));
-    return [...ids];
+    return this.access.allowedCompanyIds(user);
   }
 
   private async assertCompanyAccess(user: AuthenticatedUser, companyId?: string): Promise<void> {

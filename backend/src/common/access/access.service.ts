@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser, AccessScope } from '../decorators/current-user.decorator';
@@ -14,7 +14,7 @@ export class AccessService {
   /** مجوزهای مؤثر کاربر از طریق نقش‌های فعالش */
   async getEffectivePermissions(userId: string): Promise<string[]> {
     const assignments = await this.prisma.userRole.findMany({
-      where: { userId, OR: [{ validTo: null }, { validTo: { gt: new Date() } }] },
+      where: { userId, validFrom: { lte: new Date() }, OR: [{ validTo: null }, { validTo: { gt: new Date() } }] },
       include: {
         role: {
           include: { rolePermissions: { include: { permission: true } } },
@@ -24,7 +24,7 @@ export class AccessService {
 
     const permissions = new Set<string>();
     for (const a of assignments) {
-      if (!a.role.isActive) continue;
+      if (!a.role.isActive || a.role.deletedAt) continue;
       for (const rp of a.role.rolePermissions) {
         permissions.add(rp.permission.code);
       }
@@ -56,7 +56,7 @@ export class AccessService {
     if (isSuperAdmin || user.isSuperAdmin) return { ...empty, unrestricted: true };
 
     const assignments = await this.prisma.scopeAssignment.findMany({
-      where: { userId, OR: [{ validTo: null }, { validTo: { gt: new Date() } }] },
+      where: { userId, validFrom: { lte: new Date() }, OR: [{ validTo: null }, { validTo: { gt: new Date() } }] },
     });
 
     const permissions = await this.getEffectivePermissions(userId);
@@ -69,10 +69,10 @@ export class AccessService {
       if (a.scopeType === 'ALL') {
         return { ...empty, unrestricted: true };
       }
-      if (a.companyId) scope.companyIds.push(a.companyId);
-      if (a.branchId) scope.branchIds.push(a.branchId);
-      if (a.orgUnitId) orgUnitIds.add(a.orgUnitId);
-      if (a.employeeId) scope.employeeIds.push(a.employeeId);
+      if (a.scopeType === 'COMPANY' && a.companyId) scope.companyIds.push(a.companyId);
+      if (a.scopeType === 'BRANCH' && a.branchId) scope.branchIds.push(a.branchId);
+      if (a.scopeType === 'ORG_UNIT' && a.orgUnitId) orgUnitIds.add(a.orgUnitId);
+      if (a.scopeType === 'EMPLOYEE' && a.employeeId) scope.employeeIds.push(a.employeeId);
     }
 
     // گسترش واحدهای سازمانی به کل زیرواحدها
@@ -92,13 +92,15 @@ export class AccessService {
 
   /** شناسه واحدهای زیرمجموعه (بازگشتی) */
   async expandOrgUnitIds(rootId: string): Promise<string[]> {
+    const root = await this.prisma.orgUnit.findUnique({ where: { id: rootId }, select: { companyId: true } });
+    if (!root) return [];
     const result: string[] = [rootId];
     let frontier = [rootId];
     let guard = 0;
     while (frontier.length && guard < 10) {
       guard += 1;
       const children = await this.prisma.orgUnit.findMany({
-        where: { parentId: { in: frontier }, deletedAt: null },
+        where: { parentId: { in: frontier }, companyId: root.companyId, deletedAt: null },
         select: { id: true },
       });
       const next = children.map((c) => c.id).filter((id) => !result.includes(id));
@@ -112,7 +114,7 @@ export class AccessService {
   async buildAuthUser(userId: string): Promise<AuthenticatedUser | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { userRoles: { include: { role: true } } },
+      include: { userRoles: { where: { validFrom: { lte: new Date() }, OR: [{ validTo: null }, { validTo: { gt: new Date() } }], role: { isActive: true, deletedAt: null } }, include: { role: true } } },
     });
     if (!user || user.status !== 'ACTIVE' || user.deletedAt) return null;
 
@@ -142,7 +144,7 @@ export class AccessService {
    */
   employeeWhereFor(user: AuthenticatedUser): Prisma.EmployeeWhereInput {
     const { scope } = user;
-    if (scope.unrestricted) return {};
+    if (user.isSuperAdmin || scope.unrestricted) return {};
 
     const or: Prisma.EmployeeWhereInput[] = [];
     if (scope.companyIds.length) or.push({ companyId: { in: scope.companyIds } });
@@ -152,7 +154,7 @@ export class AccessService {
     if (scope.ownEmployeeId) or.push({ id: scope.ownEmployeeId });
 
     // سرپرست‌ها نیروهای زیرمجموعه مستقیم خود را نیز می‌بینند
-    if (scope.ownEmployeeId) {
+    if (scope.ownEmployeeId && this.hasPermission(user, 'dashboard.view.management')) {
       or.push({ managerId: scope.ownEmployeeId });
     }
 
@@ -187,6 +189,7 @@ export class AccessService {
       if (own) return own.companyId;
     }
     if (user.scope.companyIds.length) return user.scope.companyIds[0];
+    if (!user.isSuperAdmin && !user.scope.unrestricted) throw new ForbiddenException('شرکت مجاز برای این عملیات مشخص نشده است.');
     const fallback = await this.prisma.company.findFirst({
       where: { deletedAt: null, isActive: true },
       orderBy: { createdAt: 'asc' },
@@ -196,5 +199,88 @@ export class AccessService {
       throw new BadRequestException('هیچ شرکت فعالی برای ثبت رکورد وجود ندارد؛ ابتدا شرکت بسازید.');
     }
     return fallback.id;
+  }
+
+  hasPermission(user: AuthenticatedUser, permission: string): boolean {
+    return user.isSuperAdmin || user.permissions.includes('*') || user.permissions.includes(permission);
+  }
+
+  async allowedCompanyIds(user: AuthenticatedUser): Promise<string[] | null> {
+    if (user.isSuperAdmin || user.scope.unrestricted) return null;
+    const ids = new Set(user.scope.companyIds);
+    const employees = await this.prisma.employee.findMany({ where: { AND: [this.employeeWhereFor(user)], deletedAt: null }, select: { companyId: true }, distinct: ['companyId'] });
+    employees.forEach(employee => ids.add(employee.companyId));
+    const branches = user.scope.branchIds.length ? await this.prisma.branch.findMany({ where: { id: { in: user.scope.branchIds }, deletedAt: null }, select: { companyId: true } }) : [];
+    const units = user.scope.orgUnitIds.length ? await this.prisma.orgUnit.findMany({ where: { id: { in: user.scope.orgUnitIds }, deletedAt: null }, select: { companyId: true } }) : [];
+    [...branches, ...units].forEach(row => ids.add(row.companyId));
+    return [...ids];
+  }
+
+  async assertCompanyAccess(user: AuthenticatedUser, companyId: string): Promise<void> {
+    const ids = await this.allowedCompanyIds(user);
+    if (ids !== null && !ids.includes(companyId)) throw new ForbiddenException('به این شرکت دسترسی ندارید.');
+  }
+
+  async assertEmployeeAccess(user: AuthenticatedUser, employeeId: string): Promise<void> {
+    if (!await this.canAccessEmployee(user, employeeId)) throw new ForbiddenException('به این پرونده دسترسی ندارید.');
+  }
+
+  async assertOrganizationAccess(user: AuthenticatedUser, companyId: string, branchId?: string | null, orgUnitId?: string | null): Promise<void> {
+    await this.assertCompanyAccess(user, companyId);
+    await this.assertEmployeeRelations(companyId, { branchId, orgUnitId });
+    if (user.isSuperAdmin || user.scope.unrestricted || user.scope.companyIds.includes(companyId)) return;
+    const unit = orgUnitId ? await this.prisma.orgUnit.findUnique({ where: { id: orgUnitId }, select: { branchId: true } }) : null;
+    if ((branchId && user.scope.branchIds.includes(branchId)) || (orgUnitId && user.scope.orgUnitIds.includes(orgUnitId)) || (unit?.branchId && user.scope.branchIds.includes(unit.branchId))) return;
+    throw new ForbiddenException('ثبت یا جابه‌جایی رکورد در این حوزه مجاز نیست.');
+  }
+
+  async assertEmployeeRelations(companyId: string, refs: { branchId?: string | null; orgUnitId?: string | null; positionId?: string | null; managerId?: string | null; workLocationId?: string | null; costCenterId?: string | null }): Promise<void> {
+    const checks: [string | null | undefined, (id: string) => Promise<{ id: string } | null>][] = [
+      [refs.branchId, id => this.prisma.branch.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } })],
+      [refs.orgUnitId, id => this.prisma.orgUnit.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } })],
+      [refs.positionId, id => this.prisma.position.findFirst({ where: { id, companyId, isActive: true }, select: { id: true } })],
+      [refs.managerId, id => this.prisma.employee.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } })],
+      [refs.workLocationId, id => this.prisma.workLocation.findFirst({ where: { id, companyId, isActive: true }, select: { id: true } })],
+      [refs.costCenterId, id => this.prisma.costCenter.findFirst({ where: { id, companyId, isActive: true }, select: { id: true } })],
+    ];
+    for (const [id, find] of checks) {
+      if (id && !await find(id)) throw new BadRequestException('ارتباط سازمانی انتخاب‌شده به این شرکت تعلق ندارد.');
+    }
+  }
+
+  async assertGrantableRoles(actor: AuthenticatedUser, roleIds: string[]): Promise<void> {
+    const ids = [...new Set(roleIds)];
+    const roles = await this.prisma.role.findMany({ where: { id: { in: ids }, isActive: true, deletedAt: null }, include: { rolePermissions: { include: { permission: true } } } });
+    if (roles.length !== ids.length) throw new BadRequestException('نقش انتخاب‌شده معتبر نیست.');
+    if (actor.isSuperAdmin) return;
+    for (const role of roles) {
+      const permissions = role.rolePermissions.map(row => row.permission.code);
+      if (role.code === 'SUPER_ADMIN' || permissions.some(code => code === '*' || code === 'users.manage.superadmin' || !actor.permissions.includes(code))) throw new ForbiddenException('اجازهٔ واگذاری این سطح دسترسی را ندارید.');
+    }
+  }
+
+  async assertGrantableScopes(actor: AuthenticatedUser, scopes: { scopeType: string; companyId?: string; branchId?: string; orgUnitId?: string; employeeId?: string }[]): Promise<void> {
+    for (const scope of scopes) {
+      if (scope.scopeType === 'ALL') {
+        if (!actor.isSuperAdmin) throw new ForbiddenException('واگذاری دسترسی سراسری فقط برای مدیر ارشد مجاز است.');
+        continue;
+      }
+      if (scope.scopeType === 'COMPANY' && scope.companyId) {
+        if (!actor.isSuperAdmin && !actor.scope.unrestricted && !actor.scope.companyIds.includes(scope.companyId)) throw new ForbiddenException('اجازهٔ واگذاری این شرکت را ندارید.');
+        await this.assertCompanyAccess(actor, scope.companyId);
+      } else if (scope.scopeType === 'BRANCH' && scope.branchId) {
+        const branch = await this.prisma.branch.findUnique({ where: { id: scope.branchId } });
+        if (!branch || branch.deletedAt || (scope.companyId && scope.companyId !== branch.companyId)) throw new BadRequestException('شعبهٔ حوزه معتبر نیست.');
+        if (!actor.isSuperAdmin && !actor.scope.unrestricted && !actor.scope.companyIds.includes(branch.companyId) && !actor.scope.branchIds.includes(branch.id)) throw new ForbiddenException('اجازهٔ واگذاری این شعبه را ندارید.');
+      } else if (scope.scopeType === 'ORG_UNIT' && scope.orgUnitId) {
+        const unit = await this.prisma.orgUnit.findUnique({ where: { id: scope.orgUnitId } });
+        if (!unit || unit.deletedAt || (scope.companyId && scope.companyId !== unit.companyId)) throw new BadRequestException('واحد حوزه معتبر نیست.');
+        if (!actor.isSuperAdmin && !actor.scope.unrestricted && !actor.scope.companyIds.includes(unit.companyId) && !actor.scope.branchIds.includes(unit.branchId ?? '') && !actor.scope.orgUnitIds.includes(unit.id)) throw new ForbiddenException('اجازهٔ واگذاری این واحد را ندارید.');
+      } else if (scope.scopeType === 'EMPLOYEE' && scope.employeeId) {
+        await this.assertEmployeeAccess(actor, scope.employeeId);
+        const employee = await this.prisma.employee.findUnique({ where: { id: scope.employeeId }, select: { companyId: true } });
+        if (!employee || (scope.companyId && scope.companyId !== employee.companyId)) throw new BadRequestException('پروندهٔ حوزه معتبر نیست.');
+      } else throw new BadRequestException('شناسهٔ متناسب با نوع حوزه الزامی است.');
+    }
   }
 }

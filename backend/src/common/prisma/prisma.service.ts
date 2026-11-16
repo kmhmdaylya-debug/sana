@@ -11,13 +11,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       datasources: {
         db: { url: config.get<string>('app.database.url') },
       },
-      log: config.get<boolean>('app.database.logQueries')
-        ? [
-            { emit: 'event', level: 'query' },
-            { emit: 'stdout', level: 'warn' },
-            { emit: 'stdout', level: 'error' },
-          ]
-        : [{ emit: 'stdout', level: 'warn' }, { emit: 'stdout', level: 'error' }],
+      // Prisma errors can embed query arguments, including personal data.
+      log: [],
     });
   }
 

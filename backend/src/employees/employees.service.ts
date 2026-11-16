@@ -12,8 +12,10 @@ import { NotificationService } from '../common/notifications/notification.servic
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { employeeVisibility, privateEmployee } from './employee-privacy';
 import {
   CreateBankAccountDto,
+  CreateEmployeeDto,
   CreateDependentDto,
   CreateEmploymentEventDto,
   CreateSkillDto,
@@ -59,8 +61,7 @@ export class EmployeesService {
               { code: { contains: query.search, mode: 'insensitive' } },
               { firstName: { contains: query.search } },
               { lastName: { contains: query.search } },
-              { nationalId: { contains: query.search } },
-              { mobile: { contains: query.search } },
+              ...(employeeVisibility(user).personal ? [{ nationalId: { contains: query.search } }, { mobile: { contains: query.search } }] : []),
             ],
           }
         : {}),
@@ -75,7 +76,17 @@ export class EmployeesService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { code: 'asc' },
-        include: {
+        select: {
+          ...EMPLOYEE_SUMMARY,
+          companyId: true,
+          branchId: true,
+          orgUnitId: true,
+          positionId: true,
+          managerId: true,
+          employmentType: true,
+          hireDate: true,
+          version: true,
+          ...(employeeVisibility(user).personal ? { nationalId: true, mobile: true, email: true } : {}),
           company: { select: { id: true, code: true, name: true } },
           branch: { select: { id: true, name: true } },
           orgUnit: { select: { id: true, name: true } },
@@ -88,7 +99,7 @@ export class EmployeesService {
     ]);
 
     return {
-      data: rows.map((e) => ({ ...e, monthlyBaseSalary: Number(e.monthlyBaseSalary) })),
+      data: rows,
       meta: {
         total,
         page,
@@ -131,35 +142,29 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException('نیروی موردنظر یافت نشد یا به حوزه دسترسی شما تعلق ندارد.');
 
-    const canViewSensitive = user.isSuperAdmin || user.permissions.includes(PERMISSIONS.EMPLOYEES_VIEW_SENSITIVE);
-    const sensitive = { monthlyBaseSalary: Number(employee.monthlyBaseSalary) };
+    const visibility = employeeVisibility(user,id);
+    const canViewSensitive = visibility.personal || visibility.bank || visibility.salary;
     await this.audit.record(user.id, {
-      action: canViewSensitive ? AuditAction.VIEW_SENSITIVE : AuditAction.CREATE,
+      action: AuditAction.VIEW_SENSITIVE,
       entity: 'Employee',
       entityId: id,
       note: canViewSensitive ? 'مشاهده پرونده پرسنلی (شامل داده حساس)' : 'مشاهده پرونده پرسنلی',
     });
 
     return {
-      data: {
+      data: privateEmployee({
         ...employee,
-        monthlyBaseSalary: canViewSensitive ? sensitive.monthlyBaseSalary : null,
-        canViewSensitive,
-        dependents: employee.dependents.map((d) => ({
-          ...d,
-          nationalId: canViewSensitive ? d.nationalId : null,
-        })),
-        bankAccounts: canViewSensitive
-          ? employee.bankAccounts
-          : employee.bankAccounts.map((b) => ({ ...b, accountNumber: null, cardNumber: null })),
-      },
+        monthlyBaseSalary: visibility.salary ? Number(employee.monthlyBaseSalary) : null,
+      },user),
       success: true,
       timestamp: new Date().toISOString(),
     };
   }
 
   /** ایجاد نیرو + ثبت سابقه سمت */
-  async create(dto: any, user: AuthenticatedUser) {
+  async create(dto: CreateEmployeeDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user,dto.companyId);
+    await this.access.assertEmployeeRelations(dto.companyId,dto);
     const duplicate = await this.prisma.employee.findUnique({
       where: { companyId_code: { companyId: dto.companyId, code: dto.code.trim() } },
     });
@@ -235,6 +240,8 @@ export class EmployeesService {
       where: { id, AND: [this.access.employeeWhereFor(user)] },
     });
     if (!employee) throw new NotFoundException('نیروی موردنظر یافت نشد یا به حوزه دسترسی شما تعلق ندارد.');
+    await this.access.assertEmployeeRelations(employee.companyId,dto);
+    if (dto.userId !== undefined && !user.isSuperAdmin) throw new ForbiddenException('اتصال حساب ورود از بخش مدیریت کاربران انجام می‌شود.');
 
     const data: Prisma.EmployeeUpdateInput = {};
     if (dto.branchId !== undefined) data.branch = dto.branchId ? { connect: { id: dto.branchId } } : { disconnect: true };
@@ -339,6 +346,8 @@ export class EmployeesService {
 
   async listDependents(employeeId: string, user: AuthenticatedUser) {
     await this.assertAccess(employeeId, user);
+    if (!employeeVisibility(user,employeeId).personal) throw new ForbiddenException('مجوز مشاهدهٔ اطلاعات شخصی را ندارید.');
+    await this.audit.recordView(user.id,'EmployeeDependent',employeeId,{});
     const rows = await this.prisma.employeeDependent.findMany({
       where: { employeeId },
       orderBy: { createdAt: 'asc' },
@@ -427,6 +436,8 @@ export class EmployeesService {
 
   async listBankAccounts(employeeId: string, user: AuthenticatedUser) {
     await this.assertAccess(employeeId, user);
+    if (!employeeVisibility(user,employeeId).bank) throw new ForbiddenException('مجوز مشاهدهٔ اطلاعات بانکی را ندارید.');
+    await this.audit.recordView(user.id,'BankAccount',employeeId,{});
     const rows = await this.prisma.bankAccount.findMany({ where: { employeeId }, orderBy: { createdAt: 'asc' } });
     return {
       data: rows,
@@ -438,6 +449,7 @@ export class EmployeesService {
 
   async addBankAccount(employeeId: string, dto: CreateBankAccountDto, user: AuthenticatedUser) {
     await this.assertAccess(employeeId, user);
+    if (!employeeVisibility(user,employeeId).bank) throw new ForbiddenException('مجوز مدیریت اطلاعات بانکی را ندارید.');
     if (dto.isPrimary) {
       await this.prisma.bankAccount.updateMany({ where: { employeeId }, data: { isPrimary: false } });
     }
@@ -464,6 +476,7 @@ export class EmployeesService {
     const row = await this.prisma.bankAccount.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('حساب بانکی یافت نشد.');
     await this.assertAccess(row.employeeId, user);
+    if (!employeeVisibility(user,row.employeeId).bank) throw new ForbiddenException('مجوز مدیریت اطلاعات بانکی را ندارید.');
     await this.prisma.bankAccount.delete({ where: { id } });
     await this.audit.record(user.id, {
       action: AuditAction.DELETE,

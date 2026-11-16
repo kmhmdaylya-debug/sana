@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
@@ -12,10 +12,15 @@ export class RolesService {
     private readonly audit: AuditService,
   ) {}
 
+  private async assertGlobalRoleWrite(userId: string) {
+    const actor = await this.prisma.user.findUnique({ where: { id: userId }, select: { isSuperAdmin: true, status: true, deletedAt: true } });
+    if (!actor?.isSuperAdmin || actor.status !== 'ACTIVE' || actor.deletedAt) throw new ForbiddenException('تعریف نقش‌ها سراسری است و فقط مدیر ارشد می‌تواند آن را تغییر دهد.');
+  }
+
   /** فهرست نقش‌ها همراه با مجوزها */
   async list(includeInactive = false): Promise<any[]> {
     const roles = await this.prisma.role.findMany({
-      where: includeInactive ? {} : { isActive: true },
+      where: { deletedAt: null, ...(includeInactive ? {} : { isActive: true }) },
       orderBy: { name: 'asc' },
       include: {
         rolePermissions: { include: { permission: true } },
@@ -48,6 +53,7 @@ export class RolesService {
   }
 
   async create(dto: CreateRoleDto, userId: string): Promise<any> {
+    await this.assertGlobalRoleWrite(userId);
     const permissionRows = await this.prisma.permission.findMany({
       where: { code: { in: dto.permissions } },
     });
@@ -86,11 +92,13 @@ export class RolesService {
   }
 
   async update(id: string, dto: UpdateRoleDto, userId: string): Promise<any> {
+    await this.assertGlobalRoleWrite(userId);
     const role = await this.prisma.role.findUnique({
       where: { id },
       include: { rolePermissions: { include: { permission: true } } },
     });
     if (!role) throw new NotFoundException('نقش موردنظر یافت نشد.');
+    if (role.code === 'SUPER_ADMIN') throw new ForbiddenException('نقش مدیر ارشد از این مسیر قابل تغییر نیست.');
 
     const before = { name: role.name, isActive: role.isActive, permissions: role.rolePermissions.map((rp) => rp.permission.code) };
 
@@ -144,6 +152,7 @@ export class RolesService {
 
   /** حذف نقش — فقط اگر کاربری نداشته باشد و نقش سیستمی نباشد */
   async remove(id: string, userId: string): Promise<{ success: boolean }> {
+    await this.assertGlobalRoleWrite(userId);
     const role = await this.prisma.role.findUnique({
       where: { id },
       include: { _count: { select: { userRoles: true } } },
