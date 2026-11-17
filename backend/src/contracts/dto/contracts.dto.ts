@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  Max,
   Min,
 } from 'class-validator';
 import { ContractStatus, EmploymentType } from '@prisma/client';
@@ -40,30 +41,40 @@ export class CreateContractDto {
   @ApiPropertyOptional({ example: 45000000, description: 'حقوق پایه ماهانه (ریال)' })
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   baseSalary?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   housingAllowance?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   foodAllowance?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   childAllowance?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   seniorityPay?: number;
 
@@ -113,30 +124,40 @@ export class CreateContractVersionDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   baseSalary?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   housingAllowance?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   foodAllowance?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   childAllowance?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(0)
   seniorityPay?: number;
 

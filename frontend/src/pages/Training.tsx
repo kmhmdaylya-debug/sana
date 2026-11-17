@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
+import CompanyPicker from '../components/CompanyPicker';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
 import { EntityPicker, DatePicker, Tabs,
@@ -145,6 +146,7 @@ export default function Training() {
         footer={<><Button onClick={submitCourse} loading={saving}>ثبت</Button><Button variant="secondary" onClick={() => setCourseOpen(false)}>انصراف</Button></>}
       >
         <div className="form-grid">
+          <CompanyPicker value={courseForm.companyId} onValueChange={companyId => setCourseForm(f => ({ ...f, companyId }))} disabled={saving} />
           <Field label="کد دوره" required><Input className="input ltr" value={courseForm.code} onChange={(e) => setCourseForm((f) => ({ ...f, code: e.target.value }))} /></Field>
           <Field label="عنوان" required><Input value={courseForm.title} onChange={(e) => setCourseForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="مدرس"><Input value={courseForm.instructor} onChange={(e) => setCourseForm((f) => ({ ...f, instructor: e.target.value }))} /></Field>

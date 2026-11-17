@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -73,6 +74,11 @@ export class RequisitionQueryDto extends PaginationDto {
   @IsString()
   @MaxLength(30)
   status?: string;
+}
+
+export class UpdateRequisitionStatusDto {
+  @IsIn(['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CLOSED'])
+  status: string;
 }
 
 // ---------------------------------------------------------------------------

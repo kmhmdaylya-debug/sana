@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
+import CompanyPicker from '../components/CompanyPicker';
 import { useList } from '../lib/useList';
 import { Tabs,
   Badge,
@@ -228,6 +229,7 @@ export default function Settings() {
         }
       >
         <div className="col" style={{ gap: 14 }}>
+          <CompanyPicker value={fieldForm.companyId} onValueChange={companyId => setFieldForm(f => ({ ...f, companyId }))} disabled={saving} />
           <div className="form-grid">
             <Field label="موجودیت" required>
               <Select value={fieldForm.entity} onChange={(e) => setFieldForm((f) => ({ ...f, entity: e.target.value }))}>

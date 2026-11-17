@@ -36,7 +36,7 @@ async function main() {
     restoreCreated = true;
     console.log(`Isolated synthetic database: ${name}`);
     await run('prisma/build/index.js', ['migrate', 'deploy'], {});
-    await run('jest/bin/jest', ['--config', 'jest.config.js', '--runInBand'], {});
+    await run('jest/bin/jest', ['--config', 'jest.config.js', '--runInBand', '--testPathPattern=integration.spec.ts'], {});
   } finally {
     if (restoreCreated) await admin.$executeRawUnsafe(`DROP DATABASE "${restoreName}" WITH (FORCE)`);
     if (created) {

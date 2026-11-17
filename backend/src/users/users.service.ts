@@ -49,8 +49,14 @@ export class UsersService {
     await db.userSession.updateMany({ where:{userId,OR:[{revokedAt:null},{revokedAt:{gt:now}}]}, data:{revokedAt:now} });
   }
 
-  private async record(db: Prisma.TransactionClient, actorId: string, entityId: string, action: AuditAction, after: object) {
-    await db.auditLog.create({ data:{userId:actorId,entity:'User',entityId,action,after:JSON.stringify(after)} });
+  private async record(db: Prisma.TransactionClient, actorId: string, entityId: string, action: AuditAction, after: object, before?: object) {
+    await this.audit.recordInTransaction(db, actorId, {
+      action,
+      entity: 'User',
+      entityId,
+      before,
+      after,
+    });
   }
 
   async list(query: UserQueryDto, pagination: PaginationDto, actor: AuthenticatedUser) {

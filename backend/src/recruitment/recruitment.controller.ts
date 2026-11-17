@@ -25,6 +25,7 @@ import {
   UpdateApplicantStatusDto,
   UpdateInterviewDto,
   UpdateOfferStatusDto,
+  UpdateRequisitionStatusDto,
 } from './dto/recruitment.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
@@ -56,10 +57,10 @@ export class RecruitmentController {
   @ApiOperation({ summary: 'تغییر وضعیت درخواست جذب (هیچ‌کس درخواست خودش را تأیید نمی‌کند)' })
   setRequisitionStatus(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('status') status: string,
+    @Body() dto: UpdateRequisitionStatusDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.setRequisitionStatus(id, status, user);
+    return this.service.setRequisitionStatus(id, dto.status, user);
   }
   @Get('openings')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_VIEW)

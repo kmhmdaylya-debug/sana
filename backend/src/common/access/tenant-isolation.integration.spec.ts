@@ -166,6 +166,20 @@ integration('Tenant and confidential output API tests with real PostgreSQL', () 
     await app.init();
   }, 30000);
   beforeEach(() => { actor = structuredClone(baseActor); });
+  it('preserves company scope and both date bounds when attendance is filtered by organizational unit', async () => {
+    const staff = [];
+    for (const [companyId, unitId] of [[a, records.units[0]], [b, records.units[1]]]) {
+      const employee = await db.employee.create({ data: { companyId, orgUnitId: unitId, code: `SCOPE-${randomUUID().slice(0, 8)}`, firstName: 'Synthetic', lastName: 'Scope', hireDate: new Date('2020-01-01') } });
+      staff.push(employee);
+      for (const day of ['2026-01-01', '2026-01-15', '2026-02-01']) await db.attendanceRecord.create({ data: { employeeId: employee.id, workDate: new Date(day), workMinutes: 480 } });
+    }
+    const api = request(app.getHttpServer());
+    const foreign = await api.get('/attendance/records').query({ orgUnitId: records.units[1] }).expect(200);
+    expect(foreign.body.data).toEqual([]);
+    const own = await api.get('/attendance/records').query({ orgUnitId: records.units[0], employeeId: staff[0].id, from: '2026-01-10', to: '2026-01-20' }).expect(200);
+    expect(own.body.data).toHaveLength(1);
+    expect(own.body.data[0].workDate.slice(0, 10)).toBe('2026-01-15');
+  });
   afterAll(async () => {
     await app?.close();
     await db?.$disconnect();

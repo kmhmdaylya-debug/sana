@@ -21,6 +21,8 @@ import { CreateDocumentDto, DocumentQueryDto, UpdateDocumentDto } from './dto/do
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { createFileFilter } from '../common/utils/file-validation.util';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('documents')
 @Controller('documents')
@@ -47,7 +49,10 @@ export class DocumentsController {
   }
   @Post(':id/versions')
   @RequirePermissions(PERMISSIONS.DOCUMENTS_CREATE)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 1, fieldSize: 2000 } }))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 1, fieldSize: 2000 },
+    fileFilter: createFileFilter(new ConfigService()),
+  }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'آپلود نسخه جدید فایل مدرک' })
   uploadVersion(

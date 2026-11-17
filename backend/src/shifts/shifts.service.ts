@@ -912,14 +912,11 @@ export class ShiftsService {
         }
       }
 
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
-          entity: "ShiftSwapRequest",
-          entityId: id,
-          after: JSON.stringify({ decision: dto.decision }),
-        },
+      await this.audit.recordInTransaction(tx, user.id, {
+        action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
+        entity: "ShiftSwapRequest",
+        entityId: id,
+        after: { decision: dto.decision },
       });
 
       return {

@@ -65,6 +65,50 @@ const { default: Assets } = load('../src/pages/Assets.tsx', {
   '../components/ui': ui,
 });
 
+const evaluation = { id: '11111111-1111-4111-8111-111111111111', items: [
+  { id: '22222222-2222-4222-8222-222222222222', title: 'Synthetic quality', minScore: 0, maxScore: 5, weight: 100 },
+], scores: [] };
+const { EvaluationEditor } = load('../src/pages/Evaluations.tsx', {
+  '../lib/api': { api, apiErrorMessage: error => error.message },
+  '../lib/auth': { useAuth: () => ({ user: null, hasPermission: () => true }) },
+  '../lib/useList': { useItem: () => ({ item: evaluation, loading: false, error: '', reload() {} }) },
+  '../lib/format': format,
+  '../components/ui': ui,
+});
+
+async function mountEvaluation() {
+  requests = []; errors = []; reloads = 0; post = async () => ({});
+  container = document.createElement('div'); document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => root.render(h(EvaluationEditor, { id:evaluation.id, action:'self-assess', onClose() {}, onSaved() { reloads++; } })));
+}
+
+test('self assessment submits the actual scores DTO and preserves input on API failure', async () => {
+  await mountEvaluation();
+  change('Synthetic quality', '4');
+  post = async () => { throw new Error('Synthetic scoring failure'); };
+  await act(async () => Simulate.submit(container.querySelector('form')));
+  assert.equal(requests[0].url, `/evaluations/${evaluation.id}/self-assess`);
+  assert.equal(requests[0].body.scores[0].itemId, evaluation.items[0].id);
+  assert.equal(requests[0].body.scores[0].score, 4);
+  assert.equal(field('Synthetic quality').value, '4');
+  assert.match(container.querySelector('[role="alert"]').textContent, /Synthetic scoring failure/);
+  assert.equal(reloads, 0);
+  post = async () => ({});
+  await act(async () => Simulate.submit(container.querySelector('form')));
+  assert.equal(reloads, 1);
+});
+
+test('self assessment rejects empty and out-of-range scores before sending the API request', async () => {
+  await mountEvaluation();
+  await act(async () => Simulate.submit(container.querySelector('form')));
+  assert.equal(requests.length, 0);
+  change('Synthetic quality', '6');
+  await act(async () => Simulate.submit(container.querySelector('form')));
+  assert.equal(requests.length, 0);
+  assert.ok(container.querySelector('[role="alert"]'));
+});
+
 async function mount() {
   requests = []; errors = []; reloads = 0; post = async () => ({});
   container = document.createElement('div');

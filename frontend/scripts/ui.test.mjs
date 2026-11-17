@@ -7,6 +7,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import jalaali from 'jalaali-js';
+import { JSDOM } from 'jsdom';
 
 async function loadPureModule(path) {
   const code = ts.transpileModule(fs.readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions:{ module:ts.ModuleKind.ESNext, target:ts.ScriptTarget.ES2022 } }).outputText;
@@ -480,8 +481,10 @@ test('optional task row colors do not change other tables', () => {
   const plain = renderToStaticMarkup(React.createElement(Table, props));
   assert.doesNotMatch(plain, /task-state/);
   const colored = renderToStaticMarkup(React.createElement(Table, { ...props, rowClassName: () => 'task-state-done' }));
-  assert.match(colored, /<tr class="task-state-done">/);
-  assert.match(colored, /<td data-label="عنوان">Task<\/td>/);
+  const document = new JSDOM(colored).window.document;
+  assert.equal(document.querySelector('tbody tr').classList.contains('task-state-done'), true);
+  assert.equal(document.querySelector('tbody td').dataset.label, 'عنوان');
+  assert.equal(document.querySelector('tbody td').textContent, 'Task');
 });
 
 test('icon navigation keeps employee permissions, personal links and saved sidebar preference', () => {

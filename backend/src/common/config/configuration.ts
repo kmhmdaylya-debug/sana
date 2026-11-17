@@ -47,6 +47,7 @@ export default registerAs('app', () => ({
   apiPrefix: process.env.API_PREFIX ?? 'api',
   swaggerEnabled: (process.env.SWAGGER_ENABLED ?? 'false') === 'true',
   swaggerAllowedIps: (process.env.SWAGGER_ALLOWED_IPS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+  trustedProxies: (process.env.TRUSTED_PROXIES ?? '').split(',').map(s => s.trim()).filter(Boolean),
 
   database: {
     url: requiredEnv('DATABASE_URL'),

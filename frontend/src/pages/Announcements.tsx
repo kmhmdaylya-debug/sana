@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
+import CompanyPicker from '../components/CompanyPicker';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
 import {
@@ -153,6 +154,7 @@ export default function Announcements() {
         footer={<><Button onClick={submit} loading={saving}>انتشار</Button><Button variant="secondary" onClick={() => setCreateOpen(false)}>انصراف</Button></>}
       >
         <div className="col" style={{ gap: 14 }}>
+          <CompanyPicker value={form.companyId} onValueChange={companyId => setForm(f => ({ ...f, companyId }))} disabled={saving} />
           <Field label="عنوان" required><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="متن اعلامیه" required><Textarea value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} style={{ minHeight: 120 }} /></Field>
           <div className="form-grid">

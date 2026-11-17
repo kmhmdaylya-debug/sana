@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -56,6 +57,11 @@ export class ContractsController {
   @ApiOperation({ summary: 'تغییر وضعیت قرارداد' })
   setStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateContractDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.setStatus(id, dto, user);
+  }
+  @Post(':id/versions/:version/approve')
+  @RequirePermissions(PERMISSIONS.CONTRACTS_APPROVE)
+  approveVersion(@Param('id', ParseUUIDPipe) id: string, @Param('version', ParseIntPipe) version: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.approveVersion(id, version, user);
   }
   @Delete(':id')
   @RequirePermissions(PERMISSIONS.CONTRACTS_UPDATE)

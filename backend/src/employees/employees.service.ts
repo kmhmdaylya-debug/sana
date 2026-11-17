@@ -163,8 +163,8 @@ export class EmployeesService {
 
   /** ایجاد نیرو + ثبت سابقه سمت */
   async create(dto: CreateEmployeeDto, user: AuthenticatedUser) {
-    await this.access.assertCompanyAccess(user,dto.companyId);
-    await this.access.assertEmployeeRelations(dto.companyId,dto);
+    await this.access.assertCompanyAccess(user, dto.companyId);
+    await this.access.assertEmployeeRelations(dto.companyId, dto);
     const duplicate = await this.prisma.employee.findUnique({
       where: { companyId_code: { companyId: dto.companyId, code: dto.code.trim() } },
     });
@@ -177,54 +177,58 @@ export class EmployeesService {
       if (dupNational) throw new BadRequestException('کد ملی قبلاً برای نیروی دیگری ثبت شده است.');
     }
 
-    const employee = await this.prisma.employee.create({
-      data: {
-        companyId: dto.companyId,
-        branchId: dto.branchId ?? null,
-        workLocationId: dto.workLocationId ?? null,
-        costCenterId: dto.costCenterId ?? null,
-        orgUnitId: dto.orgUnitId ?? null,
-        positionId: dto.positionId ?? null,
-        managerId: dto.managerId ?? null,
-        userId: dto.userId ?? null,
-        code: dto.code.trim(),
-        nationalId: dto.nationalId ?? null,
-        firstName: dto.firstName.trim(),
-        lastName: dto.lastName.trim(),
-        fatherName: dto.fatherName ?? null,
-        birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
-        birthPlace: dto.birthPlace ?? null,
-        gender: dto.gender ?? null,
-        maritalStatus: dto.maritalStatus ?? null,
-        mobile: dto.mobile ?? null,
-        email: dto.email ?? null,
-        address: dto.address ?? null,
-        emergencyName: dto.emergencyName ?? null,
-        emergencyPhone: dto.emergencyPhone ?? null,
-        employmentType: dto.employmentType,
-        hireDate: new Date(dto.hireDate),
-        monthlyBaseSalary: BigInt(dto.monthlyBaseSalary ?? 0),
-        isContractor: dto.isContractor ?? false,
-      },
-    });
+    const employee = await this.prisma.$transaction(async (db) => {
+      const employee = await db.employee.create({
+        data: {
+          companyId: dto.companyId,
+          branchId: dto.branchId ?? null,
+          workLocationId: dto.workLocationId ?? null,
+          costCenterId: dto.costCenterId ?? null,
+          orgUnitId: dto.orgUnitId ?? null,
+          positionId: dto.positionId ?? null,
+          managerId: dto.managerId ?? null,
+          userId: dto.userId ?? null,
+          code: dto.code.trim(),
+          nationalId: dto.nationalId ?? null,
+          firstName: dto.firstName.trim(),
+          lastName: dto.lastName.trim(),
+          fatherName: dto.fatherName ?? null,
+          birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
+          birthPlace: dto.birthPlace ?? null,
+          gender: dto.gender ?? null,
+          maritalStatus: dto.maritalStatus ?? null,
+          mobile: dto.mobile ?? null,
+          email: dto.email ?? null,
+          address: dto.address ?? null,
+          emergencyName: dto.emergencyName ?? null,
+          emergencyPhone: dto.emergencyPhone ?? null,
+          employmentType: dto.employmentType,
+          hireDate: new Date(dto.hireDate),
+          monthlyBaseSalary: BigInt(dto.monthlyBaseSalary ?? 0),
+          isContractor: dto.isContractor ?? false,
+        },
+      });
 
-    await this.prisma.employeePosition.create({
-      data: {
-        employeeId: employee.id,
-        companyId: employee.companyId,
-        positionId: employee.positionId,
-        orgUnitId: employee.orgUnitId,
-        managerId: employee.managerId,
-        startDate: employee.hireDate,
-        changeType: 'HIRE',
-      },
-    });
+      await db.employeePosition.create({
+        data: {
+          employeeId: employee.id,
+          companyId: employee.companyId,
+          positionId: employee.positionId,
+          orgUnitId: employee.orgUnitId,
+          managerId: employee.managerId,
+          startDate: employee.hireDate,
+          changeType: 'HIRE',
+        },
+      });
 
-    await this.audit.record(user.id, {
-      action: AuditAction.CREATE,
-      entity: 'Employee',
-      entityId: employee.id,
-      after: { code: employee.code, name: `${employee.firstName} ${employee.lastName}` },
+      await this.audit.recordInTransaction(db, user.id, {
+        action: AuditAction.CREATE,
+        entity: 'Employee',
+        entityId: employee.id,
+        after: { code: employee.code, name: `${employee.firstName} ${employee.lastName}` },
+      });
+
+      return employee;
     });
 
     return {
@@ -327,17 +331,19 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException('نیروی موردنظر یافت نشد.');
 
-    await this.prisma.employee.update({
-      where: { id },
-      data: { deletedAt: new Date(), status: 'TERMINATED', isActive: undefined } as Prisma.EmployeeUpdateInput,
-    });
+    await this.prisma.$transaction(async (db) => {
+      await db.employee.update({
+        where: { id },
+        data: { deletedAt: new Date(), status: 'TERMINATED', isActive: undefined } as Prisma.EmployeeUpdateInput,
+      });
 
-    await this.audit.record(user.id, {
-      action: AuditAction.DELETE,
-      entity: 'Employee',
-      entityId: id,
-      before: { code: employee.code },
-      note: reason,
+      await this.audit.recordInTransaction(db, user.id, {
+        action: AuditAction.DELETE,
+        entity: 'Employee',
+        entityId: id,
+        before: { code: employee.code },
+        note: reason,
+      });
     });
 
     return { success: true, timestamp: new Date().toISOString() };

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,7 +18,8 @@ import { randomFileName } from '../common/utils/crypto.util';
 import { employeeVisibility } from '../employees/employee-privacy';
 import { CreateDocumentDto, DocumentQueryDto, UpdateDocumentDto } from './dto/documents.dto';
 import { ConfigService } from '@nestjs/config';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
 const UPLOAD_ROOT = path.resolve(process.cwd(), 'uploads');
 const UPLOAD_DIR = path.join(UPLOAD_ROOT, 'documents');
@@ -33,25 +35,24 @@ export interface UploadedFilePayload {
 }
 
 /** اسکن آنتی‌ویروس فایل (در صورت فعال بودن) */
-function scanFileForViruses(filePath: string): void {
-  const config = new ConfigService();
-  if (!config.get<boolean>('security.antivirusEnabled')) return;
+export async function scanFileForViruses(filePath: string, config: ConfigService): Promise<void> {
+  if (!config.get<boolean>('app.security.antivirusEnabled')) return;
   try {
-    const command = `${config.get<string>('security.antivirusCommand')} --no-summary --infected "${filePath}"`;
-    const result = execSync(command, { timeout: config.get<number>('security.antivirusTimeoutMs') ?? 30000, encoding: 'utf8' });
-    if (result && result.includes('FOUND')) {
-      fs.unlinkSync(filePath);
-      throw new BadRequestException('فایل آپلودی حاوی محتوای خطرناک است و رد شد.');
-    }
-  } catch (e: any) {
-    if (e instanceof BadRequestException) throw e;
-    // اگر اسکنر نصب نیست یا خطای غیرمنتظره رخ داد، فایل را می‌پذیریم اما لاگ می‌کنیم
-    console.warn(`Antivirus scan skipped or failed: ${e.message}`);
+    await promisify(execFile)(config.get<string>('app.security.antivirusCommand') ?? 'clamscan',
+      ['--no-summary', '--infected', filePath], {
+        timeout: config.get<number>('app.security.antivirusTimeoutMs') ?? 30000,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024,
+      });
+  } catch (error: unknown) {
+    const code = (error as { code?: number | string }).code;
+    if (code === 1) throw new BadRequestException('فایل آپلودی حاوی محتوای خطرناک است و رد شد.');
+    throw new ServiceUnavailableException('بررسی امنیت فایل انجام نشد؛ دوباره تلاش کنید.');
   }
 }
 
 /** اعتبارسنجی و ذخیره فایل آپلودی */
-export function storeUpload(file: UploadedFilePayload, subdir: string): { fileName: string; filePath: string } {
+export async function storeUpload(file: UploadedFilePayload, subdir: string, config: ConfigService): Promise<{ fileName: string; filePath: string }> {
   if (!file) throw new BadRequestException('فایل پیوست الزامی است.');
   if (!Buffer.isBuffer(file.buffer) || !file.buffer.length || file.size !== file.buffer.length || file.size > MAX_SIZE) throw new BadRequestException('حجم فایل معتبر نیست یا از ۱۰ مگابایت بیشتر است.');
   if (!/^[a-z0-9-]{1,40}$/.test(subdir)) throw new BadRequestException('مسیر ذخیره فایل معتبر نیست.');
@@ -76,7 +77,12 @@ export function storeUpload(file: UploadedFilePayload, subdir: string): { fileNa
   const stored = `${randomFileName(ext)}`;
   const fullPath = path.join(dir, stored);
   fs.writeFileSync(fullPath, file.buffer, { flag: 'wx', mode: 0o600 });
-  scanFileForViruses(fullPath);
+  try {
+    await scanFileForViruses(fullPath, config);
+  } catch (error) {
+    await fs.promises.unlink(fullPath).catch(() => undefined);
+    throw error;
+  }
   return { fileName: path.basename(file.originalname.replace(/\\/g, '/')).replace(/[\x00-\x1f\x7f]/g, '').slice(0, 255), filePath: `${subdir}/${stored}` };
 }
 
@@ -204,12 +210,12 @@ export class DocumentsService {
   /** آپلود نسخه فایل مدرک */
   async uploadVersion(id: string, file: UploadedFilePayload, note: string | undefined, user: AuthenticatedUser) {
     if (note !== undefined && (typeof note !== 'string' || note.length > 2000)) throw new BadRequestException('یادداشت فایل معتبر نیست.');
-    let stored: ReturnType<typeof storeUpload> | undefined;
+    let stored: Awaited<ReturnType<typeof storeUpload>> | undefined;
     try {
     return await this.prisma.$transaction(async (db) => {
     await db.$queryRaw`SELECT id FROM "EmployeeDocument" WHERE id = ${id}::uuid FOR UPDATE`;
     const doc = await this.getDoc(id, user, db);
-    stored = storeUpload(file, 'documents');
+    stored = await storeUpload(file, 'documents', this.config);
 
     const version = doc.currentVersion + 1;
     await db.employeeDocumentVersion.create({

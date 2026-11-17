@@ -1,10 +1,11 @@
 import { api } from './api';
 
 /**
- * شناسهٔ اولین شرکت فعال — به‌جای انتخاب دستی شرکت در فرم‌ها.
- * سرور فیلد companyId را الزامی می‌داند؛ این تابع آن را پشت‌صحنه پر می‌کند.
+ * تنها در صورت نبود ابهام، شرکت یگانه را انتخاب می‌کند.
  */
 export async function getDefaultCompanyId(): Promise<string | null> {
   const r = await api.get('/org/companies/options');
-  return r?.data?.data?.[0]?.id ?? null;
+  const companies: { id:string }[] = r?.data?.data ?? [];
+  if (companies.length > 1) throw new Error('شرکت موردنظر را در فرم انتخاب کنید.');
+  return companies[0]?.id ?? null;
 }

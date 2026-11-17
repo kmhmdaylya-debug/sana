@@ -534,17 +534,26 @@ export class PayrollService {
 
     // --- قرارداد فعال هر کارمند ---
     const contracts = await db.contract.findMany({
-      where: { employeeId: { in: employeeIds }, companyId: period.companyId, deletedAt: null },
-      include: { versions: { orderBy: { version: 'desc' } } },
+      where: {
+        employeeId: { in: employeeIds }, companyId: period.companyId, deletedAt: null,
+        status: { in: ['ACTIVE', 'EXPIRING', 'RENEWED', 'TERMINATED'] },
+      },
+      include: { versions: { where: { approvedAt: { not: null }, effectiveDate: { lte: range.end } }, orderBy: [{ effectiveDate: 'desc' }, { version: 'desc' }] } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     });
     const contractByEmployee = new Map<string, any>();
     for (const contract of contracts) {
+      if (contract.status === 'RENEWED' && !contract.versions.length) {
+        throw new BadRequestException('قرارداد تمدیدشده قدیمی باید پیش از محاسبه حقوق، صریحاً تأیید شود.');
+      }
       const active = (contract.versions ?? []).find(
         (v: any) =>
           v.startDate.getTime() <= range.end.getTime() &&
           (v.endDate === null || v.endDate.getTime() >= range.startDate.getTime()),
       );
-      contractByEmployee.set(contract.employeeId, active ?? null);
+      if (!active) continue;
+      const selected = contractByEmployee.get(contract.employeeId);
+      if (!selected || active.effectiveDate > selected.effectiveDate) contractByEmployee.set(contract.employeeId, active);
     }
 
     // --- اضافه‌کاری دوره ---
@@ -1534,7 +1543,7 @@ export class PayrollService {
   // ==========================================================================
 
   private async recordFinancialAudit(db: Prisma.TransactionClient, userId: string, entry: AuditEntry) {
-    await db.auditLog.create({ data: { userId, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before: stringifyAudit(entry.before), after: stringifyAudit(entry.after) } });
+    await this.audit.recordInTransaction(db, userId, entry);
   }
 
   private async getPeriodEntity(id: string, db: Prisma.TransactionClient = this.prisma) {

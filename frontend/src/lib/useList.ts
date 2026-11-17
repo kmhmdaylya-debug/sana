@@ -128,8 +128,14 @@ export function useItem<T = any>(url: string | null, deps: unknown[] = []) {
   const [item, setItem] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const request = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setItem(null);
+    setError('');
     if (!url) {
       setLoading(false);
       return;
@@ -137,18 +143,19 @@ export function useItem<T = any>(url: string | null, deps: unknown[] = []) {
     setLoading(true);
     setError('');
     try {
-      const r = await api.get(url);
-      setItem(r?.data?.data ?? null);
+      const r = await api.get(url, { signal: controller.signal });
+      if (!controller.signal.aborted) setItem(r?.data?.data ?? null);
     } catch (e) {
-      setError(apiErrorMessage(e));
+      if (!controller.signal.aborted) setError(apiErrorMessage(e));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
   useEffect(() => {
     void load();
+    return () => request.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, ...deps]);
 

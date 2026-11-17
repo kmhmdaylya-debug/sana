@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser, AccessScope } from '../decorators/current-user.decorator';
+import { employmentEnded } from './employment-access';
 
 /**
  * سرویس دسترسی: ترکیب RBAC (نقش/مجوز) و ABAC (حوزه سازمانی).
@@ -114,9 +115,10 @@ export class AccessService {
   async buildAuthUser(userId: string): Promise<AuthenticatedUser | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { userRoles: { where: { validFrom: { lte: new Date() }, OR: [{ validTo: null }, { validTo: { gt: new Date() } }], role: { isActive: true, deletedAt: null } }, include: { role: true } } },
+      include: { employee: { select: { status: true, terminationDate: true, company: { select: { timezone: true } } } }, userRoles: { where: { validFrom: { lte: new Date() }, OR: [{ validTo: null }, { validTo: { gt: new Date() } }], role: { isActive: true, deletedAt: null } }, include: { role: true } } },
     });
     if (!user || user.status !== 'ACTIVE' || user.deletedAt) return null;
+    if (!user.isSuperAdmin && employmentEnded(user.employee)) return null;
 
     const [permissions, scope] = await Promise.all([
       this.getEffectivePermissions(userId),

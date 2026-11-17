@@ -25,6 +25,7 @@ import {
   verifyPassword,
 } from "../common/utils/password.util";
 import { ChangePasswordDto, LoginDto } from "./dto/auth.dto";
+import { employmentEnded } from '../common/access/employment-access';
 
 export interface TokenPair {
   accessToken: string;
@@ -60,6 +61,7 @@ export class AuthService {
       where: isMobile
         ? { mobile: identifier.replace(/\D/g, "") }
         : { username: { equals: identifier, mode: "insensitive" } },
+      include: { employee: { select: { status: true, terminationDate: true, company: { select: { timezone: true } } } } },
     });
 
     // هر خطای احراز هویت پیام یکسان می‌دهد تا وجود حساب یا وضعیت قفل فاش نشود
@@ -76,7 +78,7 @@ export class AuthService {
     }
 
     const locked = !!(user.lockedUntil && user.lockedUntil > new Date());
-    const inactive = user.status !== UserStatus.ACTIVE || !!user.deletedAt;
+    const inactive = user.status !== UserStatus.ACTIVE || !!user.deletedAt || (!user.isSuperAdmin && employmentEnded(user.employee));
 
     const valid = await verifyPassword(user.passwordHash, dto.password);
     if (!valid) {
@@ -212,11 +214,12 @@ export class AuthService {
       await this.lockUser(db, found.userId);
       const stored = await db.refreshToken.findUniqueOrThrow({
         where: { tokenHash },
-        include: { user: true },
+        include: { user: { include: { employee: { select: { status: true, terminationDate: true, company: { select: { timezone: true } } } } } } },
       });
       const now = new Date();
       if (stored.user.status !== UserStatus.ACTIVE || stored.user.deletedAt)
         throw new UnauthorizedException("نشست شما نامعتبر است.");
+      if (!stored.user.isSuperAdmin && employmentEnded(stored.user.employee)) throw new UnauthorizedException('دسترسی این حساب پایان یافته است.');
       if (stored.expiresAt <= now || !this.isSessionId(stored.family))
         throw new UnauthorizedException(
           "نشست شما منقضی شده است. دوباره وارد شوید.",
@@ -546,14 +549,11 @@ export class AuthService {
         },
         data: { revokedAt: now },
       });
-      await db.auditLog.create({
-        data: {
-          userId,
-          action: AuditAction.PASSWORD_CHANGE,
-          entity: "User",
-          entityId: userId,
-          ...this.audit.contextFrom(request),
-        },
+      await this.audit.record(userId, {
+        action: AuditAction.PASSWORD_CHANGE,
+        entity: "User",
+        entityId: userId,
+        ...this.audit.contextFrom(request),
       });
     });
 

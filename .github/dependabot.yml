@@ -1,0 +1,77 @@
+# .github/dependabot.yml
+# Dependabot configuration for automated dependency updates
+
+version: 2
+updates:
+  # Backend dependencies
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "Asia/Tehran"
+    labels:
+      - "backend"
+      - "dependencies"
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      # Ignore major version updates that might break things
+      - dependency-name: "*"
+        update-type: "version-update:semver-major"
+    commit-message:
+      prefix: "[backend]"
+      prefix-development: "[backend][dev]"
+    reviewers:
+      - "team-backend"
+    assignees:
+      - "team-backend"
+
+  # Frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "Asia/Tehran"
+    labels:
+      - "frontend"
+      - "dependencies"
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      # Ignore major version updates that might break things
+      - dependency-name: "*"
+        update-type: "version-update:semver-major"
+    commit-message:
+      prefix: "[frontend]"
+      prefix-development: "[frontend][dev]"
+    reviewers:
+      - "team-frontend"
+    assignees:
+      - "team-frontend"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "Asia/Tehran"
+    labels:
+      - "github-actions"
+      - "dependencies"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "[actions]"
+    reviewers:
+      - "devops-team"
+    assignees:
+      - "devops-team"

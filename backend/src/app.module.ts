@@ -9,6 +9,7 @@ import { AuditModule } from './common/audit/audit.module';
 import { NotificationModule } from './common/notifications/notification.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { HealthModule } from './health/health.module';
 
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -40,7 +41,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { SettingsModule } from './settings/settings.module';
 import { BackupModule } from './backup/backup.module';
-import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -58,6 +58,7 @@ import { HealthController } from './health/health.controller';
     AccessModule,
     AuditModule,
     NotificationModule,
+    HealthModule,
 
     AuthModule,
     UsersModule,
@@ -95,6 +96,5 @@ import { HealthController } from './health/health.controller';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
-  controllers: [HealthController],
 })
 export class AppModule {}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, apiErrorMessage, downloadReport } from '../lib/api';
+import { api, apiErrorMessage, generateReport } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
 import {
@@ -58,12 +58,12 @@ export default function Contracts() {
     },
   ];
 
-  const expiring = hasPermission('contracts.view') && (
+  const expiring = hasPermission('contracts.view') && hasPermission('reports.export') && (
     <Button
       variant="outline"
       onClick={async () => {
         try {
-          await downloadReport('/contracts/expiring?format=csv', 'contracts-expiring.csv');
+          await generateReport({ reportCode:'contracts.expiring', format:'csv' }, 'contracts-expiring.csv');
         } catch (e) {
           toast('error', apiErrorMessage(e));
         }

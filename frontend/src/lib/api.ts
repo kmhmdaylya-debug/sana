@@ -100,6 +100,16 @@ export async function downloadFile(
 /** دانلود فایل با نام فارسی (Content-Disposition) */
 export async function downloadReport(url: string, fallbackName: string, params?: Record<string, unknown>) {
   const res = await api.get(url, { params, responseType: 'blob' });
+  saveReportResponse(res, fallbackName);
+}
+
+export async function generateReport(body: Record<string, unknown>, fallbackName: string) {
+  const res = await api.post('/reports/run', body, { responseType: 'blob', timeout:120000 });
+  saveReportResponse(res, fallbackName);
+}
+
+function saveReportResponse(res: { data: BlobPart; headers: Record<string, unknown> }, fallbackName: string) {
+  if (/application\/json|text\/html/i.test(String(res.headers?.['content-type'] ?? ''))) throw new Error('سرور فایل گزارش معتبر برنگرداند.');
   const disposition = res.headers?.['content-disposition'] as string | undefined;
   let name = fallbackName;
   if (disposition) {

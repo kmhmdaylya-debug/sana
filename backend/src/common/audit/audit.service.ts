@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { AuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { stringifyAudit } from './audit-redaction';
@@ -33,12 +33,18 @@ export class AuditService {
     await db.auditLog.create({ data: { userId, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before: stringifyAudit(entry.before), after: stringifyAudit(entry.after) } });
   }
 
+  /**
+   * ثبت لاگ با الگوی Outbox برای اطمینان از ذخیره‌سازی مطمئن.
+   * اگر تراکنش جاری وجود دارد، در همان تراکنش ثبت می‌شود.
+   * در غیر این صورت، رکورد در جدول outbox ذخیره می‌شود تا به‌صورت async پردازش شود.
+   */
   async record(
     userId: string | null | undefined,
     entry: AuditEntry,
     ctx: AuditContext = {},
   ): Promise<void> {
     try {
+      // تلاش برای ثبت در تراکنش جاری (اگر وجود داشته باشد)
       await this.prisma.auditLog.create({
         data: {
           userId: userId ?? null,
@@ -53,9 +59,31 @@ export class AuditService {
           note: ctx.note ?? null,
         },
       });
-    } catch {
-      // ثبت لاگ نباید باعث شکست عملیات اصلی شود
-      this.logger.warn('Audit write failed; confidential error details suppressed.');
+    } catch (e) {
+      // در صورت خطا، در جدول outbox ذخیره شود برای پردازش بعدی
+      try {
+        await this.prisma.auditOutbox.create({
+          data: {
+            userId: userId ?? null,
+            action: entry.action,
+            entity: entry.entity,
+            entityId: entry.entityId ?? null,
+            before: stringifyAudit(entry.before),
+            after: stringifyAudit(entry.after),
+            ip: ctx.ip ?? null,
+            userAgent: ctx.userAgent ?? null,
+            requestId: ctx.requestId ?? null,
+            note: ctx.note ?? null,
+            retryCount: 0,
+          },
+        });
+      } catch {
+        // ثبت لاگ نباید باعث شکست عملیات اصلی شود
+        this.logger.warn('Audit write failed; confidential error details suppressed.');
+        if ([AuditAction.VIEW_SENSITIVE, AuditAction.EXPORT, AuditAction.DOWNLOAD, AuditAction.BACKUP, AuditAction.RESTORE].includes(entry.action as never)) {
+          throw new ServiceUnavailableException('ثبت سابقه امنیتی ممکن نشد؛ عملیات حساس انجام نشد.');
+        }
+      }
     }
   }
 

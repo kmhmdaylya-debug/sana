@@ -342,7 +342,12 @@ export class LeavesService {
       },
     });
 
-    await db.auditLog.create({ data: { userId: user.id, action: AuditAction.CREATE, entity: 'LeaveRequest', entityId: request.id, after: JSON.stringify({ employeeId: dto.employeeId, durationMinutes }) } });
+    await this.audit.recordInTransaction(db, user.id, {
+      action: AuditAction.CREATE,
+      entity: 'LeaveRequest',
+      entityId: request.id,
+      after: { employeeId: dto.employeeId, durationMinutes },
+    });
 
     if (employee.userId && employee.userId !== user.id) {
       await db.notification.create({ data: { userId: employee.userId, type: 'REQUEST_RESULT', status: 'SENT', title: 'درخواست مرخصی ثبت شد', link: `/leaves/${request.id}` } });
@@ -457,13 +462,12 @@ export class LeavesService {
       } });
     }
 
-    await tx.auditLog.create({ data: {
-      userId: user.id,
+    await this.audit.recordInTransaction(tx, user.id, {
       action: toStatus === LeaveRequestStatus.APPROVED ? AuditAction.APPROVE : AuditAction.REJECT,
       entity: 'LeaveRequest',
       entityId: id,
-      after: JSON.stringify({ status: toStatus }),
-    } });
+      after: { status: toStatus },
+    });
 
     return {
       data: { id, status: toStatus },
@@ -517,13 +521,12 @@ export class LeavesService {
         where: { sourceId: id, type: LeaveTransactionType.RESERVE },
       });
       if (reserve) await tx.leaveTransaction.delete({ where: { id: reserve.id } });
-    await tx.auditLog.create({ data: {
-      userId: user.id,
+    await this.audit.recordInTransaction(tx, user.id, {
       action: AuditAction.CANCEL,
       entity: 'LeaveRequest',
       entityId: id,
-      before: JSON.stringify({ status: request.status }),
-    } });
+      before: { status: request.status },
+    });
 
     return {
       data: { id, status: LeaveRequestStatus.CANCELLED },
@@ -633,13 +636,12 @@ export class LeavesService {
       },
     });
 
-    await db.auditLog.create({ data: {
-      userId: user.id,
+    await this.audit.recordInTransaction(db, user.id, {
       action: AuditAction.CREATE,
       entity: 'LeaveTransaction',
       entityId: row.id,
-      after: JSON.stringify({ employeeId: dto.employeeId, type: dto.type, minutes: dto.minutes }),
-    } });
+      after: { employeeId: dto.employeeId, type: dto.type, minutes: dto.minutes },
+    });
 
     return {
       data: { id: row.id },

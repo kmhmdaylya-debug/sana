@@ -15,7 +15,7 @@ const actor = {
   employeeId: null,
   roleIds: [],
   roleCodes: [],
-  permissions: ['org.view'],
+  permissions: ['org.view', 'org.manage'],
   scope: { unrestricted: false, companyIds: ['company-a'], branchIds: [], orgUnitIds: [], employeeIds: [], ownEmployeeId: null },
 } as unknown as AuthenticatedUser;
 
@@ -33,7 +33,7 @@ describe('OrgService', () => {
       branch: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
       workLocation: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
       costCenter: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-      orgUnit: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
+      orgUnit: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0) },
       position: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
       calendar: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
       holiday: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), createMany: jest.fn(), delete: jest.fn(), findFirst: jest.fn() },
@@ -185,9 +185,9 @@ describe('OrgService', () => {
 
     it('detects parent cycle', async () => {
       prisma.company.findFirst.mockResolvedValue({ id: 'company-a', deletedAt: null });
-      prisma.orgUnit.findFirst.mockResolvedValue({ id: 'u2', parentId: null, companyId: 'company-a', deletedAt: null });
+      prisma.orgUnit.findFirst.mockResolvedValue(null);
       prisma.orgUnit.findUnique.mockResolvedValue(null);
-      prisma.orgUnit.findMany.mockResolvedValue([{ id: 'u1', parentId: null }, { id: 'u2', parentId: null }]);
+      prisma.orgUnit.findMany.mockResolvedValue([{ id: 'u1', parentId: null }, { id: 'u2', parentId: 'u1' }]);
       await expect(service.createOrgUnit({ companyId: 'company-a', code: 'U1', name: 'Unit 1', parentId: 'u2' } as any, superAdmin)).rejects.toThrow(BadRequestException);
     });
   });
@@ -253,7 +253,6 @@ describe('OrgService', () => {
 
   describe('page helper', () => {
     it('calculates pagination correctly', () => {
-      // Access private method via type cast
       const result = (service as any).page([{ id: 1 }, { id: 2 }], 5, { page: 1, limit: 2, skip: 0 });
       expect(result.meta.total).toBe(5);
       expect(result.meta.totalPages).toBe(3);

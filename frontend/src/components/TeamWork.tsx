@@ -5,6 +5,7 @@ import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
 import { getDefaultCompanyId } from '../lib/org';
+import CompanyPicker from './CompanyPicker';
 import { formatJalali, parseDateInput, toPersianDigits, isPastDueDate } from '../lib/format';
 import { DatePicker, Button, Field, Input, Modal, PageHeader, Pagination, Select, Textarea, useToast } from './ui';
 import TeamPresence from './TeamPresence';
@@ -112,6 +113,7 @@ export default function TeamWork() {
 }
 
 function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [companyId, setCompanyId] = useState('');
   const people = useList<{ id: string; fullName: string; username: string }>('/tasks/assignees', { limit: 20 });
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -126,9 +128,9 @@ function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: ()
     try {
       const date = parseDateInput(dueDate);
       if (dueDate && !date) throw new Error('تاریخ مهلت معتبر نیست.');
-      const companyId = await getDefaultCompanyId();
-      if (!companyId) throw new Error('شرکتی ثبت نشده است.');
-      await api.post('/tasks', { companyId, title: title.trim(), description, category: category || null, assigneeUserIds: [assignee.id], ...(date ? { dueDate: date } : {}) });
+      const selectedCompany = companyId || await getDefaultCompanyId();
+      if (!selectedCompany) throw new Error('شرکتی ثبت نشده است.');
+      await api.post('/tasks', { companyId:selectedCompany, title: title.trim(), description, category: category || null, assigneeUserIds: [assignee.id], ...(date ? { dueDate: date } : {}) });
       toast('success', 'کار واگذار شد.');
       onCreated();
     } catch (e) { toast('error', e instanceof Error && !('response' in e) ? e.message : apiErrorMessage(e)); }
@@ -136,6 +138,7 @@ function AssignWork({ onClose, onCreated }: { onClose: () => void; onCreated: ()
   };
   return <Modal open title="واگذاری کار" onClose={() => { if (!saving) onClose(); }} footer={<><Button loading={saving} disabled={!title.trim() || !assignee} onClick={submit}>ثبت کار</Button><Button variant="secondary" disabled={saving} onClick={onClose}>انصراف</Button></>}>
     <div className="col" style={{ gap: 14 }}>
+      <CompanyPicker value={companyId} onValueChange={setCompanyId} disabled={saving} />
       <Field label="عنوان کار" required><Input aria-label="عنوان کار" maxLength={240} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
       <Field label="شرح کار"><Textarea aria-label="شرح کار" value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
       <WorkCategoryPicker value={category} onChange={setCategory} disabled={saving} />

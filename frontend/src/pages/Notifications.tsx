@@ -35,6 +35,7 @@ export default function Notifications() {
   const markRead = async (id: string) => {
     try {
       await api.post(`/notifications/${id}/read`);
+      window.dispatchEvent(new Event('sana:notifications-changed'));
       list.reload();
     } catch (e) {
       toast('error', apiErrorMessage(e));
@@ -44,6 +45,7 @@ export default function Notifications() {
   const markAll = async () => {
     try {
       await api.post('/notifications/read-all');
+      window.dispatchEvent(new Event('sana:notifications-changed'));
       toast('success', 'همهٔ اعلان‌ها خوانده‌شده علامت خوردند.');
       list.reload();
     } catch (e) {

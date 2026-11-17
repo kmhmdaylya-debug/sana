@@ -1,11 +1,12 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { AttendanceRecordStatus, Prisma } from '@prisma/client';
+import { AttendanceRecordStatus, AuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { AuditService } from '../common/audit/audit.service';
 import { calendarDay, calendarDayStart, shiftCalendarDay } from './daily-date.util';
 import { AccessService } from '../common/access/access.service';
 import { PERMISSIONS } from '../common/constants/permissions';
 import { ManualDailyAttendanceDto } from './dto/manual-daily-attendance.dto';
+import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 type Store = Prisma.TransactionClient;
 const DAY = 86_400_000;
@@ -17,7 +18,7 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private running: Promise<void> | null = null;
 
-  constructor(private readonly prisma: PrismaService, private readonly access: AccessService) {}
+  constructor(private readonly prisma: PrismaService, private readonly access: AccessService, private readonly audit: AuditService) {}
 
   async onModuleInit() {
     await this.run();
@@ -158,7 +159,14 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
         note: dto.note?.trim() || 'ثبت دستی حضور توسط مدیر',
       };
       const after = await tx.attendanceRecord.upsert({ where: { employeeId_workDate: { employeeId, workDate } }, create: { employeeId, workDate, ...data }, update: data });
-      await tx.auditLog.create({ data: { userId: user.id, action: before ? 'UPDATE' : 'CREATE', entity: 'DailyAttendance', entityId: after.id, before: before ? JSON.stringify(before) : null, after: JSON.stringify(after), note: 'ثبت دستی وضعیت حضور توسط مدیر' } });
+      await this.audit.recordInTransaction(tx, user.id, {
+        action: before ? AuditAction.UPDATE : AuditAction.CREATE,
+        entity: 'DailyAttendance',
+        entityId: after.id,
+        before: before ? { firstIn: before.firstIn, status: before.status, absenceMinutes: before.absenceMinutes, absenceType: before.absenceType, note: before.note } : null,
+        after: { firstIn: after.firstIn, status: after.status, absenceMinutes: after.absenceMinutes, absenceType: after.absenceType, note: after.note },
+        note: 'ثبت دستی وضعیت حضور توسط مدیر',
+      });
       return after;
     });
     return { success: true, data: row };
@@ -190,7 +198,12 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
           }
           if (rows.length) {
             await tx.attendanceRecord.createMany({ data: rows, skipDuplicates: true });
-            await tx.auditLog.create({ data: { action: 'CREATE', entity: 'DailyAttendance', after: JSON.stringify({ companyId: company.id, day, records: rows.length }), note: 'بستن خودکار روز کاری' } });
+            await this.audit.recordInTransaction(tx, 'system:daily-attendance', {
+              action: AuditAction.CREATE,
+              entity: 'DailyAttendance',
+              after: { companyId: company.id, day, records: rows.length },
+              note: 'بستن خودکار روز کاری',
+            });
           }
           await tx.setting.update({ where: { key }, data: { value: day } });
           return true;

@@ -904,6 +904,10 @@ model Employee {
   @@index([orgUnitId])
   @@index([managerId])
   @@index([lastName, firstName])
+  @@index([companyId, status, orgUnitId])
+  @@index([companyId, status, branchId])
+  @@index([companyId, employmentType, status])
+  @@index([companyId, deletedAt, status])
 }
 
 model EmployeePosition {
@@ -994,6 +998,8 @@ model Contract {
   versions ContractVersion[]
 
   @@index([employeeId])
+  @@index([companyId, status])
+  @@index([employeeId, status])
 }
 
 model ContractVersion {
@@ -1014,6 +1020,8 @@ model ContractVersion {
   terms              String?  @db.Text
   changeReason       String?  @db.VarChar(500)
   createdById        String?  @db.Uuid
+  approvedById       String?  @db.Uuid
+  approvedAt         DateTime?
   createdAt          DateTime @default(now())
 
   contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -1134,6 +1142,8 @@ model AttendanceRecord {
 
   @@unique([employeeId, workDate])
   @@index([workDate])
+  @@index([employeeId, workDate, status])
+  @@index([status, workDate])
 }
 
 model AttendanceCorrection {
@@ -1314,6 +1324,8 @@ model LeaveRequest {
 
   @@index([employeeId, status])
   @@index([status])
+  @@index([employeeId, startAt, endAt])
+  @@index([status, startAt])
 }
 
 model LeaveRequestEvent {
@@ -2211,6 +2223,8 @@ model Offer {
   updatedAt   DateTime    @updatedAt
 
   applicant Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@unique([applicantId, version])
 }
 
 // ---------------------------------------------------------------------------
@@ -2753,6 +2767,26 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
   @@index([userId])
+}
+
+model AuditOutbox {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String?     @db.Uuid
+  action    AuditAction
+  entity    String      @db.VarChar(60)
+  entityId  String?     @db.VarChar(64)
+  before    String?     @db.Text
+  after     String?     @db.Text
+  ip        String?     @db.VarChar(64)
+  userAgent String?     @db.VarChar(255)
+  requestId String?     @db.VarChar(64)
+  note      String?     @db.VarChar(500)
+  retryCount Int        @default(0)
+  processedAt DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([processedAt])
+  @@index([createdAt])
 }
 
 model Setting {

@@ -26,10 +26,16 @@ const VERSION_MONEY_FIELDS = [
   "childAllowance",
   "seniorityPay",
 ] as const;
-const NEXT_STATUS: Partial<Record<ContractStatus, ContractStatus>> = {
-  DRAFT: ContractStatus.PENDING_APPROVAL,
-  PENDING_APPROVAL: ContractStatus.READY_TO_SIGN,
-  READY_TO_SIGN: ContractStatus.ACTIVE,
+const STATUS_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
+  DRAFT: [ContractStatus.PENDING_APPROVAL, ContractStatus.CANCELLED],
+  PENDING_APPROVAL: [ContractStatus.READY_TO_SIGN, ContractStatus.DRAFT, ContractStatus.CANCELLED],
+  READY_TO_SIGN: [ContractStatus.ACTIVE, ContractStatus.DRAFT, ContractStatus.CANCELLED],
+  ACTIVE: [ContractStatus.EXPIRING, ContractStatus.SUSPENDED, ContractStatus.TERMINATED],
+  EXPIRING: [ContractStatus.ACTIVE, ContractStatus.SUSPENDED, ContractStatus.TERMINATED],
+  RENEWED: [ContractStatus.ACTIVE, ContractStatus.EXPIRING, ContractStatus.SUSPENDED, ContractStatus.TERMINATED],
+  SUSPENDED: [ContractStatus.ACTIVE, ContractStatus.TERMINATED],
+  TERMINATED: [],
+  CANCELLED: [],
 };
 
 @Injectable()
@@ -191,22 +197,26 @@ export class ContractsService {
     });
     if (!employee) throw new NotFoundException("نیروی موردنظر یافت نشد.");
 
-    const contract = await this.prisma.contract.create({
-      data: {
-        employeeId: employee.id,
-        companyId: employee.companyId,
-        status: ContractStatus.DRAFT,
-        versions: {
-          create: this.versionData(dto, 1, user.id, "ایجاد قرارداد"),
+    const contract = await this.prisma.$transaction(async (db) => {
+      const contract = await db.contract.create({
+        data: {
+          employeeId: employee.id,
+          companyId: employee.companyId,
+          status: ContractStatus.DRAFT,
+          versions: {
+            create: this.versionData(dto, 1, user.id, "ایجاد قرارداد"),
+          },
         },
-      },
-    });
+      });
 
-    await this.audit.record(user.id, {
-      action: AuditAction.CREATE,
-      entity: "Contract",
-      entityId: contract.id,
-      after: { employeeId: employee.id, contractType: dto.contractType },
+      await this.audit.recordInTransaction(db, user.id, {
+        action: AuditAction.CREATE,
+        entity: "Contract",
+        entityId: contract.id,
+        after: { employeeId: employee.id, contractType: dto.contractType },
+      });
+
+      return contract;
     });
 
     return {
@@ -226,6 +236,9 @@ export class ContractsService {
       async (db) => {
         await db.$queryRaw`SELECT id FROM "Contract" WHERE id = ${id}::uuid FOR UPDATE`;
         const contract = await this.getContract(id, user, db);
+        if ([ContractStatus.CANCELLED, ContractStatus.TERMINATED].includes(contract.status as never)) {
+          throw new BadRequestException('برای قرارداد خاتمه‌یافته یا لغوشده نمی‌توان نسخه ساخت.');
+        }
         if (dto.endDate && new Date(dto.startDate) >= new Date(dto.endDate))
           throw new BadRequestException(
             "تاریخ پایان قرارداد باید بعد از شروع باشد.",
@@ -242,13 +255,6 @@ export class ContractsService {
           where: { id },
           data: { currentVersion: version },
         });
-
-        if (dto.endDate) {
-          await db.contract.update({
-            where: { id },
-            data: { status: ContractStatus.RENEWED },
-          });
-        }
 
         await this.audit.recordInTransaction(db, user.id, {
           action: AuditAction.CREATE,
@@ -279,6 +285,23 @@ export class ContractsService {
     );
   }
 
+  async approveVersion(id: string, version: number, user: AuthenticatedUser) {
+    if (!this.access.hasPermission(user, 'contracts.approve')) throw new ForbiddenException('مجوز تأیید قرارداد را ندارید.');
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "Contract" WHERE id = ${id}::uuid FOR UPDATE`;
+      const contract = await this.getContract(id, user, db);
+      if (user.employeeId === contract.employeeId && !user.isSuperAdmin) throw new ForbiddenException('تأیید قرارداد خودتان مجاز نیست.');
+      if (![ContractStatus.ACTIVE, ContractStatus.EXPIRING, ContractStatus.RENEWED].includes(contract.status as never)) throw new BadRequestException('تأیید تمدید فقط برای قرارداد فعال ممکن است.');
+      const row = await db.contractVersion.findUnique({ where: { contractId_version: { contractId: id, version } } });
+      if (!row) throw new NotFoundException('نسخه قرارداد یافت نشد.');
+      if (row.approvedAt) return { data: { id, version }, success: true };
+      if (version !== contract.currentVersion) throw new BadRequestException('فقط آخرین نسخه قرارداد قابل تأیید است.');
+      await db.contractVersion.update({ where: { id: row.id }, data: { approvedAt: new Date(), approvedById: user.id } });
+      await this.audit.recordInTransaction(db, user.id, { action: AuditAction.APPROVE, entity: 'ContractVersion', entityId: row.id, after: { contractId: id, version } });
+      return { data: { id, version }, success: true };
+    }, { maxWait: 10000, timeout: 30000 });
+  }
+
   /** تغییر وضعیت قرارداد (سرور قاعده تأیید را اعمال می‌کند) */
   async setStatus(id: string, dto: UpdateContractDto, user: AuthenticatedUser) {
     return this.prisma.$transaction(
@@ -301,7 +324,7 @@ export class ContractsService {
           throw new ForbiddenException(
             "مجوز تغییر این وضعیت قرارداد را ندارید.",
           );
-        if (approval && NEXT_STATUS[contract.status] !== target)
+        if (!STATUS_TRANSITIONS[contract.status].includes(target))
           throw new BadRequestException(
             "ترتیب مراحل تأیید قرارداد رعایت نشده است.",
           );
@@ -321,6 +344,12 @@ export class ContractsService {
         }
 
         await db.contract.update({ where: { id }, data: { status: target } });
+        if (target === ContractStatus.ACTIVE) {
+          await db.contractVersion.updateMany({
+            where: { contractId: id, version: contract.currentVersion, approvedAt: null },
+            data: { approvedAt: new Date(), approvedById: user.id },
+          });
+        }
         await this.audit.recordInTransaction(db, user.id, {
           action:
             target === ContractStatus.ACTIVE

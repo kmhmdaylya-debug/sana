@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, UserRoundPen } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
+import CompanyPicker from '../components/CompanyPicker';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
 import TaskCountdown from '../components/TaskCountdown';
@@ -65,6 +66,7 @@ export default function Tasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', category: '', dueDate: '', slaHours: '', assigneeIds: [] as string[] });
   const [saving, setSaving] = useState(false);
+  const [companyId, setCompanyId] = useState('');
 
   const canCreate = hasPermission('tasks.create');
   const canUpdate = hasPermission('tasks.update');
@@ -94,9 +96,9 @@ export default function Tasks() {
       if (editingTask) {
         await api.patch(`/tasks/${editingTask.id}`, payload);
       } else {
-        const companyId = await getDefaultCompanyId();
-        if (!companyId) throw new Error('شرکتی در ساختار سازمانی ثبت نشده است.');
-        await api.post('/tasks', { ...payload, companyId });
+        const selectedCompany = companyId || await getDefaultCompanyId();
+        if (!selectedCompany) throw new Error('شرکتی در ساختار سازمانی ثبت نشده است.');
+        await api.post('/tasks', { ...payload, companyId:selectedCompany });
       }
       toast('success', editingTask ? 'task و مسئولان به‌روزرسانی شدند.' : 'task ثبت شد.');
       setCreateOpen(false);
@@ -185,6 +187,7 @@ export default function Tasks() {
         }
       >
         <div className="col" style={{ gap: 14 }}>
+          {!editingTask && <CompanyPicker value={companyId} onValueChange={setCompanyId} disabled={saving} />}
           <Field label="عنوان" required><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="شرح"><Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></Field>
           <WorkCategoryPicker value={form.category} onChange={category => setForm(value => ({ ...value, category }))} disabled={saving} />

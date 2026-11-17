@@ -263,15 +263,13 @@ export class AssetsService {
         data: { status: AssetStatus.ASSIGNED, currentHolderId: dto.toEmployeeId },
       });
     }
-      await db.auditLog.create({ data: { userId: user.id, action: AuditAction.UPDATE, entity: 'AssetHandover', entityId: handover.id, after: JSON.stringify({ assetId: asset.id, handoverType: dto.handoverType }) } });
+      await this.audit.recordInTransaction(db, user.id, {
+        action: AuditAction.UPDATE,
+        entity: 'AssetHandover',
+        entityId: handover.id,
+        after: { assetId: asset.id, handoverType: dto.handoverType },
+      });
       return handover;
-    });
-
-    await this.audit.record(user.id, {
-      action: AuditAction.UPDATE,
-      entity: 'AssetHandover',
-      entityId: handover.id,
-      after: { assetId: asset.id, handoverType: dto.handoverType },
     });
 
     // اطلاع به تحویل‌گیرنده

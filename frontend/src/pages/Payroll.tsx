@@ -93,9 +93,9 @@ function Payslips({ periodId, onClose }: { periodId: string; onClose: () => void
 
   const cols: Column<any>[] = [
     { key: 'employee', header: 'نیرو', render: (r) => (r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : '—') },
-    { key: 'gross', header: 'ناخالص', render: (r) => formatRial(Number(r.grossPay ?? r.totalGross ?? 0)) },
-    { key: 'deductions', header: 'کسورات', render: (r) => formatRial(Number(r.totalDeductions ?? 0)) },
-    { key: 'net', header: 'خالص', render: (r) => formatRial(Number(r.netPay ?? r.totalNet ?? 0)) },
+    { key: 'grossAmount', header: 'ناخالص', render: (r) => formatRial(r.grossAmount) },
+    { key: 'deductionAmount', header: 'کسورات', render: (r) => formatRial(r.deductionAmount) },
+    { key: 'netAmount', header: 'خالص', render: (r) => formatRial(r.netAmount) },
     { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status)}>{statusLabel(r.status)}</Badge> },
   ];
 
@@ -117,14 +117,14 @@ function PayslipDetail({ id, onClose }: { id: string; onClose: () => void }) {
   if (loading) return <Modal open title="فیش حقوقی" onClose={onClose}><div className="skeleton" style={{ height: 180 }} /></Modal>;
   if (!slip) return <Modal open title="فیش حقوقی" onClose={onClose}><div className="alert alert-danger">یافت نشد.</div></Modal>;
 
-  const lines = slip.lines ?? [];
+  const lines = slip.items ?? [];
   return (
     <Modal open title={`فیش حقوقی ${slip.employee ? `${slip.employee.firstName} ${slip.employee.lastName}` : ''}`} onClose={onClose} width={680}>
       <DataTable
         rows={lines}
         columns={[
           { key: 'name', header: 'سطر', render: (r: any) => r.title ?? r.componentName ?? '—' },
-          { key: 'type', header: 'نوع', render: (r: any) => (r.kind === 'DEDUCTION' || r.type === 'DEDUCTION' ? 'کسور' : 'حقوق و مزایا') },
+          { key: 'componentType', header: 'نوع', render: (r: any) => (r.componentType === 'DEDUCTION' ? 'کسور' : 'حقوق و مزایا') },
           { key: 'amount', header: 'مبلغ', render: (r: any) => formatRial(Number(r.amount ?? 0)) },
         ]}
         emptyMessage="سطری ثبت نشده است."
@@ -132,7 +132,7 @@ function PayslipDetail({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="divider" />
       <div className="flex-between">
         <span className="fw-700">خالص پرداختی</span>
-        <span className="fw-800 text-success">{formatRial(Number(slip.netPay ?? slip.totalNet ?? 0))}</span>
+        <span className="fw-800 text-success">{formatRial(slip.netAmount)}</span>
       </div>
     </Modal>
   );

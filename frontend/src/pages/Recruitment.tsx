@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
+import CompanyPicker from '../components/CompanyPicker';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
 import { Tabs,
@@ -164,6 +165,7 @@ export default function Recruitment() {
         footer={<><Button onClick={submitRequisition} loading={saving}>ثبت</Button><Button variant="secondary" onClick={() => setReqOpen(false)}>انصراف</Button></>}
       >
         <div className="col" style={{ gap: 14 }}>
+          <CompanyPicker value={reqForm.companyId} onValueChange={companyId => setReqForm(f => ({ ...f, companyId }))} disabled={saving} />
           <Field label="عنوان" required><Input value={reqForm.title} onChange={(e) => setReqForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <div className="form-grid">
             <Field label="تعداد نیرو" required><Input type="number" value={reqForm.headcount} onChange={(e) => setReqForm((f) => ({ ...f, headcount: Number(e.target.value) }))} /></Field>

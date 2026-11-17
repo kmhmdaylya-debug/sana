@@ -160,7 +160,7 @@ describe('RecruitmentService', () => {
       expect(result.status).toBe('SCREENING');
     });
 
-    it('rejects invalid status transition', async () {
+    it('rejects invalid status transition', async () => {
       prisma.applicant.findUnique.mockResolvedValue({ id: 'ap1', firstName: 'Ali', lastName: 'Rezaei', status: 'HIRED', deletedAt: null });
       await expect(service.updateApplicantStatus('ap1', { status: 'APPLIED' } as any, actor)).rejects.toThrow(BadRequestException);
     });

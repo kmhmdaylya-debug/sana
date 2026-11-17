@@ -16,6 +16,7 @@ import { AuditService } from "../common/audit/audit.service";
 import { NotificationService } from "../common/notifications/notification.service";
 import { AuthenticatedUser } from "../common/decorators/current-user.decorator";
 import { PaginationDto } from "../common/dto/pagination.dto";
+import { calendarDay, calendarDayStart } from '../attendance/daily-date.util';
 import {
   ChecklistQueryDto,
   CreateOffboardingDto,
@@ -393,7 +394,7 @@ export class LifecycleService {
 
         const employee = await db.employee.findUnique({
           where: { id: dto.employeeId },
-          select: { userId: true, code: true, firstName: true, lastName: true },
+          select: { userId: true, code: true, firstName: true, lastName: true, company: { select: { timezone: true } } },
         });
         if (!employee) throw new NotFoundException("نیروی موردنظر یافت نشد.");
         if (
@@ -432,14 +433,22 @@ export class LifecycleService {
           include: { items: true },
         });
 
-        // به‌روزرسانی وضعیت نیرو
+        const endDay = dto.terminationDate.slice(0, 10);
+        const zone = employee.company.timezone;
+        const due = endDay <= calendarDay(new Date(), zone);
         await db.employee.update({
           where: { id: dto.employeeId },
           data: {
-            status: "TERMINATED",
+            ...(due ? { status: 'TERMINATED' as const } : {}),
             terminationDate: new Date(dto.terminationDate),
           },
         });
+        if (employee.userId) {
+          const revokeAt = due ? new Date() : calendarDayStart(endDay, zone);
+          await db.userSession.updateMany({ where: { userId: employee.userId, OR: [{ revokedAt: null }, { revokedAt: { gt: revokeAt } }] }, data: { revokedAt: revokeAt } });
+          await db.refreshToken.updateMany({ where: { userId: employee.userId, OR: [{ revokedAt: null }, { revokedAt: { gt: revokeAt } }] }, data: { revokedAt: revokeAt } });
+          if (due) await db.user.update({ where: { id: employee.userId }, data: { status: 'INACTIVE' } });
+        }
 
         await this.audit.recordInTransaction(db, user.id, {
           action: AuditAction.CREATE,

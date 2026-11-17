@@ -171,8 +171,9 @@ export class ReportsService {
         manager: { select: { firstName: true, lastName: true } },
       },
       orderBy: { code: 'asc' },
-      take: 5000,
+      take: 5001,
     });
+    this.assertExportLimit(rows.length, 5000);
 
     return {
       columns: [
@@ -220,8 +221,9 @@ export class ReportsService {
       include: {
         employee: { select: { code: true, firstName: true, lastName: true } },
       },
-      take: 20000,
+      take: 20001,
     });
+    this.assertExportLimit(records.length, 20000);
 
     const byEmployee = new Map<string, {
       employee: { code: string; firstName: string; lastName: string };
@@ -282,8 +284,9 @@ export class ReportsService {
         leaveType: { select: { name: true, code: true } },
       },
       orderBy: { startAt: 'desc' },
-      take: 5000,
+      take: 5001,
     });
+    this.assertExportLimit(rows.length, 5000);
 
     return {
       columns: [
@@ -318,15 +321,17 @@ export class ReportsService {
     const contracts = await this.prisma.contract.findMany({
       where: {
         deletedAt: null,
+        status: { in: ['ACTIVE', 'EXPIRING', 'RENEWED'] },
         employee: this.reportEmployeeWhere(dto, user),
         versions: { some: { endDate: { gte: from, lte: to } } },
       },
       include: {
         employee: { select: { code: true, firstName: true, lastName: true } },
-        versions: { orderBy: { version: 'desc' }, take: 1 },
+        versions: { where: { approvedAt: { not: null } }, orderBy: [{ effectiveDate: 'desc' }, { version: 'desc' }], take: 1 },
       },
-      take: 5000,
+      take: 5001,
     });
+    this.assertExportLimit(contracts.length, 5000);
 
     return {
       columns: [
@@ -336,7 +341,7 @@ export class ReportsService {
         { header: 'وضعیت قرارداد', key: 'status' },
         { header: 'تاریخ پایان', key: 'endDate', date: true },
       ] satisfies ExportColumn[],
-      rows: contracts.map((c) => ({
+      rows: contracts.filter(c => c.versions[0]?.endDate && c.versions[0].endDate >= from && c.versions[0].endDate <= to).map((c) => ({
         code: c.employee.code,
         firstName: c.employee.firstName,
         lastName: c.employee.lastName,
@@ -355,8 +360,9 @@ export class ReportsService {
         course: { select: { code: true, title: true } },
       },
       orderBy: { attendanceDate: 'desc' },
-      take: 5000,
+      take: 5001,
     });
+    this.assertExportLimit(rows.length, 5000);
 
     return {
       columns: [
@@ -387,6 +393,10 @@ export class ReportsService {
     return { AND: [this.access.employeeWhereFor(user)], ...(dto.companyId ? { companyId: dto.companyId } : {}), ...(dto.orgUnitId ? { orgUnitId: dto.orgUnitId } : {}) };
   }
 
+  private assertExportLimit(count: number, limit: number) {
+    if (count > limit) throw new BadRequestException('تعداد نتایج گزارش از حد مجاز بیشتر است؛ شرکت، واحد یا بازه تاریخ را محدود کنید. هیچ فایل ناقصی تولید نشد.');
+  }
+
   /** مرز ماه شمسی (میلی‌مبدأ محلی) */
   private async jalaliMonthBounds(year: number, month: number) {
     const startJ = jalaliToGregorian(year, month, 1);
@@ -394,8 +404,8 @@ export class ReportsService {
     const nextM = month === 12 ? 1 : month + 1;
     const endJ = jalaliToGregorian(nextY, nextM, 1);
     return {
-      start: new Date(startJ.getFullYear(), startJ.getMonth(), startJ.getDate()),
-      end: new Date(endJ.getFullYear(), endJ.getMonth(), endJ.getDate()),
+      start: new Date(Date.UTC(startJ.getFullYear(), startJ.getMonth(), startJ.getDate())),
+      end: new Date(Date.UTC(endJ.getFullYear(), endJ.getMonth(), endJ.getDate())),
     };
   }
 }

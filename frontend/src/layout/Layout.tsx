@@ -202,6 +202,11 @@ export default function Layout() {
     document.title = `${PAGE_TITLES[location.pathname] ?? 'کارهای تیم'} | سنا`;
     const controller = createAbortController();
     let active = true;
+    const refreshNotifications = () => {
+      if (hasPermission('notifications.view')) api.get('/notifications/unread-count', { signal:controller.signal })
+        .then(r => { if (active) setUnread(r?.data?.data?.unreadCount ?? 0); }).catch(() => {});
+    };
+    window.addEventListener('sana:notifications-changed', refreshNotifications);
     if (hasPermission('notifications.view')) {
       api.get('/notifications/unread-count', { signal: controller.signal })
         .then(r => { if (active) setUnread(r?.data?.data?.unreadCount ?? 0); })
@@ -217,6 +222,7 @@ export default function Layout() {
     return () => {
       active = false;
       controller.abort();
+      window.removeEventListener('sana:notifications-changed', refreshNotifications);
     };
   }, [location.pathname, location.search, hasPermission]);
 

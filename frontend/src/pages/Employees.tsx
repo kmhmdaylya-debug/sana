@@ -91,7 +91,7 @@ export default function Employees() {
       .then(([co, po]) => {
         const companies: OptionRow[] = co?.data?.data ?? [];
         setOptions({ companies, positions: po?.data?.data ?? [] });
-        if (companies[0]?.id) setForm((f) => ({ ...f, companyId: companies[0].id }));
+        if (companies.length === 1) setForm((f) => ({ ...f, companyId: f.companyId || companies[0].id }));
       })
       .catch(() => toast('error', 'بارگذاری فهرست‌های انتخابی ناموفق بود.'));
   };

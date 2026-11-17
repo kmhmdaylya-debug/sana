@@ -12,6 +12,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { AppValidationPipe } from './common/pipes/app-validation.pipe';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { JwtStrategy } from './auth/jwt.strategy';
+import { swaggerAccess } from './common/guards/swagger-access';
 /** مقادیر BigInt (مبالغ ریالی) در پاسخ JSON به عدد تبدیل می‌شوند */
 (BigInt.prototype as any).toJSON = function () {
   return Number(this);
@@ -23,6 +25,8 @@ async function bootstrap(): Promise<void> {
   });
   const config = app.get(ConfigService);
   const reflector = app.get(Reflector);
+  const trustedProxies = config.get<string[]>('app.trustedProxies') ?? [];
+  if (trustedProxies.length) app.set('trust proxy', trustedProxies);
 
   app.setGlobalPrefix(config.get<string>('app.apiPrefix') ?? 'api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
@@ -77,6 +81,9 @@ async function bootstrap(): Promise<void> {
 
   const swaggerEnabled = config.get<boolean>('app.swaggerEnabled');
   if (swaggerEnabled) {
+    if (config.get<string>('app.env') === 'production') {
+      app.use(swaggerAccess(config, app.get(JwtService), app.get(JwtStrategy)));
+    }
     const docConfig = new DocumentBuilder()
       .setTitle('سامانه مدیریت منابع انسانی «سنا»')
       .setDescription(
@@ -117,30 +124,10 @@ async function bootstrap(): Promise<void> {
 
     const document = SwaggerModule.createDocument(app, docConfig);
     SwaggerModule.setup('api/docs', app, document, {
-      swaggerOptions: { persistAuthorization: true, docExpansion: 'none', filter: true },
+      swaggerOptions: { persistAuthorization: false, docExpansion: 'none', filter: true },
       customSiteTitle: 'سنا — مستندات API',
     });
 
-    // امن‌سازی دسترسی به Swagger در تولید — فقط از طریق احراز هویت یا IP مجاز
-    if (config.get<string>('app.env') === 'production') {
-      app.use('/api/docs', (req: any, res: any, next: any) => {
-        const allowedIps = (config.get<string[]>('app.swaggerAllowedIps') ?? []).concat(['127.0.0.1', '::1']);
-        const clientIp = req.ip ?? req.socket?.remoteAddress ?? '';
-        if (allowedIps.includes(clientIp)) return next();
-        const auth = req.headers?.authorization;
-        if (auth && auth.startsWith('Bearer ')) {
-          try {
-            const token = auth.slice(7);
-            const jwt = app.get(JwtService);
-            jwt.verify(token, { secret: config.get<string>('app.jwt.accessSecret') });
-            return next();
-          } catch {
-            return res.status(401).json({ success: false, message: 'دسترسی به مستندات API نیاز به احراز هویت دارد.' });
-          }
-        }
-        return res.status(403).json({ success: false, message: 'دسترسی به مستندات API مجاز نیست.' });
-      });
-    }
   }
 
   const port = config.get<number>('app.port') ?? 4114;

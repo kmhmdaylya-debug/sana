@@ -21,6 +21,8 @@ import { NotificationService } from "../common/notifications/notification.servic
 import { AuthenticatedUser } from "../common/decorators/current-user.decorator";
 import { PERMISSIONS } from "../common/constants/permissions";
 import { hashToken } from "../common/utils/crypto.util";
+import { attendanceBuckets, shiftBounds } from './attendance-calculation';
+import { calendarDayStart, shiftCalendarDay } from './daily-date.util';
 import { PaginationDto } from "../common/dto/pagination.dto";
 import {
   AttendanceEventDto,
@@ -502,21 +504,21 @@ export class AttendanceService {
     return this.prisma.$transaction(
       async (db) => {
         await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${employeeId}::uuid FOR UPDATE`;
-
+        const employee = await db.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { company: { select: { timezone: true } } } });
+        const zone = employee.company.timezone;
+        const firstDay = dateOnlyKey(from), lastDay = dateOnlyKey(to);
         const events = await db.attendanceEvent.findMany({
           where: {
             employeeId,
             eventTime: {
-              gte: dayBounds(asLocalDate(from)).start,
-              lte: dayBounds(asLocalDate(to)).end,
+              gte: calendarDayStart(shiftCalendarDay(firstDay, -1), zone),
+              lt: calendarDayStart(shiftCalendarDay(lastDay, 2), zone),
             },
           },
           orderBy: { eventTime: "asc" },
         });
-        if (!events.length) return;
-
         const assignments = await db.shiftAssignment.findMany({
-          where: { employeeId, workDate: { gte: from, lte: to } },
+          where: { employeeId, workDate: { gte: new Date(`${shiftCalendarDay(firstDay, -1)}T00:00:00Z`), lte: to } },
           include: { shift: true },
         });
         const assignmentByDate = new Map<
@@ -530,23 +532,18 @@ export class AttendanceService {
           where: {
             employeeId,
             status: "APPROVED",
-            startAt: { lte: dayBounds(asLocalDate(to)).end },
-            endAt: { gte: dayBounds(asLocalDate(from)).start },
+            startAt: { lt: calendarDayStart(shiftCalendarDay(lastDay, 1), zone) },
+            endAt: { gt: calendarDayStart(firstDay, zone) },
           },
           select: { startAt: true, endAt: true },
         });
 
-        const byDay = new Map<string, { ins: Date[]; outs: Date[] }>();
-        for (const ev of events) {
-          const key = dateOnlyKey(toDateOnly(ev.eventTime));
-          const bucket = byDay.get(key) ?? { ins: [], outs: [] };
-          (ev.type === AttendanceEventType.IN ? bucket.ins : bucket.outs).push(
-            ev.eventTime,
-          );
-          byDay.set(key, bucket);
+        const byDay = attendanceBuckets(events, assignments, zone);
+        for (const day of assignmentByDate.keys()) {
+          if (!byDay.has(day)) byDay.set(day, { ins: [], outs: [], pairedMinutes: 0, incomplete: true, suspicious: false });
         }
-
         for (const [dayKey, bucket] of byDay.entries()) {
+          if (dayKey < firstDay || dayKey > lastDay) continue;
           const workDate = new Date(`${dayKey}T00:00:00.000Z`);
           const current = await db.attendanceRecord.findUnique({
             where: { employeeId_workDate: { employeeId, workDate } },
@@ -565,12 +562,7 @@ export class AttendanceService {
 
           const assignment = assignmentByDate.get(dayKey);
           const shift = assignment?.shift;
-          const startMinutes = shift
-            ? this.timeToMin(shift.startTime)
-            : DEFAULT_START_MINUTES;
-          const endMinutes = shift
-            ? this.timeToMin(shift.endTime)
-            : DEFAULT_END_MINUTES;
+          const bounds = shiftBounds(dayKey, shift?.startTime ?? '08:00', shift?.endTime ?? '16:00', zone);
           const planned = shift ? shift.durationMinutes : DEFAULT_WORK_MINUTES;
           const breakMinutes = shift?.breakMinutes ?? 0;
 
@@ -583,21 +575,22 @@ export class AttendanceService {
           if (firstIn && lastOut) {
             workMinutes = Math.max(
               0,
-              minutesBetween(firstIn, lastOut) - breakMinutes,
+              Math.round(bucket.pairedMinutes) - breakMinutes,
             );
             overtimeMinutes = Math.max(0, workMinutes - planned);
-            const inLocal = firstIn.getHours() * 60 + firstIn.getMinutes();
-            lateMinutes = Math.max(0, inLocal - startMinutes);
-            const outLocal = lastOut.getHours() * 60 + lastOut.getMinutes();
-            earlyLeaveMinutes = Math.max(0, endMinutes - outLocal);
+            lateMinutes = Math.max(0, Math.round((firstIn.getTime() - bounds.start.getTime()) / 60000));
+            earlyLeaveMinutes = Math.max(0, Math.round((bounds.end.getTime() - lastOut.getTime()) / 60000));
           } else {
             status = AttendanceRecordStatus.INCOMPLETE;
           }
+          if (bucket.incomplete) status = AttendanceRecordStatus.INCOMPLETE;
+          if (bucket.suspicious) status = AttendanceRecordStatus.SUSPICIOUS;
+          if (!firstIn && !lastOut && assignment) status = AttendanceRecordStatus.ABSENT;
 
           const isLeave = leaves.some(
             (l) =>
-              l.startAt <= dayBounds(workDate).end &&
-              l.endAt >= dayBounds(workDate).start,
+              l.startAt < calendarDayStart(shiftCalendarDay(dayKey, 1), zone) &&
+              l.endAt > calendarDayStart(dayKey, zone),
           );
           if (isLeave && !firstIn) status = AttendanceRecordStatus.LEAVE;
 
@@ -638,15 +631,17 @@ export class AttendanceService {
     user: AuthenticatedUser,
   ) {
     const where: Prisma.AttendanceRecordWhereInput = {
-      employee: this.access.employeeWhereFor(user),
+      employee: {
+        AND: [this.access.employeeWhereFor(user)],
+        ...(query.orgUnitId ? { orgUnitId: query.orgUnitId } : {}),
+      },
       ...(query.employeeId ? { employeeId: query.employeeId } : {}),
-      ...(query.orgUnitId ? { employee: { orgUnitId: query.orgUnitId } } : {}),
-      ...(query.from
-        ? { workDate: { gte: toDateOnly(new Date(query.from)) } }
-        : {}),
-      ...(query.to
-        ? { workDate: { lte: toDateOnly(new Date(query.to)) } }
-        : {}),
+      ...((query.from || query.to) ? {
+        workDate: {
+          ...(query.from ? { gte: toDateOnly(new Date(query.from)) } : {}),
+          ...(query.to ? { lte: toDateOnly(new Date(query.to)) } : {}),
+        },
+      } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
 
@@ -1065,14 +1060,11 @@ export class AttendanceService {
             link: "/attendance",
           },
         });
-      await db.auditLog.create({
-        data: {
-          userId: user.id,
-          action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
-          entity: "AttendanceCorrection",
-          entityId: id,
-          after: JSON.stringify({ status: updated.status, field: row.field }),
-        },
+      await this.audit.recordInTransaction(db, user.id, {
+        action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
+        entity: "AttendanceCorrection",
+        entityId: id,
+        after: { status: updated.status, field: row.field },
       });
       return updated;
     };

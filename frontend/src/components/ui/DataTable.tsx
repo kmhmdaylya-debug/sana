@@ -8,6 +8,8 @@ export interface Column<T> {
   width?: number | string;
   sortValue?: (row: T) => string | number | null | undefined;
   sortable?: boolean;
+  /** توضیحات ستون برای دسترسی‌پذیری */
+  description?: string;
 }
 
 const collator = new Intl.Collator('fa', { numeric: true, sensitivity: 'base' });
@@ -33,15 +35,16 @@ export function DataTable<T extends Record<string, any>>({ columns, rows, loadin
   if (loading) return <div className="table-loading" role="status" aria-label="در حال دریافت اطلاعات">{[0,1,2,3,4].map(i => <div className="table-loading-row" key={i}><span className="skeleton" /><span className="skeleton" /><span className="skeleton" /></div>)}</div>;
   if (!rows.length) return <div className="table-state"><span className="empty-symbol"><Inbox size={24} /></span><p>{emptyMessage}</p></div>;
   return <div className="table-wrap" tabIndex={0} role="region" aria-label="جدول اطلاعات">
-    <table className="data-table">
+    <table className="data-table" role="grid">
       <thead><tr>{columns.map(c => {
         const canSort = c.sortable !== false && (!!c.sortValue || rows.some(row => ['string','number','boolean'].includes(typeof row[c.key])));
         const active = sort?.key === c.key;
-        return <th key={c.key} scope="col" style={c.width ? { width: c.width } : undefined} aria-sort={active ? (sort.direction === 1 ? 'ascending' : 'descending') : undefined}>
+        return <th key={c.key} scope="col" style={c.width ? { width: c.width } : undefined} aria-sort={active ? (sort.direction === 1 ? 'ascending' : 'descending') : undefined} aria-describedby={c.description ? `${c.key}-desc` : undefined}>
           {canSort ? <button type="button" className="table-sort" title={`مرتب‌سازی ${c.header} در همین صفحه`} onClick={() => setSort(active ? (sort.direction === 1 ? { key: c.key, direction: -1 } : null) : { key: c.key, direction: 1 })}>{c.header}{active ? (sort.direction === 1 ? <ArrowUp size={13} /> : <ArrowDown size={13} />) : <ArrowUpDown size={13} />}</button> : c.header}
+          {c.description && <span id={`${c.key}-desc`} className="sr-only">{c.description}</span>}
         </th>;
       })}{rowActions && <th scope="col" className="table-action-heading">عملیات</th>}</tr></thead>
-      <tbody>{ordered.map((row, idx) => <tr key={row.id ?? idx} className={rowClassName?.(row)}>{columns.map(c => <td key={c.key} data-label={c.header}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>)}{rowActions && <td><div className="table-actions">{rowActions(row)}</div></td>}</tr>)}</tbody>
+      <tbody>{ordered.map((row, idx) => <tr key={row.id ?? idx} className={rowClassName?.(row)} role="row">{columns.map(c => <td key={c.key} data-label={c.header}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>)}{rowActions && <td><div className="table-actions">{rowActions(row)}</div></td>}</tr>)}</tbody>
     </table>
   </div>;
 }

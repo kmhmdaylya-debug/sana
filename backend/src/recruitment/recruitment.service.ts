@@ -144,9 +144,13 @@ export class RecruitmentService {
     status: string,
     user: AuthenticatedUser,
   ) {
-    const req = await this.prisma.jobRequisition.findUnique({ where: { id } });
+    const transitions: Record<string, string[]> = { DRAFT: ['SUBMITTED', 'CLOSED'], SUBMITTED: ['APPROVED', 'REJECTED', 'CLOSED'], APPROVED: ['CLOSED'], REJECTED: ['DRAFT', 'CLOSED'], CLOSED: [] };
+    return this.prisma.$transaction(async db => {
+    await db.$queryRaw`SELECT id FROM "JobRequisition" WHERE id = ${id}::uuid FOR UPDATE`;
+    const req = await db.jobRequisition.findUnique({ where: { id } });
     if (!req) throw new NotFoundException("درخواست جذب یافت نشد.");
     await this.access.assertCompanyAccess(user, req.companyId);
+    if (!transitions[req.status]?.includes(status)) throw new BadRequestException('تغییر وضعیت درخواست جذب معتبر نیست.');
 
     // قاعده سرور: هیچ‌کس درخواست خودش را تأیید نمی‌کند
     if (
@@ -159,7 +163,7 @@ export class RecruitmentService {
       );
     }
 
-    await this.prisma.jobRequisition.update({
+    await db.jobRequisition.update({
       where: { id },
       data: {
         status,
@@ -167,7 +171,7 @@ export class RecruitmentService {
       },
     });
 
-    await this.audit.record(user.id, {
+    await this.audit.recordInTransaction(db, user.id, {
       action: status === "APPROVED" ? AuditAction.APPROVE : AuditAction.UPDATE,
       entity: "JobRequisition",
       entityId: id,
@@ -179,6 +183,7 @@ export class RecruitmentService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+    }, { maxWait: 10000, timeout: 30000 });
   }
 
   // =========================================================================
@@ -719,12 +724,14 @@ export class RecruitmentService {
 
   async createOffer(dto: CreateOfferDto, user: AuthenticatedUser) {
     await this.assertApplicantAccess(dto.applicantId, user);
-    const applicant = await this.prisma.applicant.findUnique({
+    return this.prisma.$transaction(async db => {
+    await db.$queryRaw`SELECT id FROM "Applicant" WHERE id = ${dto.applicantId}::uuid FOR UPDATE`;
+    const applicant = await db.applicant.findUnique({
       where: { id: dto.applicantId },
     });
     if (!applicant) throw new NotFoundException("داوطلب یافت نشد.");
 
-    const last = await this.prisma.offer.findFirst({
+    const last = await db.offer.findFirst({
       where: { applicantId: dto.applicantId },
       orderBy: { version: "desc" },
     });
@@ -734,7 +741,7 @@ export class RecruitmentService {
       );
     }
 
-    const row = await this.prisma.offer.create({
+    const row = await db.offer.create({
       data: {
         applicantId: dto.applicantId,
         version: (last?.version ?? 0) + 1,
@@ -746,7 +753,7 @@ export class RecruitmentService {
       },
     });
 
-    await this.audit.record(user.id, {
+    await this.audit.recordInTransaction(db, user.id, {
       action: AuditAction.CREATE,
       entity: "Offer",
       entityId: row.id,
@@ -758,6 +765,7 @@ export class RecruitmentService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+    }, { maxWait: 10000, timeout: 30000 });
   }
 
   async setOfferStatus(
@@ -765,7 +773,11 @@ export class RecruitmentService {
     dto: UpdateOfferStatusDto,
     user: AuthenticatedUser,
   ) {
-    const offer = await this.prisma.offer.findUnique({
+    const reference = await this.prisma.offer.findUnique({ where: { id }, select: { applicantId: true } });
+    if (!reference) throw new NotFoundException('پیشنهاد استخدام یافت نشد.');
+    return this.prisma.$transaction(async db => {
+    await db.$queryRaw`SELECT id FROM "Applicant" WHERE id = ${reference.applicantId}::uuid FOR UPDATE`;
+    const offer = await db.offer.findUnique({
       where: { id },
       include: {
         applicant: {
@@ -779,21 +791,25 @@ export class RecruitmentService {
     });
     if (!offer) throw new NotFoundException("پیشنهاد استخدام یافت نشد.");
     await this.assertApplicantAccess(offer.applicantId, user);
-
-    await this.prisma.offer.update({
+    const transitions: Record<OfferStatus, OfferStatus[]> = { DRAFT: ['SENT'], SENT: ['NEGOTIATING', 'ACCEPTED', 'REJECTED', 'EXPIRED'], NEGOTIATING: ['SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'], ACCEPTED: [], REJECTED: [], EXPIRED: [] };
+    if (!transitions[offer.status].includes(dto.status)) throw new BadRequestException('ترتیب مراحل پیشنهاد استخدام معتبر نیست.');
+    const latest = await db.offer.findFirst({ where: { applicantId: offer.applicantId }, orderBy: { version: 'desc' }, select: { id: true } });
+    if (latest?.id !== id) throw new BadRequestException('این پیشنهاد با نسخه جدیدتری جایگزین شده است.');
+    if (dto.status === 'ACCEPTED' && offer.expiresAt && offer.expiresAt <= new Date()) throw new BadRequestException('مهلت پیشنهاد استخدام گذشته است.');
+    await db.offer.update({
       where: { id },
       data: { status: dto.status },
     });
 
     // پذیرش پیشنهاد → داوطلب HIRED می‌شود
     if (dto.status === OfferStatus.ACCEPTED) {
-      await this.prisma.applicant.update({
+      await db.applicant.update({
         where: { id: offer.applicantId },
         data: { status: ApplicantStatus.HIRED },
       });
     }
 
-    await this.audit.record(user.id, {
+    await this.audit.recordInTransaction(db, user.id, {
       action: AuditAction.UPDATE,
       entity: "Offer",
       entityId: id,
@@ -806,6 +822,7 @@ export class RecruitmentService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+    }, { maxWait: 10000, timeout: 30000 });
   }
 
   private applicantPublic<

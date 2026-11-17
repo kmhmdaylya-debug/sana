@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { getDefaultCompanyId } from '../lib/org';
+import CompanyPicker from '../components/CompanyPicker';
 import { useList } from '../lib/useList';
 import { Tabs,
   Badge,
@@ -57,6 +58,7 @@ export default function Org() {
   const openEdit = (kind: 'company' | 'branch' | 'unit' | 'position', row: any) => {
     setEditingId(row.id);
     setForm({
+      companyId: row.companyId ?? '',
       code: row.code ?? '',
       name: row.name ?? '',
       legalName: row.legalName ?? '',
@@ -105,8 +107,9 @@ export default function Org() {
     }
 
     // شرکت از سمت کاربر پرسیده نمی‌شود؛ خودکار به شرکت پیش‌فرض متصل می‌شود
-    if (kind !== 'company') {
-      const cid = await getDefaultCompanyId();
+    try {
+    if (kind !== 'company' && !editingId) {
+      const cid = form.companyId || await getDefaultCompanyId();
       if (!cid) {
         toast('error', 'ابتدا یک شرکت بسازید.');
         setSaving(false);
@@ -114,7 +117,6 @@ export default function Org() {
       }
       payload.companyId = cid;
     }
-    try {
       if (editingId) {
         await api.patch(`${urls[kind]}/${editingId}`, payload);
         toast('success', 'به‌روزرسانی شد.');
@@ -246,6 +248,7 @@ export default function Org() {
         }
       >
         <div className="form-grid">
+          {modal !== 'company' && !editingId && <CompanyPicker value={form.companyId ?? ''} onValueChange={companyId => setForm(f => ({ ...f, companyId }))} disabled={saving} />}
           {modal === 'company' && (
             <>
               <Field label="کد" required><Input className="ltr" value={form.code ?? ''} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} /></Field>
