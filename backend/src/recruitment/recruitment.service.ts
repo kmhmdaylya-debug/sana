@@ -2,19 +2,21 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   ApplicantStatus,
   AuditAction,
   InterviewStatus,
   OfferStatus,
   Prisma,
-} from '@prisma/client';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AuditService } from '../common/audit/audit.service';
-import { NotificationService } from '../common/notifications/notification.service';
-import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { PaginationDto } from '../common/dto/pagination.dto';
+} from "@prisma/client";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { AuditService } from "../common/audit/audit.service";
+import { AccessService } from "../common/access/access.service";
+import { NotificationService } from "../common/notifications/notification.service";
+import { AuthenticatedUser } from "../common/decorators/current-user.decorator";
+import { PaginationDto } from "../common/dto/pagination.dto";
+import { employeeVisibility } from "../employees/employee-privacy";
 import {
   ApplicantQueryDto,
   CreateApplicantDto,
@@ -29,7 +31,7 @@ import {
   UpdateApplicantStatusDto,
   UpdateInterviewDto,
   UpdateOfferStatusDto,
-} from './dto/recruitment.dto';
+} from "./dto/recruitment.dto";
 
 @Injectable()
 export class RecruitmentService {
@@ -37,17 +39,25 @@ export class RecruitmentService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
+    private readonly access: AccessService,
   ) {}
 
   // =========================================================================
   // درخواست جذب
   // =========================================================================
 
-  async listRequisitions(query: RequisitionQueryDto, pagination: PaginationDto) {
+  async listRequisitions(
+    query: RequisitionQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.JobRequisitionWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
+      ...(query.search
+        ? { title: { contains: query.search, mode: "insensitive" } }
+        : {}),
     };
 
     const page = pagination.page ?? 1;
@@ -58,7 +68,7 @@ export class RecruitmentService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           company: { select: { id: true, code: true, name: true } },
           orgUnit: { select: { id: true, name: true } },
@@ -68,9 +78,14 @@ export class RecruitmentService {
     ]);
 
     // نام درخواست‌دهنده‌ها (مدل رابطه مستقیم ندارد)
-    const requesterIds = [...new Set(rows.map((r) => r.requestedById).filter(Boolean))] as string[];
+    const requesterIds = [
+      ...new Set(rows.map((r) => r.requestedById).filter(Boolean)),
+    ] as string[];
     const requesters = requesterIds.length
-      ? await this.prisma.user.findMany({ where: { id: { in: requesterIds } }, select: { id: true, fullName: true } })
+      ? await this.prisma.user.findMany({
+          where: { id: { in: requesterIds } },
+          select: { id: true, fullName: true },
+        })
       : [];
 
     return {
@@ -93,6 +108,8 @@ export class RecruitmentService {
   }
 
   async createRequisition(dto: CreateRequisitionDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
+    await this.access.assertEmployeeRelations(dto.companyId, dto);
     const row = await this.prisma.jobRequisition.create({
       data: {
         companyId: dto.companyId,
@@ -102,14 +119,14 @@ export class RecruitmentService {
         headcount: dto.headcount,
         reason: dto.reason ?? null,
         budget: BigInt(dto.budget ?? 0),
-        status: 'DRAFT',
+        status: "DRAFT",
         requestedById: user.id,
       },
     });
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'JobRequisition',
+      entity: "JobRequisition",
       entityId: row.id,
       after: { title: row.title, headcount: row.headcount },
     });
@@ -122,26 +139,37 @@ export class RecruitmentService {
   }
 
   /** تغییر وضعیت درخواست جذب (ثبت/تأیید/بایگانی) */
-  async setRequisitionStatus(id: string, status: string, user: AuthenticatedUser) {
+  async setRequisitionStatus(
+    id: string,
+    status: string,
+    user: AuthenticatedUser,
+  ) {
     const req = await this.prisma.jobRequisition.findUnique({ where: { id } });
-    if (!req) throw new NotFoundException('درخواست جذب یافت نشد.');
+    if (!req) throw new NotFoundException("درخواست جذب یافت نشد.");
+    await this.access.assertCompanyAccess(user, req.companyId);
 
     // قاعده سرور: هیچ‌کس درخواست خودش را تأیید نمی‌کند
-    if (status === 'APPROVED' && req.requestedById === user.id && !user.isSuperAdmin) {
-      throw new BadRequestException('هیچ‌کس اجازه تأیید درخواست جذب خودش را ندارد.');
+    if (
+      status === "APPROVED" &&
+      req.requestedById === user.id &&
+      !user.isSuperAdmin
+    ) {
+      throw new BadRequestException(
+        "هیچ‌کس اجازه تأیید درخواست جذب خودش را ندارد.",
+      );
     }
 
     await this.prisma.jobRequisition.update({
       where: { id },
       data: {
         status,
-        ...(status === 'APPROVED' ? { approvedAt: new Date() } : {}),
+        ...(status === "APPROVED" ? { approvedAt: new Date() } : {}),
       },
     });
 
     await this.audit.record(user.id, {
-      action: status === 'APPROVED' ? AuditAction.APPROVE : AuditAction.UPDATE,
-      entity: 'JobRequisition',
+      action: status === "APPROVED" ? AuditAction.APPROVE : AuditAction.UPDATE,
+      entity: "JobRequisition",
       entityId: id,
       after: { status },
     });
@@ -157,8 +185,13 @@ export class RecruitmentService {
   // آگهی استخدام
   // =========================================================================
 
-  async listOpenings(query: OpeningQueryDto, pagination: PaginationDto) {
+  async listOpenings(
+    query: OpeningQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.JobOpeningWhereInput = {
+      requisition: await this.access.companyWhereFor(user),
       ...(query.requisitionId ? { requisitionId: query.requisitionId } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
@@ -171,10 +204,16 @@ export class RecruitmentService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           requisition: {
-            select: { id: true, title: true, companyId: true, status: true, company: { select: { code: true, name: true } } },
+            select: {
+              id: true,
+              title: true,
+              companyId: true,
+              status: true,
+              company: { select: { code: true, name: true } },
+            },
           },
           _count: { select: { applicants: true } },
         },
@@ -201,10 +240,15 @@ export class RecruitmentService {
   }
 
   async createOpening(dto: CreateOpeningDto, user: AuthenticatedUser) {
-    const requisition = await this.prisma.jobRequisition.findUnique({ where: { id: dto.requisitionId } });
-    if (!requisition) throw new NotFoundException('درخواست جذب یافت نشد.');
-    if (requisition.status !== 'APPROVED') {
-      throw new BadRequestException('تا تأیید نشدن درخواست جذب نمی‌توان آگهی ثبت کرد.');
+    const requisition = await this.prisma.jobRequisition.findUnique({
+      where: { id: dto.requisitionId },
+    });
+    if (!requisition) throw new NotFoundException("درخواست جذب یافت نشد.");
+    await this.access.assertCompanyAccess(user, requisition.companyId);
+    if (requisition.status !== "APPROVED") {
+      throw new BadRequestException(
+        "تا تأیید نشدن درخواست جذب نمی‌توان آگهی ثبت کرد.",
+      );
     }
 
     const row = await this.prisma.jobOpening.create({
@@ -217,13 +261,15 @@ export class RecruitmentService {
         employmentType: dto.employmentType,
         salaryMin: BigInt(dto.salaryMin ?? 0),
         salaryMax: BigInt(dto.salaryMax ?? 0),
-        applicationDeadline: dto.applicationDeadline ? new Date(dto.applicationDeadline) : null,
+        applicationDeadline: dto.applicationDeadline
+          ? new Date(dto.applicationDeadline)
+          : null,
       },
     });
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'JobOpening',
+      entity: "JobOpening",
       entityId: row.id,
       after: { title: row.title, requisitionId: dto.requisitionId },
     });
@@ -239,8 +285,14 @@ export class RecruitmentService {
   // داوطلبان
   // =========================================================================
 
-  async listApplicants(query: ApplicantQueryDto, pagination: PaginationDto) {
+  async listApplicants(
+    query: ApplicantQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
+    const visibility = employeeVisibility(user);
     const where: Prisma.ApplicantWhereInput = {
+      opening: { requisition: await this.access.companyWhereFor(user) },
       ...(query.openingId ? { openingId: query.openingId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.search
@@ -248,8 +300,12 @@ export class RecruitmentService {
             OR: [
               { firstName: { contains: query.search } },
               { lastName: { contains: query.search } },
-              { nationalId: { contains: query.search } },
-              { mobile: { contains: query.search } },
+              ...(visibility.personal
+                ? [
+                    { nationalId: { contains: query.search } },
+                    { mobile: { contains: query.search } },
+                  ]
+                : []),
             ],
           }
         : {}),
@@ -263,16 +319,19 @@ export class RecruitmentService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           opening: { select: { id: true, title: true, employmentType: true } },
-          _count: { select: { interviews: true, offers: true, documents: true } },
+          _count: {
+            select: { interviews: true, offers: true, documents: true },
+          },
         },
       }),
     ]);
 
+    await this.auditSensitiveRead(user, "Applicant", visibility.personal, null);
     return {
-      data: rows,
+      data: rows.map((row) => this.applicantPublic(row, user)),
       meta: {
         total,
         page,
@@ -286,34 +345,65 @@ export class RecruitmentService {
     };
   }
 
-  async getApplicant(id: string) {
+  async getApplicant(id: string, user: AuthenticatedUser) {
+    await this.assertApplicantAccess(id, user);
     const row = await this.prisma.applicant.findUnique({
       where: { id },
       include: {
-        opening: { select: { id: true, title: true, employmentType: true, requisition: { select: { title: true } } } },
-        documents: { orderBy: { createdAt: 'desc' } },
-        interviews: {
-          orderBy: { scheduledAt: 'desc' },
-          include: {
-            interviewer: { select: { id: true, fullName: true } },
-            feedback: { include: { interviewer: { select: { fullName: true } } } },
+        opening: {
+          select: {
+            id: true,
+            title: true,
+            employmentType: true,
+            requisition: { select: { title: true } },
           },
         },
-        offers: { orderBy: { version: 'desc' } },
+        documents: { orderBy: { createdAt: "desc" } },
+        interviews: {
+          orderBy: { scheduledAt: "desc" },
+          include: {
+            interviewer: { select: { id: true, fullName: true } },
+            feedback: {
+              include: { interviewer: { select: { fullName: true } } },
+            },
+          },
+        },
+        offers: { orderBy: { version: "desc" } },
       },
     });
-    if (!row) throw new NotFoundException('داوطلب یافت نشد.');
+    if (!row) throw new NotFoundException("داوطلب یافت نشد.");
+    const visibility = employeeVisibility(user);
+    await this.auditSensitiveRead(
+      user,
+      "Applicant",
+      visibility.personal || visibility.salary,
+      id,
+    );
     return {
-      data: { ...row, offers: row.offers.map((o) => ({ ...o, salary: Number(o.salary) })) },
+      data: {
+        ...this.applicantPublic(row, user),
+        documents: visibility.personal
+          ? row.documents.map(({ filePath: _path, ...document }) => document)
+          : [],
+        interviews: row.interviews.map((interview) => ({
+          ...interview,
+          feedback: visibility.personal ? interview.feedback : [],
+        })),
+        offers: row.offers.map((offer) => this.offerPublic(offer, user)),
+      },
       success: true,
       timestamp: new Date().toISOString(),
     };
   }
 
   async createApplicant(dto: CreateApplicantDto, user: AuthenticatedUser) {
-    const opening = await this.prisma.jobOpening.findUnique({ where: { id: dto.openingId } });
-    if (!opening) throw new NotFoundException('آگهی استخدام یافت نشد.');
-    if (opening.status !== 'OPEN') throw new BadRequestException('این آگهی دیگر فعال نیست.');
+    await this.assertOpeningAccess(dto.openingId, user);
+    const opening = await this.prisma.jobOpening.findUnique({
+      where: { id: dto.openingId },
+    });
+    if (!opening) throw new NotFoundException("آگهی استخدام یافت نشد.");
+    if (opening.status !== "OPEN")
+      throw new BadRequestException("این آگهی دیگر فعال نیست.");
 
     const row = await this.prisma.applicant.create({
       data: {
@@ -331,9 +421,12 @@ export class RecruitmentService {
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'Applicant',
+      entity: "Applicant",
       entityId: row.id,
-      after: { openingId: dto.openingId, name: `${dto.firstName} ${dto.lastName}` },
+      after: {
+        openingId: dto.openingId,
+        name: `${dto.firstName} ${dto.lastName}`,
+      },
     });
 
     return {
@@ -344,21 +437,29 @@ export class RecruitmentService {
   }
 
   /** تغییر مرحله داوطلب در فرآیند جذب */
-  async setApplicantStatus(id: string, dto: UpdateApplicantStatusDto, user: AuthenticatedUser) {
+  async setApplicantStatus(
+    id: string,
+    dto: UpdateApplicantStatusDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.assertApplicantAccess(id, user);
     const applicant = await this.prisma.applicant.findUnique({
       where: { id },
       include: { opening: { select: { title: true } } },
     });
-    if (!applicant) throw new NotFoundException('داوطلب یافت نشد.');
+    if (!applicant) throw new NotFoundException("داوطلب یافت نشد.");
 
     await this.prisma.applicant.update({
       where: { id },
-      data: { status: dto.status, stageNote: dto.stageNote ?? applicant.stageNote },
+      data: {
+        status: dto.status,
+        stageNote: dto.stageNote ?? applicant.stageNote,
+      },
     });
 
     await this.audit.record(user.id, {
       action: AuditAction.UPDATE,
-      entity: 'Applicant',
+      entity: "Applicant",
       entityId: id,
       before: { status: applicant.status },
       after: { status: dto.status },
@@ -375,8 +476,16 @@ export class RecruitmentService {
   // مصاحبه‌ها
   // =========================================================================
 
-  async listInterviews(pagination: PaginationDto, applicantId?: string) {
+  async listInterviews(
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+    applicantId?: string,
+  ) {
     const where: Prisma.InterviewWhereInput = {
+      applicant: {
+        opening: { requisition: await this.access.companyWhereFor(user) },
+      },
+      opening: { requisition: await this.access.companyWhereFor(user) },
       ...(applicantId ? { applicantId } : {}),
     };
 
@@ -388,9 +497,11 @@ export class RecruitmentService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { scheduledAt: 'desc' },
+        orderBy: { scheduledAt: "desc" },
         include: {
-          applicant: { select: { id: true, firstName: true, lastName: true, status: true } },
+          applicant: {
+            select: { id: true, firstName: true, lastName: true, status: true },
+          },
           opening: { select: { title: true } },
           interviewer: { select: { id: true, fullName: true } },
           _count: { select: { feedback: true } },
@@ -414,10 +525,16 @@ export class RecruitmentService {
   }
 
   async createInterview(dto: CreateInterviewDto, user: AuthenticatedUser) {
-    const applicant = await this.prisma.applicant.findUnique({ where: { id: dto.applicantId } });
-    if (!applicant) throw new NotFoundException('داوطلب یافت نشد.');
+    const companyId = await this.assertApplicantAccess(dto.applicantId, user);
+    await this.access.assertCompanyMember(user, companyId, {
+      userId: dto.interviewerId,
+    });
+    const applicant = await this.prisma.applicant.findUnique({
+      where: { id: dto.applicantId },
+    });
+    if (!applicant) throw new NotFoundException("داوطلب یافت نشد.");
     if (applicant.openingId !== dto.openingId) {
-      throw new BadRequestException('داوطلب به این آگهی تعلق ندارد.');
+      throw new BadRequestException("داوطلب به این آگهی تعلق ندارد.");
     }
 
     const row = await this.prisma.interview.create({
@@ -426,13 +543,13 @@ export class RecruitmentService {
         openingId: dto.openingId,
         interviewerId: dto.interviewerId ?? null,
         scheduledAt: new Date(dto.scheduledAt),
-        mode: dto.mode ?? 'ONSITE',
+        mode: dto.mode ?? "ONSITE",
       },
     });
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'Interview',
+      entity: "Interview",
       entityId: row.id,
       after: { applicantId: dto.applicantId, scheduledAt: dto.scheduledAt },
     });
@@ -440,8 +557,8 @@ export class RecruitmentService {
     // اطلاع به مصاحبه‌گر
     if (dto.interviewerId && dto.interviewerId !== user.id) {
       await this.notifications.notify(dto.interviewerId, {
-        type: 'SYSTEM',
-        title: 'مصاحبه به شما واگذار شد',
+        type: "SYSTEM",
+        title: "مصاحبه به شما واگذار شد",
         body: `مصاحبه داوطلب «${applicant.firstName} ${applicant.lastName}»`,
         link: `/recruitment/applicants/${dto.applicantId}`,
       });
@@ -454,22 +571,30 @@ export class RecruitmentService {
     };
   }
 
-  async updateInterview(id: string, dto: UpdateInterviewDto, user: AuthenticatedUser) {
+  async updateInterview(
+    id: string,
+    dto: UpdateInterviewDto,
+    user: AuthenticatedUser,
+  ) {
     const interview = await this.prisma.interview.findUnique({ where: { id } });
-    if (!interview) throw new NotFoundException('مصاحبه یافت نشد.');
+    if (!interview) throw new NotFoundException("مصاحبه یافت نشد.");
+    await this.assertApplicantAccess(interview.applicantId, user);
+    await this.assertOpeningAccess(interview.openingId, user);
 
     const row = await this.prisma.interview.update({
       where: { id },
       data: {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.score !== undefined ? { score: dto.score } : {}),
-        ...(dto.scheduledAt !== undefined ? { scheduledAt: new Date(dto.scheduledAt) } : {}),
+        ...(dto.scheduledAt !== undefined
+          ? { scheduledAt: new Date(dto.scheduledAt) }
+          : {}),
       },
     });
 
     await this.audit.record(user.id, {
       action: AuditAction.UPDATE,
-      entity: 'Interview',
+      entity: "Interview",
       entityId: id,
       before: { status: interview.status },
       after: { status: dto.status ?? undefined, score: dto.score ?? undefined },
@@ -483,17 +608,36 @@ export class RecruitmentService {
   }
 
   /** ثبت بازخورد مصاحبه — فقط مصاحبه‌گر خودش */
-  async addFeedback(interviewId: string, dto: CreateInterviewFeedbackDto, user: AuthenticatedUser) {
-    const interview = await this.prisma.interview.findUnique({ where: { id: interviewId } });
-    if (!interview) throw new NotFoundException('مصاحبه یافت نشد.');
-    if (interview.interviewerId && interview.interviewerId !== user.id && !user.isSuperAdmin) {
-      throw new BadRequestException('فقط مصاحبه‌گر تعیین‌شده می‌تواند بازخورد ثبت کند.');
+  async addFeedback(
+    interviewId: string,
+    dto: CreateInterviewFeedbackDto,
+    user: AuthenticatedUser,
+  ) {
+    const interview = await this.prisma.interview.findUnique({
+      where: { id: interviewId },
+    });
+    if (!interview) throw new NotFoundException("مصاحبه یافت نشد.");
+    await this.assertApplicantAccess(interview.applicantId, user);
+    await this.assertOpeningAccess(interview.openingId, user);
+    if (
+      interview.interviewerId &&
+      interview.interviewerId !== user.id &&
+      !user.isSuperAdmin
+    ) {
+      throw new BadRequestException(
+        "فقط مصاحبه‌گر تعیین‌شده می‌تواند بازخورد ثبت کند.",
+      );
     }
 
     const duplicate = await this.prisma.interviewFeedback.findUnique({
-      where: { interviewId_interviewerId: { interviewId, interviewerId: user.id } },
+      where: {
+        interviewId_interviewerId: { interviewId, interviewerId: user.id },
+      },
     });
-    if (duplicate) throw new BadRequestException('بازخورد شما برای این مصاحبه قبلاً ثبت شده است.');
+    if (duplicate)
+      throw new BadRequestException(
+        "بازخورد شما برای این مصاحبه قبلاً ثبت شده است.",
+      );
 
     const row = await this.prisma.interviewFeedback.create({
       data: {
@@ -507,7 +651,7 @@ export class RecruitmentService {
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'InterviewFeedback',
+      entity: "InterviewFeedback",
       entityId: row.id,
     });
 
@@ -522,8 +666,15 @@ export class RecruitmentService {
   // پیشنهاد استخدام (Offer)
   // =========================================================================
 
-  async listOffers(query: OfferQueryDto, pagination: PaginationDto) {
+  async listOffers(
+    query: OfferQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.OfferWhereInput = {
+      applicant: {
+        opening: { requisition: await this.access.companyWhereFor(user) },
+      },
       ...(query.applicantId ? { applicantId: query.applicantId } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
@@ -536,15 +687,23 @@ export class RecruitmentService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
-          applicant: { select: { id: true, firstName: true, lastName: true, status: true } },
+          applicant: {
+            select: { id: true, firstName: true, lastName: true, status: true },
+          },
         },
       }),
     ]);
 
+    await this.auditSensitiveRead(
+      user,
+      "Offer",
+      employeeVisibility(user).salary,
+      null,
+    );
     return {
-      data: rows.map((o) => ({ ...o, salary: Number(o.salary) })),
+      data: rows.map((offer) => this.offerPublic(offer, user)),
       meta: {
         total,
         page,
@@ -559,15 +718,20 @@ export class RecruitmentService {
   }
 
   async createOffer(dto: CreateOfferDto, user: AuthenticatedUser) {
-    const applicant = await this.prisma.applicant.findUnique({ where: { id: dto.applicantId } });
-    if (!applicant) throw new NotFoundException('داوطلب یافت نشد.');
+    await this.assertApplicantAccess(dto.applicantId, user);
+    const applicant = await this.prisma.applicant.findUnique({
+      where: { id: dto.applicantId },
+    });
+    if (!applicant) throw new NotFoundException("داوطلب یافت نشد.");
 
     const last = await this.prisma.offer.findFirst({
       where: { applicantId: dto.applicantId },
-      orderBy: { version: 'desc' },
+      orderBy: { version: "desc" },
     });
     if (last && last.status === OfferStatus.ACCEPTED) {
-      throw new BadRequestException('پیشنهاد پذیرفته‌شده قبلی وجود دارد؛ برای تغییر، نسخه مذاکره ثبت کنید.');
+      throw new BadRequestException(
+        "پیشنهاد پذیرفته‌شده قبلی وجود دارد؛ برای تغییر، نسخه مذاکره ثبت کنید.",
+      );
     }
 
     const row = await this.prisma.offer.create({
@@ -584,7 +748,7 @@ export class RecruitmentService {
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'Offer',
+      entity: "Offer",
       entityId: row.id,
       after: { applicantId: dto.applicantId, version: row.version },
     });
@@ -596,23 +760,42 @@ export class RecruitmentService {
     };
   }
 
-  async setOfferStatus(id: string, dto: UpdateOfferStatusDto, user: AuthenticatedUser) {
+  async setOfferStatus(
+    id: string,
+    dto: UpdateOfferStatusDto,
+    user: AuthenticatedUser,
+  ) {
     const offer = await this.prisma.offer.findUnique({
       where: { id },
-      include: { applicant: { select: { firstName: true, lastName: true, opening: { select: { title: true } } } } },
+      include: {
+        applicant: {
+          select: {
+            firstName: true,
+            lastName: true,
+            opening: { select: { title: true } },
+          },
+        },
+      },
     });
-    if (!offer) throw new NotFoundException('پیشنهاد استخدام یافت نشد.');
+    if (!offer) throw new NotFoundException("پیشنهاد استخدام یافت نشد.");
+    await this.assertApplicantAccess(offer.applicantId, user);
 
-    await this.prisma.offer.update({ where: { id }, data: { status: dto.status } });
+    await this.prisma.offer.update({
+      where: { id },
+      data: { status: dto.status },
+    });
 
     // پذیرش پیشنهاد → داوطلب HIRED می‌شود
     if (dto.status === OfferStatus.ACCEPTED) {
-      await this.prisma.applicant.update({ where: { id: offer.applicantId }, data: { status: ApplicantStatus.HIRED } });
+      await this.prisma.applicant.update({
+        where: { id: offer.applicantId },
+        data: { status: ApplicantStatus.HIRED },
+      });
     }
 
     await this.audit.record(user.id, {
       action: AuditAction.UPDATE,
-      entity: 'Offer',
+      entity: "Offer",
       entityId: id,
       before: { status: offer.status },
       after: { status: dto.status },
@@ -623,5 +806,78 @@ export class RecruitmentService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  private applicantPublic<
+    T extends {
+      nationalId: string | null;
+      mobile: string | null;
+      email: string | null;
+      resumePath: string | null;
+      stageNote: string | null;
+    },
+  >(row: T, user: AuthenticatedUser) {
+    const { personal } = employeeVisibility(user);
+    return {
+      ...row,
+      nationalId: personal ? row.nationalId : null,
+      mobile: personal ? row.mobile : null,
+      email: personal ? row.email : null,
+      stageNote: personal ? row.stageNote : null,
+      // Storage paths are never public download URLs.
+      resumePath: null,
+      canViewSensitive: personal,
+    };
+  }
+
+  private offerPublic<T extends { salary: bigint; notes: string | null }>(
+    row: T,
+    user: AuthenticatedUser,
+  ) {
+    const visibility = employeeVisibility(user);
+    return {
+      ...row,
+      salary: visibility.salary ? Number(row.salary) : null,
+      notes: visibility.personal && visibility.salary ? row.notes : null,
+    };
+  }
+
+  private async auditSensitiveRead(
+    user: AuthenticatedUser,
+    entity: string,
+    visible: boolean,
+    entityId: string | null,
+  ) {
+    if (visible)
+      await this.audit.recordInTransaction(this.prisma, user.id, {
+        action: AuditAction.VIEW_SENSITIVE,
+        entity,
+        entityId,
+      });
+  }
+
+  private async assertOpeningAccess(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<string> {
+    const opening = await this.prisma.jobOpening.findUnique({
+      where: { id },
+      select: { requisition: { select: { companyId: true } } },
+    });
+    if (!opening) throw new NotFoundException("آگهی استخدام یافت نشد.");
+    await this.access.assertCompanyAccess(user, opening.requisition.companyId);
+    return opening.requisition.companyId;
+  }
+
+  private async assertApplicantAccess(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<string> {
+    const applicant = await this.prisma.applicant.findUnique({
+      where: { id },
+      select: { openingId: true },
+    });
+    if (!applicant) throw new NotFoundException("داوطلب یافت نشد.");
+    return this.assertOpeningAccess(applicant.openingId, user);
   }
 }

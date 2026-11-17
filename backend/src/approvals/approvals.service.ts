@@ -4,7 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   ApprovalDecision,
   ApprovalStatus,
@@ -16,12 +16,19 @@ import {
   NotificationType,
   Prisma,
   UserStatus,
-} from '@prisma/client';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AuditService } from '../common/audit/audit.service';
-import { AccessService } from '../common/access/access.service';
-import { NotificationService } from '../common/notifications/notification.service';
-import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
+} from "@prisma/client";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { AuditService } from "../common/audit/audit.service";
+import { AccessService } from "../common/access/access.service";
+import { NotificationService } from "../common/notifications/notification.service";
+import { AuthenticatedUser } from "../common/decorators/current-user.decorator";
+import { LeavesService } from "../leaves/leaves.service";
+import { ShiftsService } from "../shifts/shifts.service";
+import { MissionsService } from "../missions/missions.service";
+import { LoansService } from "../loans/loans.service";
+import { AttendanceService } from "../attendance/attendance.service";
+import { LifecycleService } from "../lifecycle/lifecycle.service";
+import { PayrollService } from "../payroll/payroll.service";
 import {
   ApprovalFlowQueryDto,
   ApprovalInstanceQueryDto,
@@ -32,17 +39,19 @@ import {
   ExpireOverdueDto,
   InboxQueryDto,
   UpdateApprovalFlowDto,
-} from './dto/approvals.dto';
+} from "./dto/approvals.dto";
 
 /* ==========================================================================
  * انواع کمکی
  * ========================================================================== */
 
 /** پیامد یک رویداد گردش تأیید */
-export type ApprovalOutcome = 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION' | 'CANCELLED';
+export type ApprovalOutcome =
+  "APPROVED" | "REJECTED" | "NEEDS_REVISION" | "CANCELLED";
 
 /** بافت ارسال‌شده به هندلر پایان گردش */
 export interface ApprovalSubjectContext {
+  transaction?: Prisma.TransactionClient;
   subjectType: string;
   subjectId: string;
   instanceId: string;
@@ -77,13 +86,18 @@ interface StepContext {
   payload: Record<string, unknown>;
 }
 
-const SEPARATOR = '__v';
+const SEPARATOR = "__v";
 
 /** نقش‌هایی که به‌عنوان «منابع انسانی» شناخته می‌شوند */
-const HR_ROLE_CODES = ['hr.admin', 'hr.manager', 'hr.officer', 'hr.user', 'hr'];
+const HR_ROLE_CODES = ["hr.admin", "hr.manager", "hr.officer", "hr.user", "hr"];
 
 /** نقش‌هایی که به‌عنوان «مالی» شناخته می‌شوند */
-const FINANCE_ROLE_CODES = ['finance.manager', 'finance.officer', 'accountant', 'finance'];
+const FINANCE_ROLE_CODES = [
+  "finance.manager",
+  "finance.officer",
+  "accountant",
+  "finance",
+];
 
 /* ==========================================================================
  * سرویس گردش تأیید (موتور گردش عمومی)
@@ -105,6 +119,13 @@ export class ApprovalsService {
     private readonly audit: AuditService,
     private readonly access: AccessService,
     private readonly notification: NotificationService,
+    private readonly leaves: LeavesService,
+    private readonly shifts: ShiftsService,
+    private readonly missions: MissionsService,
+    private readonly loans: LoansService,
+    private readonly attendance: AttendanceService,
+    private readonly lifecycle: LifecycleService,
+    private readonly payroll: PayrollService,
   ) {
     this.registerBuiltInHandlers();
   }
@@ -114,7 +135,10 @@ export class ApprovalsService {
    * ------------------------------------------------------------------ */
 
   /** ثبت/جایگزینی هندلر پایان گردش برای یک نوع موضوع */
-  static registerHandler(subjectType: string, handler: ApprovalSubjectHandler): void {
+  static registerHandler(
+    subjectType: string,
+    handler: ApprovalSubjectHandler,
+  ): void {
     ApprovalsService.handlers.set(subjectType, handler);
   }
 
@@ -128,6 +152,24 @@ export class ApprovalsService {
    * اگر ماژول دیگری هندلری برای همان موضوع ثبت کرده باشد، دست‌نخورده می‌ماند.
    */
   private registerBuiltInHandlers(): void {
+    for (const type of [
+      ApprovalSubjectType.MISSION,
+      ApprovalSubjectType.LOAN,
+      ApprovalSubjectType.ATTENDANCE_CORRECTION,
+      ApprovalSubjectType.TERMINATION,
+      ApprovalSubjectType.PAYROLL,
+    ]) {
+      if (!ApprovalsService.handlers.has(type))
+        ApprovalsService.registerHandler(type, {
+          onApproved: (ctx) => this.applyDomainOutcome(ctx, "APPROVE"),
+          ...(type === ApprovalSubjectType.PAYROLL
+            ? {}
+            : {
+                onRejected: (ctx: ApprovalSubjectContext) =>
+                  this.applyDomainOutcome(ctx, "REJECT"),
+              }),
+        });
+    }
     if (!ApprovalsService.handlers.has(ApprovalSubjectType.LEAVE)) {
       ApprovalsService.registerHandler(ApprovalSubjectType.LEAVE, {
         onApproved: (ctx) => this.applyLeaveApproved(ctx),
@@ -150,16 +192,19 @@ export class ApprovalsService {
    * ------------------------------------------------------------------ */
 
   /** فهرست گردش‌های تأیید همراه با مراحل */
-  async listFlows(query: ApprovalFlowQueryDto) {
+  async listFlows(query: ApprovalFlowQueryDto, user: AuthenticatedUser) {
     const where: Prisma.ApprovalFlowWhereInput = {
+      AND: [
+        { OR: [{ companyId: null }, await this.access.companyWhereFor(user)] },
+      ],
       ...(query.subjectType ? { subjectType: query.subjectType } : {}),
       ...(query.code ? { code: { contains: query.code } } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
       ...(query.search
         ? {
             OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { code: { contains: query.search, mode: 'insensitive' } },
+              { name: { contains: query.search, mode: "insensitive" } },
+              { code: { contains: query.search, mode: "insensitive" } },
             ],
           }
         : {}),
@@ -171,9 +216,9 @@ export class ApprovalsService {
         where,
         skip: query.skip,
         take: query.limit,
-        orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
+        orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
         include: {
-          steps: { orderBy: { stepOrder: 'asc' } },
+          steps: { orderBy: { stepOrder: "asc" } },
           _count: { select: { instances: true } },
         },
       }),
@@ -195,23 +240,34 @@ export class ApprovalsService {
   }
 
   /** جزئیات یک گردش تأیید */
-  async getFlow(id: string) {
+  async getFlow(id: string, user: AuthenticatedUser) {
     const flow = await this.prisma.approvalFlow.findUnique({
       where: { id },
       include: {
-        steps: { orderBy: { stepOrder: 'asc' } },
+        steps: { orderBy: { stepOrder: "asc" } },
         _count: { select: { instances: true } },
       },
     });
-    if (!flow) throw new NotFoundException('گردش تأیید موردنظر یافت نشد.');
+    if (!flow) throw new NotFoundException("گردش تأیید موردنظر یافت نشد.");
+    if (flow.companyId)
+      await this.access.assertCompanyAccess(user, flow.companyId);
     return this.toFlow(flow);
   }
 
   /** ایجاد گردش تأیید همراه با مراحل آن (در یک تراکنش) */
-  async createFlow(dto: CreateApprovalFlowDto, actorId: string) {
+  async createFlow(dto: CreateApprovalFlowDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.assertFlowWritable(dto.companyId, user);
+    for (const step of dto.steps)
+      if (step.approverUserId && dto.companyId)
+        await this.access.assertCompanyMember(user, dto.companyId, {
+          userId: step.approverUserId,
+        });
     const code = dto.code.trim();
-    const existing = await this.prisma.approvalFlow.findUnique({ where: { code } });
-    if (existing) throw new BadRequestException('کد گردش تأیید تکراری است.');
+    const existing = await this.prisma.approvalFlow.findUnique({
+      where: { code },
+    });
+    if (existing) throw new BadRequestException("کد گردش تأیید تکراری است.");
 
     const steps = this.normalizedSteps(dto.steps);
 
@@ -227,15 +283,20 @@ export class ApprovalsService {
           isActive: true,
           steps: { create: steps },
         },
-        include: { steps: { orderBy: { stepOrder: 'asc' } } },
+        include: { steps: { orderBy: { stepOrder: "asc" } } },
       }),
     );
 
     await this.audit.record(actorId, {
       action: AuditAction.CREATE,
-      entity: 'ApprovalFlow',
+      entity: "ApprovalFlow",
       entityId: flow.id,
-      after: { code: flow.code, name: flow.name, version: flow.version, steps: steps.length },
+      after: {
+        code: flow.code,
+        name: flow.name,
+        version: flow.version,
+        steps: steps.length,
+      },
     });
 
     return this.toFlow(flow);
@@ -247,12 +308,23 @@ export class ApprovalsService {
    * و نسخه جدید با شماره نسخه بالاتر ایجاد می‌گردد تا نمونه‌های قبلی
    * به نسخه صحیح خود اشاره داشته باشند.
    */
-  async updateFlow(id: string, dto: UpdateApprovalFlowDto, actorId: string) {
+  async updateFlow(
+    id: string,
+    dto: UpdateApprovalFlowDto,
+    user: AuthenticatedUser,
+  ) {
+    const actorId = user.id;
     const flow = await this.prisma.approvalFlow.findUnique({
       where: { id },
-      include: { steps: { orderBy: { stepOrder: 'asc' } } },
+      include: { steps: { orderBy: { stepOrder: "asc" } } },
     });
-    if (!flow) throw new NotFoundException('گردش تأیید موردنظر یافت نشد.');
+    if (!flow) throw new NotFoundException("گردش تأیید موردنظر یافت نشد.");
+    await this.assertFlowWritable(flow.companyId, user);
+    for (const step of dto.steps ?? [])
+      if (step.approverUserId && flow.companyId)
+        await this.access.assertCompanyMember(user, flow.companyId, {
+          userId: step.approverUserId,
+        });
 
     const base = this.baseCode(flow.code);
     const version = flow.version + 1;
@@ -273,7 +345,10 @@ export class ApprovalsService {
         }));
 
     const created = await this.prisma.$transaction(async (tx) => {
-      await tx.approvalFlow.update({ where: { id: flow.id }, data: { isActive: false } });
+      await tx.approvalFlow.update({
+        where: { id: flow.id },
+        data: { isActive: false },
+      });
       return tx.approvalFlow.create({
         data: {
           code: newCode,
@@ -285,32 +360,51 @@ export class ApprovalsService {
           isActive: dto.isActive ?? true,
           steps: { create: steps },
         },
-        include: { steps: { orderBy: { stepOrder: 'asc' } } },
+        include: { steps: { orderBy: { stepOrder: "asc" } } },
       });
     });
 
     await this.audit.record(actorId, {
       action: AuditAction.UPDATE,
-      entity: 'ApprovalFlow',
+      entity: "ApprovalFlow",
       entityId: created.id,
-      before: { code: flow.code, name: flow.name, version: flow.version, isActive: flow.isActive },
-      after: { code: created.code, name: created.name, version: created.version, isActive: created.isActive },
+      before: {
+        code: flow.code,
+        name: flow.name,
+        version: flow.version,
+        isActive: flow.isActive,
+      },
+      after: {
+        code: created.code,
+        name: created.name,
+        version: created.version,
+        isActive: created.isActive,
+      },
     });
 
     return this.toFlow(created);
   }
 
   /** غیرفعال‌سازی گردش تأیید */
-  async deactivateFlow(id: string, actorId: string) {
+  async deactivateFlow(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
     const flow = await this.prisma.approvalFlow.findUnique({ where: { id } });
-    if (!flow) throw new NotFoundException('گردش تأیید موردنظر یافت نشد.');
+    if (!flow) throw new NotFoundException("گردش تأیید موردنظر یافت نشد.");
+    await this.assertFlowWritable(flow.companyId, user);
 
-    await this.prisma.approvalFlow.update({ where: { id }, data: { isActive: false } });
+    await this.prisma.approvalFlow.update({
+      where: { id },
+      data: { isActive: false },
+    });
     await this.audit.record(actorId, {
       action: AuditAction.DEACTIVATE,
-      entity: 'ApprovalFlow',
+      entity: "ApprovalFlow",
       entityId: id,
-      before: { code: flow.code, version: flow.version, isActive: flow.isActive },
+      before: {
+        code: flow.code,
+        version: flow.version,
+        isActive: flow.isActive,
+      },
     });
     return { success: true };
   }
@@ -320,74 +414,152 @@ export class ApprovalsService {
    * ------------------------------------------------------------------ */
 
   /** ایجاد نمونه گردش و تولید task مرحله اول */
-  async createInstance(dto: CreateApprovalInstanceDto, actorId: string) {
-    const flow = await this.resolveFlowByCode(dto.flowCode);
-    if (!flow) {
-      throw new NotFoundException(`گردش تأییدی با کد «${dto.flowCode}» یافت نشد.`);
-    }
-    if (!flow.isActive) {
-      throw new BadRequestException('گردش تأیید انتخاب‌شده غیرفعال است.');
-    }
+  async createInstance(
+    dto: CreateApprovalInstanceDto,
+    user: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${dto.subjectType}:${dto.subjectId}`}, 0))`;
+        const actorId = user.id;
+        const flow = await this.resolveFlowByCode(dto.flowCode);
+        if (!flow) {
+          throw new NotFoundException(
+            `گردش تأییدی با کد «${dto.flowCode}» یافت نشد.`,
+          );
+        }
+        if (!flow.isActive) {
+          throw new BadRequestException("گردش تأیید انتخاب‌شده غیرفعال است.");
+        }
+        if (flow.subjectType !== dto.subjectType)
+          throw new BadRequestException("نوع موضوع با گردش تأیید یکسان نیست.");
+        if (!ApprovalsService.handlers.has(dto.subjectType))
+          throw new BadRequestException(
+            "اعمال نتیجه برای این نوع موضوع پیاده‌سازی نشده است.",
+          );
+        if (flow.companyId)
+          await this.access.assertCompanyAccess(user, flow.companyId);
+        const employeeId = await this.assertSubjectAccess(
+          dto,
+          user,
+          flow.companyId,
+          db,
+        );
 
-    const payload = this.parseJson<Record<string, unknown>>(
-      typeof dto.payloadJson === 'string' ? dto.payloadJson : JSON.stringify(dto.payloadJson ?? {}),
-      {},
-    );
-    const ctx: StepContext = {
-      employeeId: (payload.employeeId as string) ?? null,
-      payload,
-    };
+        let supplied: Record<string, unknown>;
+        try {
+          supplied =
+            typeof dto.payloadJson === "string"
+              ? JSON.parse(dto.payloadJson)
+              : (dto.payloadJson ?? {});
+        } catch {
+          throw new BadRequestException("بافت گردش باید JSON معتبر باشد.");
+        }
+        if (
+          !supplied ||
+          typeof supplied !== "object" ||
+          Array.isArray(supplied) ||
+          JSON.stringify(supplied).length > 50000
+        )
+          throw new BadRequestException(
+            "بافت گردش باید یک شیء معتبر با حجم مجاز باشد.",
+          );
+        if (supplied.employeeId && supplied.employeeId !== employeeId)
+          throw new BadRequestException(
+            "کارمند ارسال‌شده با مالک رکورد موضوع یکسان نیست.",
+          );
+        const payload = await this.subjectPayload(
+          dto,
+          employeeId,
+          supplied,
+          db,
+        );
+        if (
+          await db.approvalInstance.findFirst({
+            where: {
+              subjectId: dto.subjectId,
+              subjectType: dto.subjectType,
+              status: ApprovalStatus.PENDING,
+            },
+            select: { id: true },
+          })
+        )
+          throw new BadRequestException(
+            "گردش فعال دیگری برای این موضوع وجود دارد.",
+          );
+        const ctx: StepContext = {
+          employeeId,
+          payload,
+        };
 
-    const executable = await this.resolveExecutableStep(flow.steps, 0, ctx);
-    if (!executable) {
-      throw new BadRequestException('هیچ مرحله قابل اجرایی در این گردش تعریف نشده است.');
-    }
+        const executable = await this.resolveExecutableStep(
+          flow.steps,
+          0,
+          ctx,
+          db,
+        );
+        if (!executable) {
+          throw new BadRequestException(
+            "هیچ مرحله قابل اجرایی در این گردش تعریف نشده است.",
+          );
+        }
 
-    const now = new Date();
-    const instance = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.approvalInstance.create({
-        data: {
-          flowId: flow.id,
-          subjectType: dto.subjectType,
-          subjectId: dto.subjectId,
-          flowVersion: flow.version,
-          status: ApprovalStatus.PENDING,
-          currentStepOrder: executable.step.stepOrder,
-          initiatedById: actorId ?? null,
-          initiatedAt: now,
-          payloadJson: JSON.stringify(payload),
-          note: dto.note ?? null,
-        },
-      });
-      if (executable.approvers.length) {
-        await tx.approvalTask.createMany({
-          data: executable.approvers.map((a) =>
-            this.taskData(created.id, executable.step, a, now),
-          ),
+        const now = new Date();
+        const instance = await (async (tx: Prisma.TransactionClient) => {
+          const created = await tx.approvalInstance.create({
+            data: {
+              flowId: flow.id,
+              subjectType: dto.subjectType,
+              subjectId: dto.subjectId,
+              flowVersion: flow.version,
+              status: ApprovalStatus.PENDING,
+              currentStepOrder: executable.step.stepOrder,
+              initiatedById: actorId ?? null,
+              initiatedAt: now,
+              payloadJson: JSON.stringify(payload),
+              note: dto.note ?? null,
+            },
+          });
+          if (executable.approvers.length) {
+            await tx.approvalTask.createMany({
+              data: executable.approvers.map((a) =>
+                this.taskData(created.id, executable.step, a, now),
+              ),
+            });
+          }
+          return created;
+        })(db);
+
+        await this.notifyAssignees(
+          executable.approvers,
+          instance,
+          executable.step,
+          db,
+        );
+        await this.audit.recordInTransaction(db, actorId, {
+          action: AuditAction.CREATE,
+          entity: "ApprovalInstance",
+          entityId: instance.id,
+          after: {
+            flowCode: flow.code,
+            flowVersion: flow.version,
+            subjectType: instance.subjectType,
+            subjectId: instance.subjectId,
+            currentStepOrder: instance.currentStepOrder,
+          },
         });
-      }
-      return created;
-    });
 
-    await this.notifyAssignees(executable.approvers, instance, executable.step);
-    await this.audit.record(actorId, {
-      action: AuditAction.CREATE,
-      entity: 'ApprovalInstance',
-      entityId: instance.id,
-      after: {
-        flowCode: flow.code,
-        flowVersion: flow.version,
-        subjectType: instance.subjectType,
-        subjectId: instance.subjectId,
-        currentStepOrder: instance.currentStepOrder,
+        return this.getInstance(instance.id, user, db);
       },
-    });
-
-    return this.getInstance(instance.id, actorId ? ({ id: actorId, roleCodes: [] } as AuthenticatedUser) : undefined);
+      { maxWait: 10000, timeout: 300000 },
+    );
   }
 
   /** فهرست نمونه‌های گردش با فیلتر و محدوده دسترسی */
-  async listInstances(query: ApprovalInstanceQueryDto, user: AuthenticatedUser) {
+  async listInstances(
+    query: ApprovalInstanceQueryDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.ApprovalInstanceWhereInput = {
       ...(query.subjectType ? { subjectType: query.subjectType } : {}),
       ...(query.subjectId ? { subjectId: query.subjectId } : {}),
@@ -400,7 +572,9 @@ export class ApprovalsService {
                 status: ApprovalStatus.PENDING,
                 OR: [
                   { assigneeUserId: user.id },
-                  ...(user.roleCodes.length ? [{ assigneeRoleCode: { in: user.roleCodes } }] : []),
+                  ...(user.roleCodes.length
+                    ? [{ assigneeRoleCode: { in: user.roleCodes } }]
+                    : []),
                 ],
               },
             },
@@ -415,14 +589,16 @@ export class ApprovalsService {
         where,
         skip: query.skip,
         take: query.limit,
-        orderBy: { initiatedAt: 'desc' },
+        orderBy: { initiatedAt: "desc" },
         include: {
           flow: { select: { id: true, code: true, name: true, version: true } },
           tasks: {
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: "asc" },
             include: {
               step: { select: { id: true, name: true, stepOrder: true } },
-              assignee: { select: { id: true, fullName: true, username: true } },
+              assignee: {
+                select: { id: true, fullName: true, username: true },
+              },
             },
           },
         },
@@ -445,24 +621,44 @@ export class ApprovalsService {
   }
 
   /** جزئیات نمونه گردش به‌همراه تاریخچه task */
-  async getInstance(id: string, user?: AuthenticatedUser) {
-    const instance = await this.prisma.approvalInstance.findUnique({
+  async getInstance(
+    id: string,
+    user?: AuthenticatedUser,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const instance = await db.approvalInstance.findUnique({
       where: { id },
       include: {
-        flow: { select: { id: true, code: true, name: true, version: true, subjectType: true } },
+        flow: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            version: true,
+            subjectType: true,
+          },
+        },
         initiator: { select: { id: true, fullName: true, username: true } },
         tasks: {
-          orderBy: [{ stepOrder: 'asc' }, { createdAt: 'asc' }],
+          orderBy: [{ stepOrder: "asc" }, { createdAt: "asc" }],
           include: {
-            step: { select: { id: true, name: true, stepOrder: true, approverType: true } },
+            step: {
+              select: {
+                id: true,
+                name: true,
+                stepOrder: true,
+                approverType: true,
+              },
+            },
             assignee: { select: { id: true, fullName: true, username: true } },
             decidedBy: { select: { id: true, fullName: true, username: true } },
           },
         },
       },
     });
-    if (!instance) throw new NotFoundException('نمونه گردش تأیید موردنظر یافت نشد.');
-    if (user) await this.assertInstanceVisible(instance, user);
+    if (!instance)
+      throw new NotFoundException("نمونه گردش تأیید موردنظر یافت نشد.");
+    if (user) await this.assertInstanceVisible(instance, user, db);
     return this.toInstance(instance);
   }
 
@@ -470,11 +666,16 @@ export class ApprovalsService {
   async inbox(query: InboxQueryDto, user: AuthenticatedUser) {
     const where: Prisma.ApprovalTaskWhereInput = {
       status: ApprovalStatus.PENDING,
-      instance: { status: ApprovalStatus.PENDING },
+      instance: {
+        status: ApprovalStatus.PENDING,
+        AND: [await this.scopeFilter(user)],
+      },
       ...(query.overdueOnly ? { dueAt: { lt: new Date() } } : {}),
       OR: [
         { assigneeUserId: user.id },
-        ...(user.roleCodes.length ? [{ assigneeRoleCode: { in: user.roleCodes } }] : []),
+        ...(user.roleCodes.length
+          ? [{ assigneeRoleCode: { in: user.roleCodes } }]
+          : []),
       ],
     };
 
@@ -484,9 +685,19 @@ export class ApprovalsService {
         where,
         skip: query.skip,
         take: query.limit,
-        orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
+        orderBy: [
+          { dueAt: { sort: "asc", nulls: "last" } },
+          { createdAt: "desc" },
+        ],
         include: {
-          step: { select: { id: true, name: true, stepOrder: true, approverType: true } },
+          step: {
+            select: {
+              id: true,
+              name: true,
+              stepOrder: true,
+              approverType: true,
+            },
+          },
           assignee: { select: { id: true, fullName: true, username: true } },
           instance: {
             select: {
@@ -532,43 +743,80 @@ export class ApprovalsService {
    *  ۲) فقط یک انتقال معتبر — با به‌روزرسانی شرطی (updateMany) تضمین می‌شود.
    *  ۳) مراحل موازی — تا تأیید همه task یک مرحله، پیشروی انجام نمی‌شود.
    */
-  async decideTask(taskId: string, dto: DecideTaskDto, actor: AuthenticatedUser) {
-    const task = await this.prisma.approvalTask.findUnique({
-      where: { id: taskId },
-      include: {
-        step: true,
-        instance: { include: { flow: { include: { steps: { orderBy: { stepOrder: 'asc' } } } } } },
+  async decideTask(
+    taskId: string,
+    dto: DecideTaskDto,
+    actor: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(
+      async (db) => {
+        const reference = await db.approvalTask.findUnique({
+          where: { id: taskId },
+          select: { instanceId: true },
+        });
+        if (!reference) throw new NotFoundException("task تأیید یافت نشد.");
+        await db.$queryRaw`SELECT id FROM "ApprovalInstance" WHERE id = ${reference.instanceId}::uuid FOR UPDATE`;
+        await db.$queryRaw`SELECT id FROM "ApprovalTask" WHERE id = ${taskId}::uuid FOR UPDATE`;
+        const task = await db.approvalTask.findUnique({
+          where: { id: taskId },
+          include: {
+            step: true,
+            instance: {
+              include: {
+                flow: { include: { steps: { orderBy: { stepOrder: "asc" } } } },
+              },
+            },
+          },
+        });
+        if (!task) throw new NotFoundException("task تأیید موردنظر یافت نشد.");
+        await this.assertSubjectAccess(
+          task.instance,
+          actor,
+          task.instance.flow.companyId,
+          db,
+        );
+        await this.assertInstanceVisible(task.instance, actor, db);
+        if (dto.referredToUserId) {
+          const target = await this.access.buildAuthUser(dto.referredToUserId);
+          if (!target) throw new NotFoundException("کاربر مقصد فعال نیست.");
+          await this.assertSubjectAccess(
+            task.instance,
+            target,
+            task.instance.flow.companyId,
+            db,
+          );
+        }
+        if (task.status !== ApprovalStatus.PENDING) {
+          throw new BadRequestException("این درخواست قبلاً بررسی شده است.");
+        }
+        if (task.instance.status !== ApprovalStatus.PENDING) {
+          throw new BadRequestException("این درخواست قبلاً بررسی شده است.");
+        }
+
+        await this.assertNoSelfApproval(task, actor, db);
+        this.assertTaskAssignee(task, actor);
+
+        const instance = task.instance;
+        const now = new Date();
+        const comment = dto.comment ?? null;
+
+        switch (dto.decision) {
+          case ApprovalDecision.APPROVE:
+            return this.applyApprove(task, dto, actor, now, db);
+          case ApprovalDecision.REJECT:
+            return this.applyReject(task, dto, actor, now, db);
+          case ApprovalDecision.REQUEST_REVISION:
+            return this.applyRequestRevision(task, dto, actor, now, db);
+          case ApprovalDecision.REFER:
+            return this.applyRefer(task, dto, actor, now, db);
+          case ApprovalDecision.ESCALATE:
+            return this.applyEscalate(task, dto, actor, now, db);
+          default:
+            throw new BadRequestException("نوع تصمیم معتبر نیست.");
+        }
       },
-    });
-    if (!task) throw new NotFoundException('task تأیید موردنظر یافت نشد.');
-    if (task.status !== ApprovalStatus.PENDING) {
-      throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
-    }
-    if (task.instance.status !== ApprovalStatus.PENDING) {
-      throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
-    }
-
-    await this.assertNoSelfApproval(task, actor);
-    this.assertTaskAssignee(task, actor);
-
-    const instance = task.instance;
-    const now = new Date();
-    const comment = dto.comment ?? null;
-
-    switch (dto.decision) {
-      case ApprovalDecision.APPROVE:
-        return this.applyApprove(task, dto, actor, now);
-      case ApprovalDecision.REJECT:
-        return this.applyReject(task, dto, actor, now);
-      case ApprovalDecision.REQUEST_REVISION:
-        return this.applyRequestRevision(task, dto, actor, now);
-      case ApprovalDecision.REFER:
-        return this.applyRefer(task, dto, actor, now);
-      case ApprovalDecision.ESCALATE:
-        return this.applyEscalate(task, dto, actor, now);
-      default:
-        throw new BadRequestException('نوع تصمیم معتبر نیست.');
-    }
+      { maxWait: 10000, timeout: 300000 },
+    );
   }
 
   /** تأیید */
@@ -577,8 +825,9 @@ export class ApprovalsService {
     dto: DecideTaskDto,
     actor: AuthenticatedUser,
     now: Date,
+    db: Prisma.TransactionClient = this.prisma,
   ) {
-    const updated = await this.prisma.approvalTask.updateMany({
+    const updated = await db.approvalTask.updateMany({
       where: { id: task.id, status: ApprovalStatus.PENDING },
       data: {
         status: ApprovalStatus.APPROVED,
@@ -589,25 +838,35 @@ export class ApprovalsService {
       },
     });
     if (updated.count === 0) {
-      throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
+      throw new BadRequestException("این درخواست قبلاً بررسی شده است.");
     }
 
-    await this.audit.record(actor.id, {
+    await this.audit.recordInTransaction(db, actor.id, {
       action: AuditAction.APPROVE,
-      entity: 'ApprovalTask',
+      entity: "ApprovalTask",
       entityId: task.id,
       before: { status: task.status, decision: null },
-      after: { status: ApprovalStatus.APPROVED, decision: ApprovalDecision.APPROVE, stepOrder: task.stepOrder },
+      after: {
+        status: ApprovalStatus.APPROVED,
+        decision: ApprovalDecision.APPROVE,
+        stepOrder: task.stepOrder,
+      },
     });
 
-    await this.maybeAdvance(task.instance, task.stepOrder, actor.id);
+    await this.maybeAdvance(task.instance, task.stepOrder, actor.id, db);
 
-    return this.getInstance(task.instanceId);
+    return this.getInstance(task.instanceId, undefined, db);
   }
 
   /** رد */
-  private async applyReject(task: any, dto: DecideTaskDto, actor: AuthenticatedUser, now: Date) {
-    const updated = await this.prisma.approvalTask.updateMany({
+  private async applyReject(
+    task: any,
+    dto: DecideTaskDto,
+    actor: AuthenticatedUser,
+    now: Date,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const updated = await db.approvalTask.updateMany({
       where: { id: task.id, status: ApprovalStatus.PENDING },
       data: {
         status: ApprovalStatus.REJECTED,
@@ -618,30 +877,37 @@ export class ApprovalsService {
       },
     });
     if (updated.count === 0) {
-      throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
+      throw new BadRequestException("این درخواست قبلاً بررسی شده است.");
     }
 
-    await this.closeInstance(task.instance, ApprovalStatus.REJECTED, now);
+    await this.closeInstance(task.instance, ApprovalStatus.REJECTED, now, db);
 
-    await this.audit.record(actor.id, {
+    await this.audit.recordInTransaction(db, actor.id, {
       action: AuditAction.REJECT,
-      entity: 'ApprovalInstance',
+      entity: "ApprovalInstance",
       entityId: task.instanceId,
-      before: { status: task.instance.status, currentStepOrder: task.instance.currentStepOrder },
+      before: {
+        status: task.instance.status,
+        currentStepOrder: task.instance.currentStepOrder,
+      },
       after: { status: ApprovalStatus.REJECTED },
     });
 
-    await this.notifyInitiator(task.instance, 'رد', dto.comment);
-    await this.dispatch('onRejected', {
-      subjectType: task.instance.subjectType,
-      subjectId: task.instance.subjectId,
-      instanceId: task.instanceId,
-      outcome: 'REJECTED',
-      actorId: actor.id,
-      comment: dto.comment ?? null,
-    });
+    await this.notifyInitiator(task.instance, "رد", dto.comment, db);
+    await this.dispatch(
+      "onRejected",
+      {
+        subjectType: task.instance.subjectType,
+        subjectId: task.instance.subjectId,
+        instanceId: task.instanceId,
+        outcome: "REJECTED",
+        actorId: actor.id,
+        comment: dto.comment ?? null,
+      },
+      db,
+    );
 
-    return this.getInstance(task.instanceId);
+    return this.getInstance(task.instanceId, undefined, db);
   }
 
   /** بازگشت جهت اصلاح */
@@ -650,8 +916,9 @@ export class ApprovalsService {
     dto: DecideTaskDto,
     actor: AuthenticatedUser,
     now: Date,
+    db: Prisma.TransactionClient = this.prisma,
   ) {
-    const updated = await this.prisma.approvalTask.updateMany({
+    const updated = await db.approvalTask.updateMany({
       where: { id: task.id, status: ApprovalStatus.PENDING },
       data: {
         status: ApprovalStatus.NEEDS_REVISION,
@@ -662,44 +929,63 @@ export class ApprovalsService {
       },
     });
     if (updated.count === 0) {
-      throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
+      throw new BadRequestException("این درخواست قبلاً بررسی شده است.");
     }
 
-    await this.closeInstance(task.instance, ApprovalStatus.NEEDS_REVISION, now);
+    await this.closeInstance(
+      task.instance,
+      ApprovalStatus.NEEDS_REVISION,
+      now,
+      db,
+    );
 
-    await this.audit.record(actor.id, {
+    await this.audit.recordInTransaction(db, actor.id, {
       action: AuditAction.UPDATE,
-      entity: 'ApprovalInstance',
+      entity: "ApprovalInstance",
       entityId: task.instanceId,
       before: { status: task.instance.status },
       after: { status: ApprovalStatus.NEEDS_REVISION },
     });
 
-    await this.notifyInitiator(task.instance, 'نیازمند اصلاح', dto.comment);
-    await this.dispatch('onNeedsRevision', {
-      subjectType: task.instance.subjectType,
-      subjectId: task.instance.subjectId,
-      instanceId: task.instanceId,
-      outcome: 'NEEDS_REVISION',
-      actorId: actor.id,
-      comment: dto.comment ?? null,
-    });
+    await this.notifyInitiator(task.instance, "نیازمند اصلاح", dto.comment, db);
+    await this.dispatch(
+      "onNeedsRevision",
+      {
+        subjectType: task.instance.subjectType,
+        subjectId: task.instance.subjectId,
+        instanceId: task.instanceId,
+        outcome: "NEEDS_REVISION",
+        actorId: actor.id,
+        comment: dto.comment ?? null,
+      },
+      db,
+    );
 
-    return this.getInstance(task.instanceId);
+    return this.getInstance(task.instanceId, undefined, db);
   }
 
   /** ارجاع به کاربر دیگر در همان مرحله */
-  private async applyRefer(task: any, dto: DecideTaskDto, actor: AuthenticatedUser, now: Date) {
+  private async applyRefer(
+    task: any,
+    dto: DecideTaskDto,
+    actor: AuthenticatedUser,
+    now: Date,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
     if (!dto.referredToUserId) {
-      throw new BadRequestException('برای ارجاع، کاربر مقصد را مشخص کنید.');
+      throw new BadRequestException("برای ارجاع، کاربر مقصد را مشخص کنید.");
     }
-    const target = await this.prisma.user.findFirst({
-      where: { id: dto.referredToUserId, status: UserStatus.ACTIVE, deletedAt: null },
+    const target = await db.user.findFirst({
+      where: {
+        id: dto.referredToUserId,
+        status: UserStatus.ACTIVE,
+        deletedAt: null,
+      },
       select: { id: true, fullName: true },
     });
-    if (!target) throw new NotFoundException('کاربر مقصد ارجاع یافت نشد.');
+    if (!target) throw new NotFoundException("کاربر مقصد ارجاع یافت نشد.");
 
-    const updated = await this.prisma.approvalTask.updateMany({
+    const updated = await db.approvalTask.updateMany({
       where: { id: task.id, status: ApprovalStatus.PENDING },
       data: {
         status: ApprovalStatus.REFERRED,
@@ -711,10 +997,10 @@ export class ApprovalsService {
       },
     });
     if (updated.count === 0) {
-      throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
+      throw new BadRequestException("این درخواست قبلاً بررسی شده است.");
     }
 
-    const created = await this.prisma.approvalTask.create({
+    const created = await db.approvalTask.create({
       data: {
         instanceId: task.instanceId,
         stepId: task.stepId,
@@ -725,28 +1011,44 @@ export class ApprovalsService {
       },
     });
 
-    await this.audit.record(actor.id, {
+    await this.audit.recordInTransaction(db, actor.id, {
       action: AuditAction.UPDATE,
-      entity: 'ApprovalTask',
+      entity: "ApprovalTask",
       entityId: task.id,
       before: { status: task.status },
-      after: { status: ApprovalStatus.REFERRED, referredToUserId: dto.referredToUserId },
+      after: {
+        status: ApprovalStatus.REFERRED,
+        referredToUserId: dto.referredToUserId,
+      },
     });
 
-    await this.notification.notify(target.id, {
-      type: NotificationType.TASK_ASSIGNED,
-      title: 'task تأیید ارجاع‌شده',
-      body: `درخواست توسط ${actor.fullName} به شما ارجاع شد.${dto.comment ? ` یادداشت: ${dto.comment}` : ''}`,
-      link: `/approvals/instances/${task.instanceId}`,
-      senderId: actor.id,
-    });
+    await this.notification.notify(
+      target.id,
+      {
+        type: NotificationType.TASK_ASSIGNED,
+        title: "task تأیید ارجاع‌شده",
+        body: `درخواست توسط ${actor.fullName} به شما ارجاع شد.${dto.comment ? ` یادداشت: ${dto.comment}` : ""}`,
+        link: `/approvals/instances/${task.instanceId}`,
+        senderId: actor.id,
+      },
+      db,
+    );
 
-    return { taskId: created.id, instance: await this.getInstance(task.instanceId) };
+    return {
+      taskId: created.id,
+      instance: await this.getInstance(task.instanceId, undefined, db),
+    };
   }
 
   /** ارجاع به سطح بالاتر (سرپرست بالاتر) */
-  private async applyEscalate(task: any, dto: DecideTaskDto, actor: AuthenticatedUser, now: Date) {
-    const updated = await this.prisma.approvalTask.updateMany({
+  private async applyEscalate(
+    task: any,
+    dto: DecideTaskDto,
+    actor: AuthenticatedUser,
+    now: Date,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const updated = await db.approvalTask.updateMany({
       where: { id: task.id, status: ApprovalStatus.PENDING },
       data: {
         status: ApprovalStatus.CANCELLED,
@@ -757,24 +1059,35 @@ export class ApprovalsService {
       },
     });
     if (updated.count === 0) {
-      throw new BadRequestException('این درخواست قبلاً بررسی شده است.');
+      throw new BadRequestException("این درخواست قبلاً بررسی شده است.");
     }
 
-    const target = await this.resolveEscalationTarget(task);
+    const target = await this.resolveEscalationTarget(task, db);
     if (!target) {
+      if (task.step.required)
+        throw new BadRequestException(
+          "تأییدکننده مرحله الزامی مشخص نیست؛ مرحله رد نمی‌شود.",
+        );
       // سطح بالاتری یافت نشد — مانند «رد کردن مرحله» عمل می‌شود.
-      await this.maybeAdvance(task.instance, task.stepOrder, actor.id);
-      await this.audit.record(actor.id, {
+      await this.maybeAdvance(task.instance, task.stepOrder, actor.id, db);
+      await this.audit.recordInTransaction(db, actor.id, {
         action: AuditAction.UPDATE,
-        entity: 'ApprovalTask',
+        entity: "ApprovalTask",
         entityId: task.id,
         before: { status: task.status },
-        after: { status: ApprovalStatus.CANCELLED, decision: ApprovalDecision.ESCALATE, note: 'سطح بالاتر یافت نشد' },
+        after: {
+          status: ApprovalStatus.CANCELLED,
+          decision: ApprovalDecision.ESCALATE,
+          note: "سطح بالاتر یافت نشد",
+        },
       });
-      return this.getInstance(task.instanceId);
+      return this.getInstance(task.instanceId, undefined, db);
     }
 
-    const created = await this.prisma.approvalTask.create({
+    const targetUser = await this.access.buildAuthUser(target);
+    if (!targetUser) throw new BadRequestException("تأییدکننده فعال یافت نشد.");
+    await this.assertSubjectAccess(task.instance, targetUser, undefined, db);
+    const created = await db.approvalTask.create({
       data: {
         instanceId: task.instanceId,
         stepId: task.stepId,
@@ -785,23 +1098,34 @@ export class ApprovalsService {
       },
     });
 
-    await this.audit.record(actor.id, {
+    await this.audit.recordInTransaction(db, actor.id, {
       action: AuditAction.UPDATE,
-      entity: 'ApprovalTask',
+      entity: "ApprovalTask",
       entityId: task.id,
       before: { status: task.status },
-      after: { status: ApprovalStatus.CANCELLED, decision: ApprovalDecision.ESCALATE, escalatedTo: target },
+      after: {
+        status: ApprovalStatus.CANCELLED,
+        decision: ApprovalDecision.ESCALATE,
+        escalatedTo: target,
+      },
     });
 
-    await this.notification.notify(target, {
-      type: NotificationType.TASK_ASSIGNED,
-      title: 'task تأیید ارجاع سطح بالاتر',
-      body: `درخواست توسط ${actor.fullName} به شما ارجاع سطح بالاتر داده شد.`,
-      link: `/approvals/instances/${task.instanceId}`,
-      senderId: actor.id,
-    });
+    await this.notification.notify(
+      target,
+      {
+        type: NotificationType.TASK_ASSIGNED,
+        title: "task تأیید ارجاع سطح بالاتر",
+        body: `درخواست توسط ${actor.fullName} به شما ارجاع سطح بالاتر داده شد.`,
+        link: `/approvals/instances/${task.instanceId}`,
+        senderId: actor.id,
+      },
+      db,
+    );
 
-    return { taskId: created.id, instance: await this.getInstance(task.instanceId) };
+    return {
+      taskId: created.id,
+      instance: await this.getInstance(task.instanceId, undefined, db),
+    };
   }
 
   /**
@@ -809,25 +1133,49 @@ export class ApprovalsService {
    * انتقال با به‌روزرسانی شرطی نمونه (currentStepOrder) انجام می‌شود تا در
    * حالت هم‌زمانی فقط یک انتقال معتبر باشد.
    */
-  private async maybeAdvance(instance: any, stepOrder: number, actorId: string | null) {
-    const remaining = await this.prisma.approvalTask.count({
-      where: { instanceId: instance.id, stepOrder, status: ApprovalStatus.PENDING },
+  private async maybeAdvance(
+    instance: any,
+    stepOrder: number,
+    actorId: string | null,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const remaining = await db.approvalTask.count({
+      where: {
+        instanceId: instance.id,
+        stepOrder,
+        status: ApprovalStatus.PENDING,
+      },
     });
     if (remaining > 0) return; // مرحله موازی هنوز تکمیل نشده است.
 
-    const steps = await this.prisma.approvalStep.findMany({
+    const steps = await db.approvalStep.findMany({
       where: { flowId: instance.flowId },
-      orderBy: { stepOrder: 'asc' },
+      orderBy: { stepOrder: "asc" },
     });
-    const payload = this.parseJson<Record<string, unknown>>(instance.payloadJson, {});
+    const saved = this.parseJson<Record<string, unknown>>(
+      instance.payloadJson,
+      {},
+    );
+    const employeeId = await this.resolveSubjectEmployeeId(instance, db);
+    const payload = await this.subjectPayload(
+      instance,
+      employeeId,
+      (saved.metadata as Record<string, unknown>) ?? {},
+      db,
+    );
     const ctx: StepContext = {
-      employeeId: (payload.employeeId as string) ?? null,
+      employeeId,
       payload,
     };
-    const executable = await this.resolveExecutableStep(steps, stepOrder, ctx);
+    const executable = await this.resolveExecutableStep(
+      steps,
+      stepOrder,
+      ctx,
+      db,
+    );
     const now = new Date();
 
-    const outcome = await this.prisma.$transaction(async (tx) => {
+    const outcome = await (async (tx: Prisma.TransactionClient) => {
       const claimed = await tx.approvalInstance.updateMany({
         where: {
           id: instance.id,
@@ -838,7 +1186,7 @@ export class ApprovalsService {
           ? { currentStepOrder: executable.step.stepOrder }
           : { status: ApprovalStatus.APPROVED, completedAt: now },
       });
-      if (claimed.count === 0) return null;
+      if (claimed.count === 0) return { claimed: false as const, next: null };
 
       if (executable && executable.approvers.length) {
         await tx.approvalTask.createMany({
@@ -847,30 +1195,60 @@ export class ApprovalsService {
           ),
         });
       }
-      return executable;
-    });
+      return { claimed: true as const, next: executable };
+    })(db);
 
-    if (!outcome) return; // انتقال هم‌زمان دیگری انجام شده است.
+    if (!outcome.claimed) return;
 
-    if (outcome) {
-      await this.notifyAssignees(outcome.approvers, instance, outcome.step);
-      await this.audit.record(actorId, {
+    if (outcome.next) {
+      await this.notifyAssignees(
+        outcome.next.approvers,
+        instance,
+        outcome.next.step,
+        db,
+      );
+      await this.audit.recordInTransaction(db, actorId, {
         action: AuditAction.APPROVE,
-        entity: 'ApprovalInstance',
+        entity: "ApprovalInstance",
         entityId: instance.id,
         before: { status: ApprovalStatus.PENDING, currentStepOrder: stepOrder },
-        after: { status: ApprovalStatus.PENDING, currentStepOrder: outcome.step.stepOrder },
+        after: {
+          status: ApprovalStatus.PENDING,
+          currentStepOrder: outcome.next.step.stepOrder,
+        },
       });
-      await this.dispatch('onStepAdvanced', {
+      await this.dispatch(
+        "onStepAdvanced",
+        {
+          subjectType: instance.subjectType,
+          subjectId: instance.subjectId,
+          instanceId: instance.id,
+          outcome: "APPROVED",
+          actorId,
+          stepOrder: outcome.next.step.stepOrder,
+        },
+        db,
+      );
+      return;
+    }
+    await this.dispatch(
+      "onApproved",
+      {
         subjectType: instance.subjectType,
         subjectId: instance.subjectId,
         instanceId: instance.id,
-        outcome: 'APPROVED',
+        outcome: "APPROVED",
         actorId,
-        stepOrder: outcome.step.stepOrder,
-      });
-      return;
-    }
+      },
+      db,
+    );
+    await this.audit.recordInTransaction(db, actorId, {
+      action: AuditAction.APPROVE,
+      entity: "ApprovalInstance",
+      entityId: instance.id,
+      after: { status: ApprovalStatus.APPROVED },
+    });
+    await this.notifyInitiator(instance, "تأیید", undefined, db);
   }
 
   /* ---------------------------------------------------------------------
@@ -883,83 +1261,133 @@ export class ApprovalsService {
    *  SKIP     → عبور از مرحله
    *  REJECT   → رد نمونه گردش
    */
-  async expireOverdue(dto: ExpireOverdueDto, actorId: string) {
-    const now = new Date();
-    const limit = dto.limit ?? 100;
-    const tasks = await this.prisma.approvalTask.findMany({
-      where: { status: ApprovalStatus.PENDING, dueAt: { lt: now } },
-      include: { step: true, instance: true },
-      orderBy: { dueAt: 'asc' },
-      take: limit,
-    });
-
-    const summary = { processed: 0, escalated: 0, skipped: 0, rejected: 0 };
-
-    for (const task of tasks) {
-      const action = (task.step.onTimeout || 'ESCALATE').toUpperCase();
-      const claimed = await this.prisma.approvalTask.updateMany({
-        where: { id: task.id, status: ApprovalStatus.PENDING },
-        data: { status: ApprovalStatus.EXPIRED, decidedAt: now, comment: 'مهلت پاسخ‌گویی به پایان رسید.' },
-      });
-      if (claimed.count === 0) continue;
-      summary.processed += 1;
-
-      await this.audit.record(actorId, {
-        action: AuditAction.UPDATE,
-        entity: 'ApprovalTask',
-        entityId: task.id,
-        before: { status: ApprovalStatus.PENDING },
-        after: { status: ApprovalStatus.EXPIRED, onTimeout: action },
-      });
-
-      if (action === 'REJECT') {
-        await this.closeInstance(task.instance, ApprovalStatus.REJECTED, now);
-        summary.rejected += 1;
-        await this.notifyInitiator(task.instance, 'رد (نقض مهلت)', null);
-        await this.dispatch('onRejected', {
-          subjectType: task.instance.subjectType,
-          subjectId: task.instance.subjectId,
-          instanceId: task.instanceId,
-          outcome: 'REJECTED',
-          actorId,
-          comment: 'مهلت پاسخ‌گویی به پایان رسید.',
+  async expireOverdue(dto: ExpireOverdueDto, user: AuthenticatedUser) {
+    return this.prisma.$transaction(
+      async (db) => {
+        const actorId = user.id;
+        const now = new Date();
+        const limit = dto.limit ?? 100;
+        const tasks = await db.approvalTask.findMany({
+          where: {
+            status: ApprovalStatus.PENDING,
+            dueAt: { lt: now },
+            instance: await this.scopeFilter(user, undefined, db),
+          },
+          include: { step: true, instance: true },
+          orderBy: { dueAt: "asc" },
+          take: limit,
         });
-        continue;
-      }
 
-      if (action === 'SKIP') {
-        summary.skipped += 1;
-        await this.maybeAdvance(task.instance, task.stepOrder, actorId);
-        continue;
-      }
+        const summary = { processed: 0, escalated: 0, skipped: 0, rejected: 0 };
 
-      // ESCALATE
-      const target = await this.resolveEscalationTarget(task);
-      if (!target) {
-        summary.skipped += 1;
-        await this.maybeAdvance(task.instance, task.stepOrder, actorId);
-        continue;
-      }
-      await this.prisma.approvalTask.create({
-        data: {
-          instanceId: task.instanceId,
-          stepId: task.stepId,
-          stepOrder: task.stepOrder,
-          status: ApprovalStatus.PENDING,
-          assigneeUserId: target,
-          dueAt: this.dueAt(task.step, now),
-        },
-      });
-      summary.escalated += 1;
-      await this.notification.notify(target, {
-        type: NotificationType.TASK_OVERDUE,
-        title: 'task تأیید سررسیدشده',
-        body: 'مهلت پاسخ‌گویی یک task تأیید به پایان رسید و به شما واگذار شد.',
-        link: `/approvals/instances/${task.instanceId}`,
-      });
-    }
+        for (const task of tasks) {
+          await db.$queryRaw`SELECT id FROM "ApprovalInstance" WHERE id = ${task.instanceId}::uuid FOR UPDATE`;
+          const action = (task.step.onTimeout || "ESCALATE").toUpperCase();
+          const claimed = await db.approvalTask.updateMany({
+            where: { id: task.id, status: ApprovalStatus.PENDING },
+            data: {
+              status: ApprovalStatus.EXPIRED,
+              decidedAt: now,
+              comment: "مهلت پاسخ‌گویی به پایان رسید.",
+            },
+          });
+          if (claimed.count === 0) continue;
+          summary.processed += 1;
 
-    return { ...summary, success: true, timestamp: new Date().toISOString() };
+          await this.audit.recordInTransaction(db, actorId, {
+            action: AuditAction.UPDATE,
+            entity: "ApprovalTask",
+            entityId: task.id,
+            before: { status: ApprovalStatus.PENDING },
+            after: { status: ApprovalStatus.EXPIRED, onTimeout: action },
+          });
+
+          if (action === "REJECT") {
+            await this.closeInstance(
+              task.instance,
+              ApprovalStatus.REJECTED,
+              now,
+              db,
+            );
+            summary.rejected += 1;
+            await this.notifyInitiator(
+              task.instance,
+              "رد (نقض مهلت)",
+              null,
+              db,
+            );
+            await this.dispatch(
+              "onRejected",
+              {
+                subjectType: task.instance.subjectType,
+                subjectId: task.instance.subjectId,
+                instanceId: task.instanceId,
+                outcome: "REJECTED",
+                actorId,
+                comment: "مهلت پاسخ‌گویی به پایان رسید.",
+              },
+              db,
+            );
+            continue;
+          }
+
+          if (action === "SKIP") {
+            summary.skipped += 1;
+            await this.maybeAdvance(task.instance, task.stepOrder, actorId, db);
+            continue;
+          }
+
+          // ESCALATE
+          const target = await this.resolveEscalationTarget(task, db);
+          if (!target) {
+            if (task.step.required)
+              throw new BadRequestException(
+                "مرحله الزامی بدون تأییدکننده جایگزین قابل عبور نیست.",
+              );
+            summary.skipped += 1;
+            await this.maybeAdvance(task.instance, task.stepOrder, actorId, db);
+            continue;
+          }
+          const targetUser = await this.access.buildAuthUser(target);
+          if (!targetUser)
+            throw new BadRequestException("تأییدکننده جایگزین فعال نیست.");
+          await this.assertSubjectAccess(
+            task.instance,
+            targetUser,
+            undefined,
+            db,
+          );
+          await db.approvalTask.create({
+            data: {
+              instanceId: task.instanceId,
+              stepId: task.stepId,
+              stepOrder: task.stepOrder,
+              status: ApprovalStatus.PENDING,
+              assigneeUserId: target,
+              dueAt: this.dueAt(task.step, now),
+            },
+          });
+          summary.escalated += 1;
+          await this.notification.notify(
+            target,
+            {
+              type: NotificationType.TASK_OVERDUE,
+              title: "task تأیید سررسیدشده",
+              body: "مهلت پاسخ‌گویی یک task تأیید به پایان رسید و به شما واگذار شد.",
+              link: `/approvals/instances/${task.instanceId}`,
+            },
+            db,
+          );
+        }
+
+        return {
+          ...summary,
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
+      },
+      { maxWait: 10000, timeout: 300000 },
+    );
   }
 
   /* ---------------------------------------------------------------------
@@ -970,30 +1398,64 @@ export class ApprovalsService {
    * فراخوانی هندلر پایان گردش برای یک موضوع.
    * سایر ماژول‌ها می‌توانند هندلر خود را با `registerHandler` ثبت کنند.
    */
-  async onApproved(subjectType: string, subjectId: string, instanceId: string): Promise<void> {
-    await this.dispatch('onApproved', {
-      subjectType,
-      subjectId,
-      instanceId,
-      outcome: 'APPROVED',
-      actorId: null,
-    });
+  async onApproved(
+    subjectType: string,
+    subjectId: string,
+    instanceId: string,
+    user?: AuthenticatedUser,
+  ): Promise<void> {
+    if (!user)
+      throw new ForbiddenException("عامل معتبر برای اعمال نتیجه لازم است.");
+    await this.prisma.$transaction(
+      async (db) => {
+        const instance = await db.approvalInstance.findUnique({
+          where: { id: instanceId },
+        });
+        if (
+          !instance ||
+          instance.status !== ApprovalStatus.APPROVED ||
+          instance.subjectType !== subjectType ||
+          instance.subjectId !== subjectId
+        )
+          throw new BadRequestException("گردش تأییدشده معتبر یافت نشد.");
+        await this.assertInstanceVisible(instance, user, db);
+        await this.assertSubjectAccess(instance, user, undefined, db);
+        await this.dispatch(
+          "onApproved",
+          {
+            subjectType,
+            subjectId,
+            instanceId,
+            outcome: "APPROVED",
+            actorId: user.id,
+          },
+          db,
+        );
+      },
+      { timeout: 300000 },
+    );
   }
 
   /** اجرای هندلر ثبت‌شده برای یک پیامد */
   private async dispatch(
-    method: 'onApproved' | 'onRejected' | 'onNeedsRevision' | 'onCancelled' | 'onStepAdvanced',
+    method:
+      | "onApproved"
+      | "onRejected"
+      | "onNeedsRevision"
+      | "onCancelled"
+      | "onStepAdvanced",
     ctx: ApprovalSubjectContext,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
     const handler = ApprovalsService.handlers.get(ctx.subjectType);
     if (!handler) return;
     const fn = handler[method];
     if (!fn) return;
     try {
-      await fn(ctx);
+      await fn({ ...ctx, transaction: db === this.prisma ? undefined : db });
     } catch {
-      this.logger.error(
-        `Approval handler failed: ${method}`,
+      throw new BadRequestException(
+        "اعمال نتیجه گردش ناموفق بود؛ هیچ تغییری ثبت نشد.",
       );
     }
   }
@@ -1007,7 +1469,13 @@ export class ApprovalsService {
    * این متد به‌صورت تنبل (lazily) فراخوانی می‌شود و ایمن است
    * (اجرای دوباره رکورد تکراری ایجاد نمی‌کند).
    */
-  async ensureDefaultFlows(): Promise<{ created: string[] }> {
+  async ensureDefaultFlows(
+    user: AuthenticatedUser,
+  ): Promise<{ created: string[] }> {
+    if (!user.isSuperAdmin)
+      throw new ForbiddenException(
+        "ساخت گردش‌های سراسری فقط برای مدیر ارشد مجاز است.",
+      );
     const created: string[] = [];
 
     const defaults: Array<{
@@ -1018,51 +1486,51 @@ export class ApprovalsService {
       steps: ApprovalStepDto[];
     }> = [
       {
-        code: 'LEAVE_REQUEST',
-        name: 'گردش تأیید مرخصی',
+        code: "LEAVE_REQUEST",
+        name: "گردش تأیید مرخصی",
         subjectType: ApprovalSubjectType.LEAVE,
-        description: 'سرپرست ← مدیر واحد ← منابع انسانی (در صورت بیش از ۳ روز)',
+        description: "سرپرست ← مدیر واحد ← منابع انسانی (در صورت بیش از ۳ روز)",
         steps: [
           {
             stepOrder: 1,
-            name: 'سرپرست',
-            approverType: 'SUPERVISOR' as any,
+            name: "سرپرست",
+            approverType: "SUPERVISOR" as any,
             slaHours: 24,
-            onTimeout: 'ESCALATE' as any,
+            onTimeout: "ESCALATE" as any,
             required: true,
           },
           {
             stepOrder: 2,
-            name: 'مدیر واحد',
-            approverType: 'MANAGER' as any,
+            name: "مدیر واحد",
+            approverType: "MANAGER" as any,
             slaHours: 24,
-            onTimeout: 'ESCALATE' as any,
+            onTimeout: "ESCALATE" as any,
             required: true,
           },
           {
             stepOrder: 3,
-            name: 'منابع انسانی',
-            approverType: 'HR' as any,
+            name: "منابع انسانی",
+            approverType: "HR" as any,
             slaHours: 48,
-            onTimeout: 'ESCALATE' as any,
+            onTimeout: "ESCALATE" as any,
             required: true,
             // «مرخصی بیش از ۳ روز نیازمند تأیید منابع انسانی است»
-            conditionJson: { field: 'days', operator: 'gt', value: 3 },
+            conditionJson: { field: "days", operator: "gt", value: 3 },
           },
         ],
       },
       {
-        code: 'SHIFT_SWAP',
-        name: 'گردش تأیید تعویض شیفت',
+        code: "SHIFT_SWAP",
+        name: "گردش تأیید تعویض شیفت",
         subjectType: ApprovalSubjectType.SHIFT_SWAP,
-        description: 'سرپرست ← تأیید تعویض شیفت',
+        description: "سرپرست ← تأیید تعویض شیفت",
         steps: [
           {
             stepOrder: 1,
-            name: 'سرپرست',
-            approverType: 'SUPERVISOR' as any,
+            name: "سرپرست",
+            approverType: "SUPERVISOR" as any,
             slaHours: 24,
-            onTimeout: 'ESCALATE' as any,
+            onTimeout: "ESCALATE" as any,
             required: true,
           },
         ],
@@ -1089,8 +1557,8 @@ export class ApprovalsService {
     if (created.length) {
       await this.audit.record(null, {
         action: AuditAction.CREATE,
-        entity: 'ApprovalFlow',
-        after: { codes: created, note: 'ایجاد خودکار گردش‌های پیش‌فرض سامانه' },
+        entity: "ApprovalFlow",
+        after: { codes: created, note: "ایجاد خودکار گردش‌های پیش‌فرض سامانه" },
       });
     }
 
@@ -1111,9 +1579,11 @@ export class ApprovalsService {
   private async resolveFlowByCode(code: string) {
     const base = this.baseCode(code.trim());
     const rows = await this.prisma.approvalFlow.findMany({
-      where: { OR: [{ code: base }, { code: { startsWith: `${base}${SEPARATOR}` } }] },
-      include: { steps: { orderBy: { stepOrder: 'asc' } } },
-      orderBy: { version: 'desc' },
+      where: {
+        OR: [{ code: base }, { code: { startsWith: `${base}${SEPARATOR}` } }],
+      },
+      include: { steps: { orderBy: { stepOrder: "asc" } } },
+      orderBy: { version: "desc" },
     });
     if (!rows.length) return null;
     return rows.find((f) => f.isActive) ?? rows[0];
@@ -1131,11 +1601,11 @@ export class ApprovalsService {
       conditionJson:
         s.conditionJson === undefined || s.conditionJson === null
           ? null
-          : typeof s.conditionJson === 'string'
+          : typeof s.conditionJson === "string"
             ? s.conditionJson
             : JSON.stringify(s.conditionJson),
       slaHours: s.slaHours ?? 48,
-      onTimeout: s.onTimeout ?? 'ESCALATE',
+      onTimeout: s.onTimeout ?? "ESCALATE",
       required: s.required ?? true,
     }));
   }
@@ -1148,6 +1618,7 @@ export class ApprovalsService {
     steps: any[],
     fromOrder: number,
     ctx: StepContext,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<{ step: any; approvers: ApproverRef[] } | null> {
     const candidates = steps
       .filter((s) => s.stepOrder > fromOrder)
@@ -1155,11 +1626,23 @@ export class ApprovalsService {
 
     for (const step of candidates) {
       if (!this.evaluateCondition(step.conditionJson, ctx.payload)) continue;
-      const approvers = await this.resolveApprovers(step, ctx);
+      const candidates = await this.resolveApprovers(step, ctx, db);
+      const approvers: ApproverRef[] = [];
+      for (const candidate of candidates) {
+        const user = await this.access.buildAuthUser(candidate.userId);
+        if (
+          user &&
+          (!ctx.employeeId ||
+            (await this.access.canAccessEmployee(user, ctx.employeeId)))
+        )
+          approvers.push(candidate);
+      }
       if (!approvers.length) {
-        this.logger.warn(
-          'Approval step has no approver.',
-        );
+        if (step.required)
+          throw new BadRequestException(
+            "تأییدکننده‌ای در حوزه مجاز برای مرحله الزامی یافت نشد.",
+          );
+        this.logger.warn("Approval step has no approver.");
         continue;
       }
       return { step, approvers };
@@ -1168,51 +1651,60 @@ export class ApprovalsService {
   }
 
   /** تعیین تأییدکنندگان یک مرحله */
-  private async resolveApprovers(step: any, ctx: StepContext): Promise<ApproverRef[]> {
-    const type = String(step.approverType || 'ROLE').toUpperCase();
+  private async resolveApprovers(
+    step: any,
+    ctx: StepContext,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<ApproverRef[]> {
+    const type = String(step.approverType || "ROLE").toUpperCase();
     switch (type) {
-      case 'USER': {
+      case "USER": {
         if (!step.approverUserId) return [];
-        const user = await this.prisma.user.findFirst({
-          where: { id: step.approverUserId, status: UserStatus.ACTIVE, deletedAt: null },
+        const user = await db.user.findFirst({
+          where: {
+            id: step.approverUserId,
+            status: UserStatus.ACTIVE,
+            deletedAt: null,
+          },
           select: { id: true },
         });
         return user ? [{ userId: user.id, roleCode: null }] : [];
       }
-      case 'ROLE': {
+      case "ROLE": {
         if (!step.approverRoleCode) return [];
-        return this.usersByRoleCodes([step.approverRoleCode]);
+        return this.usersByRoleCodes([step.approverRoleCode], db);
       }
-      case 'HR':
-        return this.usersByRoleCodes(HR_ROLE_CODES);
-      case 'FINANCE':
-        return this.usersByRoleCodes(FINANCE_ROLE_CODES);
-      case 'SUPERVISOR': {
+      case "HR":
+        return this.usersByRoleCodes(HR_ROLE_CODES, db);
+      case "FINANCE":
+        return this.usersByRoleCodes(FINANCE_ROLE_CODES, db);
+      case "SUPERVISOR": {
         if (!ctx.employeeId) return [];
-        const employee = await this.prisma.employee.findUnique({
+        const employee = await db.employee.findUnique({
           where: { id: ctx.employeeId },
           select: { managerId: true },
         });
         if (!employee?.managerId) return [];
-        return this.userByEmployee(employee.managerId);
+        return this.userByEmployee(employee.managerId, db);
       }
-      case 'MANAGER': {
+      case "MANAGER": {
         if (!ctx.employeeId) return [];
-        const employee = await this.prisma.employee.findUnique({
+        const employee = await db.employee.findUnique({
           where: { id: ctx.employeeId },
           select: { orgUnitId: true, managerId: true },
         });
         if (employee?.orgUnitId) {
-          const unit = await this.prisma.orgUnit.findUnique({
+          const unit = await db.orgUnit.findUnique({
             where: { id: employee.orgUnitId },
             select: { managerId: true },
           });
           if (unit?.managerId) {
-            const refs = await this.userByEmployee(unit.managerId);
+            const refs = await this.userByEmployee(unit.managerId, db);
             if (refs.length) return refs;
           }
         }
-        if (employee?.managerId) return this.userByEmployee(employee.managerId);
+        if (employee?.managerId)
+          return this.userByEmployee(employee.managerId, db);
         return [];
       }
       default:
@@ -1221,35 +1713,46 @@ export class ApprovalsService {
   }
 
   /** کاربران فعال دارای یکی از نقش‌های داده‌شده */
-  private async usersByRoleCodes(codes: string[]): Promise<ApproverRef[]> {
+  private async usersByRoleCodes(
+    codes: string[],
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<ApproverRef[]> {
     if (!codes.length) return [];
-    const users = await this.prisma.user.findMany({
+    const users = await db.user.findMany({
       where: {
         status: UserStatus.ACTIVE,
         deletedAt: null,
         userRoles: {
           some: {
-            role: { code: { in: codes } },
+            role: { code: { in: codes }, isActive: true, deletedAt: null },
+            validFrom: { lte: new Date() },
             OR: [{ validTo: null }, { validTo: { gt: new Date() } }],
           },
         },
       },
-      select: { id: true, userRoles: { select: { role: { select: { code: true } } } } },
+      select: {
+        id: true,
+        userRoles: { select: { role: { select: { code: true } } } },
+      },
     });
 
     const map = new Map<string, ApproverRef>();
     for (const user of users) {
       for (const ur of user.userRoles) {
         if (!codes.includes(ur.role.code)) continue;
-        if (!map.has(user.id)) map.set(user.id, { userId: user.id, roleCode: ur.role.code });
+        if (!map.has(user.id))
+          map.set(user.id, { userId: user.id, roleCode: ur.role.code });
       }
     }
     return [...map.values()];
   }
 
   /** کاربر فعال متناظر با یک کارمند */
-  private async userByEmployee(employeeId: string): Promise<ApproverRef[]> {
-    const user = await this.prisma.user.findFirst({
+  private async userByEmployee(
+    employeeId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<ApproverRef[]> {
+    const user = await db.user.findFirst({
       where: { employeeId, status: UserStatus.ACTIVE, deletedAt: null },
       select: { id: true },
     });
@@ -1257,7 +1760,12 @@ export class ApprovalsService {
   }
 
   /** ساخت داده task تأیید */
-  private taskData(instanceId: string, step: any, approver: ApproverRef, now: Date) {
+  private taskData(
+    instanceId: string,
+    step: any,
+    approver: ApproverRef,
+    now: Date,
+  ) {
     return {
       instanceId,
       stepId: step.id,
@@ -1276,8 +1784,13 @@ export class ApprovalsService {
   }
 
   /** بستن نمونه گردش (رد/نیازمند اصلاح) و لغو task باز */
-  private async closeInstance(instance: any, status: ApprovalStatus, now: Date) {
-    await this.prisma.$transaction(async (tx) => {
+  private async closeInstance(
+    instance: any,
+    status: ApprovalStatus,
+    now: Date,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    await (async (tx: Prisma.TransactionClient) => {
       await tx.approvalInstance.updateMany({
         where: { id: instance.id, status: ApprovalStatus.PENDING },
         data: { status, completedAt: now },
@@ -1286,32 +1799,40 @@ export class ApprovalsService {
         where: { instanceId: instance.id, status: ApprovalStatus.PENDING },
         data: { status: ApprovalStatus.CANCELLED },
       });
-    });
+    })(db);
   }
 
   /** منع خودتأییدی */
-  private async assertNoSelfApproval(task: any, actor: AuthenticatedUser) {
+  private async assertNoSelfApproval(
+    task: any,
+    actor: AuthenticatedUser,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
     const instance = task.instance;
 
     // ۱) ثبت‌کننده درخواست
     if (instance.initiatedById && instance.initiatedById === actor.id) {
       throw new ForbiddenException(
-        'شما نمی‌توانید درخواستی را که خودتان ثبت کرده‌اید تأیید کنید.',
+        "شما نمی‌توانید درخواستی را که خودتان ثبت کرده‌اید تأیید کنید.",
       );
     }
 
     // ۲) مالک رکورد موضوع (مثلاً کارمند صاحب درخواست مرخصی)
-    const ownerUserId = await this.resolveSubjectOwnerUserId(instance);
+    const ownerUserId = await this.resolveSubjectOwnerUserId(instance, db);
     if (ownerUserId && ownerUserId === actor.id) {
       throw new ForbiddenException(
-        'شما نمی‌توانید درخواستی را که خودتان ثبت کرده‌اید تأیید کنید.',
+        "شما نمی‌توانید درخواستی را که خودتان ثبت کرده‌اید تأیید کنید.",
       );
     }
 
     // ۳) task که به خودِ مالک درخواست تخصیص یافته است
-    if (task.assigneeUserId && task.assigneeUserId === actor.id && task.assigneeUserId === ownerUserId) {
+    if (
+      task.assigneeUserId &&
+      task.assigneeUserId === actor.id &&
+      task.assigneeUserId === ownerUserId
+    ) {
       throw new ForbiddenException(
-        'شما نمی‌توانید درخواستی را که خودتان ثبت کرده‌اید تأیید کنید.',
+        "شما نمی‌توانید درخواستی را که خودتان ثبت کرده‌اید تأیید کنید.",
       );
     }
   }
@@ -1320,17 +1841,21 @@ export class ApprovalsService {
   private assertTaskAssignee(task: any, actor: AuthenticatedUser) {
     const isAssignee = task.assigneeUserId === actor.id;
     const isRoleHolder =
-      !!task.assigneeRoleCode && actor.roleCodes.includes(task.assigneeRoleCode);
+      !!task.assigneeRoleCode &&
+      actor.roleCodes.includes(task.assigneeRoleCode);
     if (!isAssignee && !isRoleHolder) {
-      throw new ForbiddenException('این task تأیید به شما واگذار نشده است.');
+      throw new ForbiddenException("این task تأیید به شما واگذار نشده است.");
     }
   }
 
   /** کاربری که مالک رکورد موضوع است */
-  private async resolveSubjectOwnerUserId(instance: any): Promise<string | null> {
-    const employeeId = await this.resolveSubjectEmployeeId(instance);
+  private async resolveSubjectOwnerUserId(
+    instance: any,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
+    const employeeId = await this.resolveSubjectEmployeeId(instance, db);
     if (!employeeId) return null;
-    const user = await this.prisma.user.findFirst({
+    const user = await db.user.findFirst({
       where: { employeeId },
       select: { id: true },
     });
@@ -1338,49 +1863,49 @@ export class ApprovalsService {
   }
 
   /** کارمند مرتبط با موضوع نمونه */
-  private async resolveSubjectEmployeeId(instance: any): Promise<string | null> {
-    const payload = this.parseJson<Record<string, unknown>>(instance.payloadJson, {});
-    if (payload.employeeId) return String(payload.employeeId);
-
+  private async resolveSubjectEmployeeId(
+    instance: any,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
     try {
       switch (instance.subjectType) {
         case ApprovalSubjectType.LEAVE: {
-          const r = await this.prisma.leaveRequest.findUnique({
+          const r = await db.leaveRequest.findUnique({
             where: { id: instance.subjectId },
             select: { employeeId: true },
           });
           return r?.employeeId ?? null;
         }
         case ApprovalSubjectType.MISSION: {
-          const r = await this.prisma.mission.findUnique({
+          const r = await db.mission.findUnique({
             where: { id: instance.subjectId },
             select: { employeeId: true },
           });
           return r?.employeeId ?? null;
         }
         case ApprovalSubjectType.LOAN: {
-          const r = await this.prisma.loan.findUnique({
+          const r = await db.loan.findUnique({
             where: { id: instance.subjectId },
             select: { employeeId: true },
           });
           return r?.employeeId ?? null;
         }
         case ApprovalSubjectType.ATTENDANCE_CORRECTION: {
-          const r = await this.prisma.attendanceCorrection.findUnique({
+          const r = await db.attendanceCorrection.findUnique({
             where: { id: instance.subjectId },
             select: { employeeId: true },
           });
           return r?.employeeId ?? null;
         }
         case ApprovalSubjectType.TERMINATION: {
-          const r = await this.prisma.terminationRequest.findUnique({
+          const r = await db.terminationRequest.findUnique({
             where: { id: instance.subjectId },
             select: { employeeId: true },
           });
           return r?.employeeId ?? null;
         }
         case ApprovalSubjectType.SHIFT_SWAP: {
-          const r = await this.prisma.shiftSwapRequest.findUnique({
+          const r = await db.shiftSwapRequest.findUnique({
             where: { id: instance.subjectId },
             select: { fromEmployeeId: true },
           });
@@ -1395,34 +1920,46 @@ export class ApprovalsService {
   }
 
   /** سطح بالاتر برای ارجاع (سرپرستِ سرپرست یا مدیر کارمند موضوع) */
-  private async resolveEscalationTarget(task: any): Promise<string | null> {
+  private async resolveEscalationTarget(
+    task: any,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
     if (task.assigneeUserId) {
-      const managerOfAssignee = await this.managerUserIdOfUser(task.assigneeUserId);
+      const managerOfAssignee = await this.managerUserIdOfUser(
+        task.assigneeUserId,
+        db,
+      );
       if (managerOfAssignee) return managerOfAssignee;
     }
-    const employeeId = await this.resolveSubjectEmployeeId(task.instance);
-    if (employeeId) return this.managerUserIdOfEmployee(employeeId);
+    const employeeId = await this.resolveSubjectEmployeeId(task.instance, db);
+    if (employeeId) return this.managerUserIdOfEmployee(employeeId, db);
     return null;
   }
 
   /** کاربرِ مدیرِ مستقیم یک کاربر */
-  private async managerUserIdOfUser(userId: string): Promise<string | null> {
-    const user = await this.prisma.user.findFirst({
+  private async managerUserIdOfUser(
+    userId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
+    const user = await db.user.findFirst({
       where: { id: userId },
       select: { employeeId: true },
     });
     if (!user?.employeeId) return null;
-    return this.managerUserIdOfEmployee(user.employeeId);
+    return this.managerUserIdOfEmployee(user.employeeId, db);
   }
 
   /** کاربرِ مدیرِ مستقیم یک کارمند */
-  private async managerUserIdOfEmployee(employeeId: string): Promise<string | null> {
-    const employee = await this.prisma.employee.findUnique({
+  private async managerUserIdOfEmployee(
+    employeeId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
+    const employee = await db.employee.findUnique({
       where: { id: employeeId },
       select: { managerId: true },
     });
     if (!employee?.managerId) return null;
-    const user = await this.prisma.user.findFirst({
+    const user = await db.user.findFirst({
       where: { employeeId: employee.managerId },
       select: { id: true },
     });
@@ -1430,10 +1967,13 @@ export class ApprovalsService {
   }
 
   /** ارزیابی شرط مرحله */
-  private evaluateCondition(conditionJson: string | null, context: Record<string, unknown>): boolean {
+  private evaluateCondition(
+    conditionJson: string | null,
+    context: Record<string, unknown>,
+  ): boolean {
     if (!conditionJson) return true;
     const node = this.parseJson<any>(conditionJson, null);
-    if (!node) return true;
+    if (!node) throw new BadRequestException("شرط گردش تأیید معتبر نیست.");
     return this.evaluateNode(node, context);
   }
 
@@ -1446,49 +1986,85 @@ export class ApprovalsService {
       return node.any.some((n: any) => this.evaluateNode(n, context));
     }
     if (node.not) return !this.evaluateNode(node.not, context);
+    if (
+      typeof node.field !== "string" ||
+      node.field === "metadata" ||
+      node.field.startsWith("metadata.")
+    )
+      throw new BadRequestException(
+        "شرط تأیید باید از فیلدهای رکورد اصلی استفاده کند.",
+      );
 
     const value = this.getFieldValue(context, node.field);
-    const op = String(node.operator ?? 'eq').toLowerCase();
+    const op = String(node.operator ?? "eq").toLowerCase();
+    if (value === undefined && op !== "exists")
+      throw new BadRequestException(
+        "فیلد شرط گردش تأیید در رکورد اصلی موجود نیست.",
+      );
     const target = node.value;
 
     switch (op) {
-      case 'eq':
-        return value === target || (value != null && target != null && String(value) === String(target));
-      case 'ne':
-        return !(value === target || (value != null && target != null && String(value) === String(target)));
-      case 'gt':
+      case "eq":
+        return (
+          value === target ||
+          (value != null && target != null && String(value) === String(target))
+        );
+      case "ne":
+        return !(
+          value === target ||
+          (value != null && target != null && String(value) === String(target))
+        );
+      case "gt":
         return Number(value) > Number(target);
-      case 'gte':
+      case "gte":
         return Number(value) >= Number(target);
-      case 'lt':
+      case "lt":
         return Number(value) < Number(target);
-      case 'lte':
+      case "lte":
         return Number(value) <= Number(target);
-      case 'in':
-        return Array.isArray(target) && target.some((t: any) => String(t) === String(value));
-      case 'nin':
-        return Array.isArray(target) && !target.some((t: any) => String(t) === String(value));
-      case 'contains':
-        return typeof value === 'string' && String(value).includes(String(target));
-      case 'exists':
-        return target ? value !== undefined && value !== null : value === undefined || value === null;
-      case 'truthy':
+      case "in":
+        return (
+          Array.isArray(target) &&
+          target.some((t: any) => String(t) === String(value))
+        );
+      case "nin":
+        return (
+          Array.isArray(target) &&
+          !target.some((t: any) => String(t) === String(value))
+        );
+      case "contains":
+        return (
+          typeof value === "string" && String(value).includes(String(target))
+        );
+      case "exists":
+        return target
+          ? value !== undefined && value !== null
+          : value === undefined || value === null;
+      case "truthy":
         return !!value;
       default:
-        return true;
+        throw new BadRequestException("عملگر شرط گردش تأیید معتبر نیست.");
     }
   }
 
   private getFieldValue(context: Record<string, unknown>, path?: string): any {
     if (!path) return undefined;
     return path
-      .split('.')
-      .reduce<any>((acc, part) => (acc === null || acc === undefined ? undefined : acc[part]), context);
+      .split(".")
+      .reduce<any>(
+        (acc, part) =>
+          acc === null ||
+          acc === undefined ||
+          !Object.prototype.hasOwnProperty.call(acc, part)
+            ? undefined
+            : acc[part],
+        context,
+      );
   }
 
   /** تجزیه امن JSON */
   private parseJson<T>(raw: string | null | undefined, fallback: T): T {
-    if (raw === null || raw === undefined || raw === '') return fallback;
+    if (raw === null || raw === undefined || raw === "") return fallback;
     try {
       return JSON.parse(raw) as T;
     } catch {
@@ -1497,7 +2073,12 @@ export class ApprovalsService {
   }
 
   /** اعلان به تأییدکنندگان مرحله */
-  private async notifyAssignees(approvers: ApproverRef[], instance: any, step: any) {
+  private async notifyAssignees(
+    approvers: ApproverRef[],
+    instance: any,
+    step: any,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
     if (!approvers.length) return;
     await this.notification.notifyMany(
       approvers.map((a) => a.userId),
@@ -1507,18 +2088,30 @@ export class ApprovalsService {
         body: `برای شما task تأییدی در گردش «${instance.subjectType}» ایجاد شد.`,
         link: `/approvals/instances/${instance.id}`,
       },
+      db,
     );
   }
 
   /** اعلان نتیجه به ثبت‌کننده درخواست */
-  private async notifyInitiator(instance: any, result: string, comment?: string | null) {
+  private async notifyInitiator(
+    instance: any,
+    result: string,
+    comment?: string | null,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
     if (!instance.initiatedById) return;
-    await this.notification.notify(instance.initiatedById, {
-      type: NotificationType.REQUEST_RESULT,
-      title: `نتیجه درخواست: ${result}`,
-      body: comment ? `نتیجه: ${result} — ${comment}` : `نتیجه درخواست شما: ${result}.`,
-      link: `/approvals/instances/${instance.id}`,
-    });
+    await this.notification.notify(
+      instance.initiatedById,
+      {
+        type: NotificationType.REQUEST_RESULT,
+        title: `نتیجه درخواست: ${result}`,
+        body: comment
+          ? `نتیجه: ${result} — ${comment}`
+          : `نتیجه درخواست شما: ${result}.`,
+        link: `/approvals/instances/${instance.id}`,
+      },
+      db,
+    );
   }
 
   /* ---------------------------------------------------------------------
@@ -1532,16 +2125,14 @@ export class ApprovalsService {
   private async scopeFilter(
     user: AuthenticatedUser,
     subjectType?: ApprovalSubjectType,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<Prisma.ApprovalInstanceWhereInput> {
-    if (user.scope?.unrestricted) return {};
+    if (user.isSuperAdmin || user.scope?.unrestricted) return {};
 
     const employeeWhere = this.access.employeeWhereFor(user);
     const branches: Prisma.ApprovalInstanceWhereInput[] = [];
 
-    const add = async (
-      type: ApprovalSubjectType,
-      ids: string[],
-    ) => {
+    const add = async (type: ApprovalSubjectType, ids: string[]) => {
       if (!ids.length) return;
       branches.push({ subjectType: type, subjectId: { in: ids } });
     };
@@ -1549,78 +2140,348 @@ export class ApprovalsService {
     const want = (t: ApprovalSubjectType) => !subjectType || subjectType === t;
 
     if (want(ApprovalSubjectType.LEAVE)) {
-      const rows = await this.prisma.leaveRequest.findMany({
+      const rows = await db.leaveRequest.findMany({
         where: { employee: employeeWhere },
         select: { id: true },
       });
-      await add(ApprovalSubjectType.LEAVE, rows.map((r) => r.id));
+      await add(
+        ApprovalSubjectType.LEAVE,
+        rows.map((r) => r.id),
+      );
     }
     if (want(ApprovalSubjectType.MISSION)) {
-      const rows = await this.prisma.mission.findMany({
+      const rows = await db.mission.findMany({
         where: { employee: employeeWhere },
         select: { id: true },
       });
-      await add(ApprovalSubjectType.MISSION, rows.map((r) => r.id));
+      await add(
+        ApprovalSubjectType.MISSION,
+        rows.map((r) => r.id),
+      );
     }
     if (want(ApprovalSubjectType.LOAN)) {
-      const rows = await this.prisma.loan.findMany({
+      const rows = await db.loan.findMany({
         where: { employee: employeeWhere },
         select: { id: true },
       });
-      await add(ApprovalSubjectType.LOAN, rows.map((r) => r.id));
+      await add(
+        ApprovalSubjectType.LOAN,
+        rows.map((r) => r.id),
+      );
     }
     if (want(ApprovalSubjectType.ATTENDANCE_CORRECTION)) {
-      const rows = await this.prisma.attendanceCorrection.findMany({
+      const rows = await db.attendanceCorrection.findMany({
         where: { employee: employeeWhere },
         select: { id: true },
       });
-      await add(ApprovalSubjectType.ATTENDANCE_CORRECTION, rows.map((r) => r.id));
+      await add(
+        ApprovalSubjectType.ATTENDANCE_CORRECTION,
+        rows.map((r) => r.id),
+      );
     }
     if (want(ApprovalSubjectType.TERMINATION)) {
-      const rows = await this.prisma.terminationRequest.findMany({
+      const rows = await db.terminationRequest.findMany({
         where: { employee: employeeWhere },
         select: { id: true },
       });
-      await add(ApprovalSubjectType.TERMINATION, rows.map((r) => r.id));
+      await add(
+        ApprovalSubjectType.TERMINATION,
+        rows.map((r) => r.id),
+      );
     }
     if (want(ApprovalSubjectType.SHIFT_SWAP)) {
-      const emps = await this.prisma.employee.findMany({ where: employeeWhere, select: { id: true } });
-      const rows = await this.prisma.shiftSwapRequest.findMany({
+      const emps = await db.employee.findMany({
+        where: employeeWhere,
+        select: { id: true },
+      });
+      const rows = await db.shiftSwapRequest.findMany({
         where: { fromEmployeeId: { in: emps.map((e) => e.id) } },
         select: { id: true },
       });
-      await add(ApprovalSubjectType.SHIFT_SWAP, rows.map((r) => r.id));
+      await add(
+        ApprovalSubjectType.SHIFT_SWAP,
+        rows.map((r) => r.id),
+      );
     }
 
-    branches.push({ initiatedById: user.id });
-    return { OR: branches };
+    const company = await this.access.companyWhereFor(user);
+    if (!subjectType || subjectType === ApprovalSubjectType.PAYROLL) {
+      const periods = await db.payrollPeriod.findMany({
+        where: { companyId: { in: user.scope.companyIds } },
+        select: { id: true },
+      });
+      if (periods.length)
+        branches.push({
+          subjectType: ApprovalSubjectType.PAYROLL,
+          subjectId: { in: periods.map((p) => p.id) },
+        });
+    }
+    return {
+      AND: [{ flow: { OR: [{ companyId: null }, company] } }, { OR: branches }],
+    };
   }
 
   /** اطمینان از دسترسی کاربر به یک نمونه گردش */
-  private async assertInstanceVisible(instance: any, user: AuthenticatedUser): Promise<void> {
-    if (user.scope?.unrestricted) return;
+  private async assertInstanceVisible(
+    instance: any,
+    user: AuthenticatedUser,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    if (user.isSuperAdmin || user.scope?.unrestricted) return;
+    const visible = await db.approvalInstance.findFirst({
+      where: {
+        id: instance.id,
+        AND: [await this.scopeFilter(user, undefined, db)],
+      },
+      select: { id: true },
+    });
+    if (!visible)
+      throw new ForbiddenException("دسترسی به این درخواست مجاز نیست.");
     if (instance.initiatedById === user.id) return;
 
-    const ownerUserId = await this.resolveSubjectOwnerUserId(instance);
+    const ownerUserId = await this.resolveSubjectOwnerUserId(instance, db);
     if (ownerUserId === user.id) return;
 
-    const employeeId = await this.resolveSubjectEmployeeId(instance);
-    if (employeeId && (await this.access.canAccessEmployee(user, employeeId))) return;
+    const employeeId = await this.resolveSubjectEmployeeId(instance, db);
+    if (employeeId && (await this.access.canAccessEmployee(user, employeeId)))
+      return;
 
     // اگر کاربر task در این نمونه دارد اجازه مشاهده دارد.
-    const hasTask = await this.prisma.approvalTask.findFirst({
+    const hasTask = await db.approvalTask.findFirst({
       where: {
         instanceId: instance.id,
         OR: [
           { assigneeUserId: user.id },
-          ...(user.roleCodes.length ? [{ assigneeRoleCode: { in: user.roleCodes } }] : []),
+          ...(user.roleCodes.length
+            ? [{ assigneeRoleCode: { in: user.roleCodes } }]
+            : []),
         ],
       },
       select: { id: true },
     });
     if (hasTask) return;
 
-    throw new ForbiddenException('دسترسی به این درخواست مجاز نیست.');
+    throw new ForbiddenException("دسترسی به این درخواست مجاز نیست.");
+  }
+
+  private async assertFlowWritable(
+    companyId: string | null | undefined,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (!companyId) {
+      if (!user.isSuperAdmin)
+        throw new ForbiddenException(
+          "تغییر گردش سراسری فقط برای مدیر ارشد مجاز است.",
+        );
+    } else await this.access.assertCompanyAccess(user, companyId);
+  }
+
+  private async assertSubjectAccess(
+    subject: { subjectType: string; subjectId: string },
+    user: AuthenticatedUser,
+    flowCompanyId?: string | null,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
+    const employeeId = await this.resolveSubjectEmployeeId(subject, db);
+    if (employeeId) {
+      await this.access.assertEmployeeAccess(user, employeeId);
+      const employee = await db.employee.findUnique({
+        where: { id: employeeId },
+        select: { companyId: true },
+      });
+      if (!employee || (flowCompanyId && flowCompanyId !== employee.companyId))
+        throw new BadRequestException("شرکت موضوع با گردش یکسان نیست.");
+      if (subject.subjectType === ApprovalSubjectType.TERMINATION)
+        await this.access.assertEmployeeMutable(user, employeeId, true);
+      if (subject.subjectType === ApprovalSubjectType.SHIFT_SWAP) {
+        const swap = await db.shiftSwapRequest.findUniqueOrThrow({
+          where: { id: subject.subjectId },
+        });
+        await this.access.assertCompanyMember(user, employee.companyId, {
+          employeeId: swap.toEmployeeId,
+        });
+      }
+      return employeeId;
+    }
+    if (subject.subjectType === ApprovalSubjectType.PAYROLL) {
+      const period = await db.payrollPeriod.findUnique({
+        where: { id: subject.subjectId },
+        select: { companyId: true },
+      });
+      if (!period) throw new NotFoundException("موضوع گردش یافت نشد.");
+      await this.access.assertCompanyAccess(user, period.companyId);
+      if (
+        !user.isSuperAdmin &&
+        !user.scope.unrestricted &&
+        !user.scope.companyIds.includes(period.companyId)
+      )
+        throw new ForbiddenException(
+          "گردش حقوق به دسترسی صریح کل شرکت نیاز دارد.",
+        );
+      if (flowCompanyId && flowCompanyId !== period.companyId)
+        throw new BadRequestException("شرکت موضوع با گردش یکسان نیست.");
+      return null;
+    }
+    if (!user.isSuperAdmin)
+      throw new ForbiddenException("مالک موضوع قابل احراز نیست.");
+    return null;
+  }
+
+  private async subjectPayload(
+    subject: { subjectType: string; subjectId: string },
+    employeeId: string | null,
+    metadata: Record<string, unknown>,
+    db: Prisma.TransactionClient,
+  ): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { employeeId, metadata };
+    const amount = (value: bigint) => {
+      const result = Number(value);
+      if (!Number.isSafeInteger(result))
+        throw new BadRequestException(
+          "مبلغ موضوع برای ارزیابی شرط عددی بیش از محدوده مجاز است.",
+        );
+      return result;
+    };
+    if (subject.subjectType === ApprovalSubjectType.LEAVE) {
+      const row = await db.leaveRequest.findUniqueOrThrow({
+        where: { id: subject.subjectId },
+        select: { startAt: true, endAt: true, durationMinutes: true },
+      });
+      Object.assign(payload, {
+        startAt: row.startAt.toISOString(),
+        endAt: row.endAt.toISOString(),
+        durationMinutes: row.durationMinutes,
+        days: Math.ceil(row.durationMinutes / 1440),
+      });
+    } else if (subject.subjectType === ApprovalSubjectType.MISSION) {
+      const row = await db.mission.findUniqueOrThrow({
+        where: { id: subject.subjectId },
+        select: { startAt: true, endAt: true, estimatedCost: true },
+      });
+      Object.assign(payload, {
+        startAt: row.startAt.toISOString(),
+        endAt: row.endAt.toISOString(),
+        days: Math.ceil(
+          (row.endAt.getTime() - row.startAt.getTime()) / 86400000,
+        ),
+        amount: amount(row.estimatedCost),
+      });
+    } else if (subject.subjectType === ApprovalSubjectType.LOAN) {
+      const row = await db.loan.findUniqueOrThrow({
+        where: { id: subject.subjectId },
+        select: { amount: true, installmentCount: true },
+      });
+      Object.assign(payload, {
+        amount: amount(row.amount),
+        installmentCount: row.installmentCount,
+      });
+    } else if (subject.subjectType === ApprovalSubjectType.PAYROLL) {
+      const row = await db.payrollPeriod.findUniqueOrThrow({
+        where: { id: subject.subjectId },
+        select: { year: true, month: true, totalNet: true },
+      });
+      Object.assign(payload, {
+        year: row.year,
+        month: row.month,
+        amount: amount(row.totalNet),
+      });
+    }
+    return payload;
+  }
+
+  private async outcomeActor(
+    ctx: ApprovalSubjectContext,
+  ): Promise<AuthenticatedUser> {
+    const user = ctx.actorId
+      ? await this.access.buildAuthUser(ctx.actorId)
+      : null;
+    const permissions: Record<string, string> = {
+      LEAVE: "leaves.approve",
+      SHIFT_SWAP: "shifts.approve",
+      MISSION: "missions.approve",
+      LOAN: "loans.approve",
+      ATTENDANCE_CORRECTION: "attendance.approve",
+      TERMINATION: "lifecycle.manage",
+      PAYROLL: "payroll.approve",
+    };
+    if (
+      !user ||
+      !this.access.hasPermission(user, permissions[ctx.subjectType] ?? "")
+    )
+      throw new ForbiddenException(
+        "مجوز عملیاتی برای اعمال نتیجه گردش را ندارید.",
+      );
+    return user;
+  }
+
+  private async applyDomainOutcome(
+    ctx: ApprovalSubjectContext,
+    decision: "APPROVE" | "REJECT",
+  ): Promise<void> {
+    const user = await this.outcomeActor(ctx);
+    const db = ctx.transaction ?? this.prisma;
+    const status = decision === "APPROVE" ? "APPROVED" : "REJECTED";
+    const dto = { decision, comment: ctx.comment ?? undefined };
+    if (ctx.subjectType === ApprovalSubjectType.MISSION) {
+      const row = await db.mission.findUniqueOrThrow({
+        where: { id: ctx.subjectId },
+        select: { status: true },
+      });
+      if (row.status !== status)
+        await this.missions.decide(
+          ctx.subjectId,
+          decision,
+          dto.comment,
+          user,
+          ctx.transaction,
+        );
+    } else if (ctx.subjectType === ApprovalSubjectType.LOAN) {
+      const row = await db.loan.findUniqueOrThrow({
+        where: { id: ctx.subjectId },
+        select: { status: true },
+      });
+      if (
+        row.status !== status &&
+        !(
+          decision === "APPROVE" && ["SETTLING", "SETTLED"].includes(row.status)
+        )
+      )
+        await this.loans.decideLoan(ctx.subjectId, dto, user, ctx.transaction);
+    } else if (ctx.subjectType === ApprovalSubjectType.ATTENDANCE_CORRECTION) {
+      const row = await db.attendanceCorrection.findUniqueOrThrow({
+        where: { id: ctx.subjectId },
+        select: { status: true },
+      });
+      if (row.status !== status)
+        await this.attendance.decideCorrection(
+          ctx.subjectId,
+          dto,
+          user,
+          ctx.transaction,
+        );
+    } else if (ctx.subjectType === ApprovalSubjectType.TERMINATION) {
+      const row = await db.terminationRequest.findUniqueOrThrow({
+        where: { id: ctx.subjectId },
+        select: { status: true },
+      });
+      if (row.status !== status)
+        await this.lifecycle.decideTermination(
+          ctx.subjectId,
+          dto,
+          user,
+          ctx.transaction,
+        );
+    } else if (
+      ctx.subjectType === ApprovalSubjectType.PAYROLL &&
+      decision === "APPROVE"
+    ) {
+      const row = await db.payrollPeriod.findUniqueOrThrow({
+        where: { id: ctx.subjectId },
+        select: { status: true },
+      });
+      if (row.status !== "LOCKED")
+        await this.payroll.lock(ctx.subjectId, user.id, user, ctx.transaction);
+    }
   }
 
   /* ---------------------------------------------------------------------
@@ -1708,278 +2569,119 @@ export class ApprovalsService {
 
   /** تأیید مرخصی: ثبت مصرف، تغییر وضعیت رکورد و به‌روزرسانی حضور و غیاب */
   private async applyLeaveApproved(ctx: ApprovalSubjectContext) {
-    const request = await this.prisma.leaveRequest.findUnique({
+    const user = await this.outcomeActor(ctx);
+    const db = ctx.transaction ?? this.prisma;
+    const record = await db.leaveRequest.findUnique({
       where: { id: ctx.subjectId },
-      include: { leaveType: true },
+      select: { status: true },
     });
-    if (!request) return;
-    if (request.status === LeaveRequestStatus.APPROVED) return; // idempotent
-
-    const fromStatus = request.status;
-
-    // تبدیل رزرو به مصرف: آزادسازی رزرو + ثبت مصرف
-    const outstanding = await this.outstandingReservationMinutes(request);
-    if (outstanding < 0) {
-      await this.prisma.leaveTransaction.create({
-        data: {
-          employeeId: request.employeeId,
-          leaveTypeId: request.leaveTypeId,
-          type: LeaveTransactionType.RELEASE,
-          minutes: -outstanding,
-          sourceType: 'LEAVE_REQUEST',
-          sourceId: request.id,
-          note: 'آزادسازی رزرو پس از تأیید مرخصی',
-          createdById: ctx.actorId,
-        },
-      });
-      await this.prisma.leaveTransaction.create({
-        data: {
-          employeeId: request.employeeId,
-          leaveTypeId: request.leaveTypeId,
-          type: LeaveTransactionType.CONSUME,
-          minutes: outstanding,
-          sourceType: 'LEAVE_REQUEST',
-          sourceId: request.id,
-          note: 'مصرف مرخصی تأییدشده',
-          createdById: ctx.actorId,
-        },
-      });
-    }
-
-    await this.prisma.leaveRequest.update({
-      where: { id: request.id },
-      data: { status: LeaveRequestStatus.APPROVED, decidedAt: new Date() },
-    });
-
-    await this.prisma.leaveRequestEvent.create({
-      data: {
-        requestId: request.id,
-        action: 'APPROVE',
-        fromStatus,
-        toStatus: LeaveRequestStatus.APPROVED,
-        actorId: ctx.actorId,
-        comment: ctx.comment ?? null,
-      },
-    });
-
-    // به‌روزرسانی وضعیت رکوردهای حضور و غیاب روزهای مرخصی
-    const dates = this.workDates(request.startAt, request.endAt);
-    if (dates.length) {
-      await this.prisma.attendanceRecord.updateMany({
-        where: { employeeId: request.employeeId, workDate: { in: dates } },
-        data: { status: AttendanceRecordStatus.LEAVE },
-      });
-    }
-
-    await this.audit.record(ctx.actorId, {
-      action: AuditAction.APPROVE,
-      entity: 'LeaveRequest',
-      entityId: request.id,
-      before: { status: fromStatus },
-      after: { status: LeaveRequestStatus.APPROVED, durationMinutes: request.durationMinutes },
-    });
+    if (!record) throw new NotFoundException("موضوع گردش یافت نشد.");
+    if (record.status === "APPROVED") return;
+    await this.leaves.decide(
+      ctx.subjectId,
+      { decision: "APPROVE", comment: ctx.comment ?? undefined },
+      user,
+      ctx.transaction,
+    );
   }
 
   /** رد مرخصی */
   private async applyLeaveRejected(ctx: ApprovalSubjectContext) {
-    const request = await this.prisma.leaveRequest.findUnique({
+    const user = await this.outcomeActor(ctx);
+    const db = ctx.transaction ?? this.prisma;
+    const record = await db.leaveRequest.findUnique({
       where: { id: ctx.subjectId },
+      select: { status: true },
     });
-    if (!request) return;
-    if (request.status === LeaveRequestStatus.REJECTED) return;
-
-    const fromStatus = request.status;
-    await this.prisma.leaveRequest.update({
-      where: { id: request.id },
-      data: { status: LeaveRequestStatus.REJECTED, decidedAt: new Date() },
-    });
-    await this.prisma.leaveRequestEvent.create({
-      data: {
-        requestId: request.id,
-        action: 'REJECT',
-        fromStatus,
-        toStatus: LeaveRequestStatus.REJECTED,
-        actorId: ctx.actorId,
-        comment: ctx.comment ?? null,
-      },
-    });
-    await this.audit.record(ctx.actorId, {
-      action: AuditAction.REJECT,
-      entity: 'LeaveRequest',
-      entityId: request.id,
-      before: { status: fromStatus },
-      after: { status: LeaveRequestStatus.REJECTED },
-    });
+    if (!record) throw new NotFoundException("موضوع گردش یافت نشد.");
+    if (record.status === "REJECTED") return;
+    await this.leaves.decide(
+      ctx.subjectId,
+      { decision: "REJECT", comment: ctx.comment ?? undefined },
+      user,
+      ctx.transaction,
+    );
   }
 
   /** نیازمند اصلاح مرخصی — رزرو آزاد می‌شود تا دوباره ثبت شود */
   private async applyLeaveNeedsRevision(ctx: ApprovalSubjectContext) {
-    const request = await this.prisma.leaveRequest.findUnique({
+    const user = await this.outcomeActor(ctx);
+    const db = ctx.transaction ?? this.prisma;
+    const record = await db.leaveRequest.findUnique({
       where: { id: ctx.subjectId },
+      select: { status: true },
     });
-    if (!request) return;
-    if (request.status === LeaveRequestStatus.NEEDS_REVISION) return;
-
-    const fromStatus = request.status;
-    const outstanding = await this.outstandingReservationMinutes(request);
-    if (outstanding < 0) {
-      await this.prisma.leaveTransaction.create({
-        data: {
-          employeeId: request.employeeId,
-          leaveTypeId: request.leaveTypeId,
-          type: LeaveTransactionType.RELEASE,
-          minutes: -outstanding,
-          sourceType: 'LEAVE_REQUEST',
-          sourceId: request.id,
-          note: 'آزادسازی رزرو جهت اصلاح درخواست',
-          createdById: ctx.actorId,
-        },
-      });
-    }
-
-    await this.prisma.leaveRequest.update({
-      where: { id: request.id },
-      data: { status: LeaveRequestStatus.NEEDS_REVISION, decidedAt: null },
-    });
-    await this.prisma.leaveRequestEvent.create({
-      data: {
-        requestId: request.id,
-        action: 'REQUEST_REVISION',
-        fromStatus,
-        toStatus: LeaveRequestStatus.NEEDS_REVISION,
-        actorId: ctx.actorId,
-        comment: ctx.comment ?? null,
-      },
-    });
-    await this.audit.record(ctx.actorId, {
-      action: AuditAction.UPDATE,
-      entity: 'LeaveRequest',
-      entityId: request.id,
-      before: { status: fromStatus },
-      after: { status: LeaveRequestStatus.NEEDS_REVISION },
-    });
+    if (!record) throw new NotFoundException("موضوع گردش یافت نشد.");
+    if (record.status === "NEEDS_REVISION") return;
+    await this.leaves.decide(
+      ctx.subjectId,
+      { decision: "NEEDS_REVISION", comment: ctx.comment ?? undefined },
+      user,
+      ctx.transaction,
+    );
   }
 
   /** لغو مرخصی */
   private async applyLeaveCancelled(ctx: ApprovalSubjectContext) {
-    const request = await this.prisma.leaveRequest.findUnique({
+    const user = await this.outcomeActor(ctx);
+    const db = ctx.transaction ?? this.prisma;
+    const record = await db.leaveRequest.findUnique({
       where: { id: ctx.subjectId },
+      select: { status: true },
     });
-    if (!request) return;
-    if (request.status === LeaveRequestStatus.CANCELLED) return;
-
-    const fromStatus = request.status;
-    await this.prisma.leaveRequest.update({
-      where: { id: request.id },
-      data: { status: LeaveRequestStatus.CANCELLED, decidedAt: new Date() },
-    });
-    await this.prisma.leaveRequestEvent.create({
-      data: {
-        requestId: request.id,
-        action: 'CANCEL',
-        fromStatus,
-        toStatus: LeaveRequestStatus.CANCELLED,
-        actorId: ctx.actorId,
-        comment: ctx.comment ?? null,
-      },
-    });
+    if (!record) throw new NotFoundException("موضوع گردش یافت نشد.");
+    if (record.status === "CANCELLED") return;
+    await this.leaves.cancel(ctx.subjectId, user, ctx.transaction);
   }
 
   /** همگام‌سازی «مرحله فعلی» در درخواست مرخصی */
   private async applyLeaveStepAdvanced(ctx: ApprovalSubjectContext) {
     if (!ctx.stepOrder) return;
-    await this.prisma.leaveRequest.updateMany({
+    await (ctx.transaction ?? this.prisma).leaveRequest.updateMany({
       where: { id: ctx.subjectId },
       data: { currentStep: ctx.stepOrder },
     });
   }
 
   /** مانده رزرو (منفی یعنی هنوز رزرو نشده) */
-  private async outstandingReservationMinutes(request: {
-    id: string;
-    employeeId: string;
-    leaveTypeId: string;
-  }): Promise<number> {
-    const transactions = await this.prisma.leaveTransaction.findMany({
-      where: {
-        employeeId: request.employeeId,
-        leaveTypeId: request.leaveTypeId,
-        sourceType: 'LEAVE_REQUEST',
-        sourceId: request.id,
-        type: {
-          in: [
-            LeaveTransactionType.RESERVE,
-            LeaveTransactionType.RELEASE,
-            LeaveTransactionType.CONSUME,
-          ],
-        },
-      },
-      select: { type: true, minutes: true },
-    });
-
-    let sum = 0;
-    for (const t of transactions) {
-      if (t.type === LeaveTransactionType.RESERVE) sum += t.minutes;
-      else if (t.type === LeaveTransactionType.RELEASE) sum += t.minutes;
-    }
-    return sum;
-  }
 
   /** فهرست روزهای کاری یک بازه (بر حسب نیمه‌شب UTC) */
-  private workDates(start: Date, end: Date): Date[] {
-    const result: Date[] = [];
-    const cursor = new Date(
-      Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
-    );
-    const last = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
-    while (cursor.getTime() <= last.getTime() && result.length < 366) {
-      result.push(new Date(cursor));
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
-    return result;
-  }
 
   /* ---------------------------------------------------------------------
    * هندلرهای پیش‌فرض — تعویض شیفت
    * ------------------------------------------------------------------ */
 
   private async applyShiftSwapApproved(ctx: ApprovalSubjectContext) {
-    const swap = await this.prisma.shiftSwapRequest.findUnique({
+    const user = await this.outcomeActor(ctx);
+    const db = ctx.transaction ?? this.prisma;
+    const record = await db.shiftSwapRequest.findUnique({
       where: { id: ctx.subjectId },
+      select: { status: true },
     });
-    if (!swap) return;
-    if (swap.status === 'APPROVED') return;
-
-    await this.prisma.shiftSwapRequest.update({
-      where: { id: swap.id },
-      data: { status: 'APPROVED', approvedById: ctx.actorId, decidedAt: new Date() },
-    });
-    await this.audit.record(ctx.actorId, {
-      action: AuditAction.APPROVE,
-      entity: 'ShiftSwapRequest',
-      entityId: swap.id,
-      before: { status: swap.status },
-      after: { status: 'APPROVED' },
-    });
+    if (!record) throw new NotFoundException("موضوع گردش یافت نشد.");
+    if (record.status === "APPROVED") return;
+    await this.shifts.decideSwap(
+      ctx.subjectId,
+      { decision: "APPROVE", comment: ctx.comment ?? undefined },
+      user,
+      ctx.transaction,
+    );
   }
 
   private async applyShiftSwapRejected(ctx: ApprovalSubjectContext) {
-    const swap = await this.prisma.shiftSwapRequest.findUnique({
+    const user = await this.outcomeActor(ctx);
+    const db = ctx.transaction ?? this.prisma;
+    const record = await db.shiftSwapRequest.findUnique({
       where: { id: ctx.subjectId },
+      select: { status: true },
     });
-    if (!swap) return;
-    if (swap.status === 'REJECTED') return;
-
-    await this.prisma.shiftSwapRequest.update({
-      where: { id: swap.id },
-      data: { status: 'REJECTED', approvedById: ctx.actorId, decidedAt: new Date() },
-    });
-    await this.audit.record(ctx.actorId, {
-      action: AuditAction.REJECT,
-      entity: 'ShiftSwapRequest',
-      entityId: swap.id,
-      before: { status: swap.status },
-      after: { status: 'REJECTED' },
-    });
+    if (!record) throw new NotFoundException("موضوع گردش یافت نشد.");
+    if (record.status === "REJECTED") return;
+    await this.shifts.decideSwap(
+      ctx.subjectId,
+      { decision: "REJECT", comment: ctx.comment ?? undefined },
+      user,
+      ctx.transaction,
+    );
   }
 }

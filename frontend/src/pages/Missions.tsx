@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import { EntityPicker,
+import { missionPayload, missionCompletionPayload } from '../lib/workflowPayloads';
+import { EntityPicker, DatePicker,
   Badge,
   Button,
   Card,
@@ -24,28 +25,32 @@ interface Mission {
   id: string;
   title: string;
   destination?: string;
-  fromAt?: string;
-  toAt?: string;
+  startAt?: string;
+  endAt?: string;
   status: string;
   estimatedCost?: bigint | number;
-  employee?: { code: string; firstName: string; lastName: string } | null;
+  employee?: { id: string; code: string; firstName: string; lastName: string } | null;
 }
 
 export default function Missions() {
   const toast = useToast();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const list = useList<Mission>('/missions');
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ employeeId: '', title: '', destination: '', fromAt: '', toAt: '', purpose: '', estimatedCost: 0 });
+  const [form, setForm] = useState({ employeeId: '', title: '', destination: '', startDate: '', startTime: '08:00', endDate: '', endTime: '16:00', purpose: '', estimatedCost: 0 });
   const [saving, setSaving] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [completionId, setCompletionId] = useState<string | null>(null);
+  const [completion, setCompletion] = useState({ report: '', actualCost: 0 });
 
   const canCreate = hasPermission('missions.create');
   const canApprove = hasPermission('missions.approve');
 
   const submit = async () => {
+    if (saving) return;
     setSaving(true);
     try {
-      await api.post('/missions', form);
+      await api.post('/missions', missionPayload(form));
       toast('success', 'مأموریت ثبت شد.');
       setCreateOpen(false);
       list.reload();
@@ -56,13 +61,32 @@ export default function Missions() {
     }
   };
 
-  const act = async (id: string, action: 'approve' | 'reject' | 'start' | 'complete') => {
+  const act = async (id: string, action: 'approve' | 'reject' | 'start') => {
+    if (actingId) return;
+    setActingId(id);
     try {
       await api.post(`/missions/${id}/${action}`);
       toast('success', 'عملیات انجام شد.');
       list.reload();
     } catch (e) {
       toast('error', apiErrorMessage(e));
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const complete = async () => {
+    if (actingId || !completionId) return;
+    setActingId(completionId);
+    try {
+      await api.post(`/missions/${completionId}/complete`, missionCompletionPayload(completion.report, completion.actualCost));
+      toast('success', 'گزارش پایان مأموریت ثبت شد.');
+      setCompletionId(null);
+      list.reload();
+    } catch (error) {
+      toast('error', apiErrorMessage(error));
+    } finally {
+      setActingId(null);
     }
   };
 
@@ -70,13 +94,11 @@ export default function Missions() {
     { key: 'employee', header: 'نیرو', render: (r) => (r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : '—') },
     { key: 'title', header: 'عنوان', render: (r) => <span className="fw-600">{r.title}</span> },
     { key: 'destination', header: 'مقصد' },
-    { key: 'fromAt', header: 'از', render: (r) => (r.fromAt ? formatJalali(r.fromAt) : '—') },
-    { key: 'toAt', header: 'تا', render: (r) => (r.toAt ? formatJalali(r.toAt) : '—') },
+    { key: 'startAt', header: 'از', render: (r) => (r.startAt ? formatJalali(r.startAt) : '—') },
+    { key: 'endAt', header: 'تا', render: (r) => (r.endAt ? formatJalali(r.endAt) : '—') },
     { key: 'cost', header: 'برآورد هزینه', render: (r) => (r.estimatedCost ? formatRial(Number(r.estimatedCost)) : '—') },
     { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status)}>{statusLabel(r.status)}</Badge> },
   ];
-
-  const pending = (s: string) => ['REQUESTED', 'PENDING', 'PENDING_APPROVAL', 'APPROVED', 'STARTED'].includes(s);
 
   return (
     <>
@@ -103,13 +125,13 @@ export default function Missions() {
           rowActions={(r) =>
             canApprove && r.status === 'REQUESTED' ? (
               <>
-                <Button size="sm" variant="success" onClick={() => act(r.id, 'approve')}>تأیید</Button>
-                <Button size="sm" variant="danger" onClick={() => act(r.id, 'reject')}>رد</Button>
+                <Button size="sm" variant="success" disabled={!!actingId} onClick={() => act(r.id, 'approve')}>تأیید</Button>
+                <Button size="sm" variant="danger" disabled={!!actingId} onClick={() => act(r.id, 'reject')}>رد</Button>
               </>
-            ) : canApprove && r.status === 'APPROVED' ? (
-              <Button size="sm" variant="outline" onClick={() => act(r.id, 'start')}>شروع</Button>
-            ) : canApprove && r.status === 'STARTED' ? (
-              <Button size="sm" variant="outline" onClick={() => act(r.id, 'complete')}>پایان</Button>
+            ) : (canCreate || r.employee?.id === user?.employee?.id) && r.status === 'APPROVED' ? (
+              <Button size="sm" variant="outline" disabled={!!actingId} onClick={() => act(r.id, 'start')}>شروع</Button>
+            ) : (canCreate || r.employee?.id === user?.employee?.id) && r.status === 'IN_PROGRESS' ? (
+              <Button size="sm" variant="outline" disabled={!!actingId} onClick={() => { setCompletion({ report: '', actualCost: Number(r.estimatedCost ?? 0) }); setCompletionId(r.id); }}>پایان</Button>
             ) : null
           }
         />
@@ -117,6 +139,13 @@ export default function Missions() {
           <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>
       </Card>
+
+      <Modal open={!!completionId} title="پایان مأموریت" onClose={() => { if (!actingId) setCompletionId(null); }} footer={<Button onClick={complete} loading={!!actingId}>ثبت گزارش</Button>}>
+        <div className="col" style={{ gap: 14 }}>
+          <Field label="گزارش پایان" required><Textarea value={completion.report} onChange={e => setCompletion(f => ({ ...f, report: e.target.value }))} /></Field>
+          <Field label="هزینه واقعی (ریال)" required><Input type="number" min="0" value={completion.actualCost} onChange={e => setCompletion(f => ({ ...f, actualCost: Number(e.target.value) }))} /></Field>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}
@@ -134,8 +163,10 @@ export default function Missions() {
           <Field label="عنوان مأموریت" required><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></Field>
           <Field label="مقصد"><Input value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} /></Field>
           <div className="form-grid">
-            <Field label="از (میلادی ISO)" required><Input className="input ltr" value={form.fromAt} onChange={(e) => setForm((f) => ({ ...f, fromAt: e.target.value }))} /></Field>
-            <Field label="تا (میلادی ISO)" required><Input className="input ltr" value={form.toAt} onChange={(e) => setForm((f) => ({ ...f, toAt: e.target.value }))} /></Field>
+            <Field label="تاریخ شروع" required><DatePicker output="iso" value={form.startDate} onValueChange={value => setForm(f => ({ ...f, startDate: value }))} /></Field>
+            <Field label="ساعت شروع تهران" required><Input type="time" className="ltr" value={form.startTime} onChange={event => setForm(f => ({ ...f, startTime: event.target.value }))} /></Field>
+            <Field label="تاریخ پایان" required><DatePicker output="iso" value={form.endDate} onValueChange={value => setForm(f => ({ ...f, endDate: value }))} /></Field>
+            <Field label="ساعت پایان تهران" required><Input type="time" className="ltr" value={form.endTime} onChange={event => setForm(f => ({ ...f, endTime: event.target.value }))} /></Field>
           </div>
           <Field label="برآورد هزینه (ریال)"><Input type="number" value={form.estimatedCost} onChange={(e) => setForm((f) => ({ ...f, estimatedCost: Number(e.target.value) }))} /></Field>
           <Field label="هدف مأموریت"><Textarea value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} /></Field>

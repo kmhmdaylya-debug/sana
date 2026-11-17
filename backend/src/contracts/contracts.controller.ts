@@ -18,7 +18,7 @@ import {
   ContractQueryDto,
   UpdateContractDto,
 } from './dto/contracts.dto';
-import { RequirePermissions } from '../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 
@@ -52,7 +52,7 @@ export class ContractsController {
     return this.service.addVersion(id, dto, user);
   }
   @Patch(':id')
-  @RequirePermissions(PERMISSIONS.CONTRACTS_UPDATE)
+  @RequireAnyPermission(PERMISSIONS.CONTRACTS_UPDATE, PERMISSIONS.CONTRACTS_APPROVE)
   @ApiOperation({ summary: 'تغییر وضعیت قرارداد' })
   setStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateContractDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.setStatus(id, dto, user);

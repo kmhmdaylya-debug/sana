@@ -38,8 +38,8 @@ export class LifecycleController {
   @Get('templates')
   @RequirePermissions(PERMISSIONS.LIFECYCLE_VIEW)
   @ApiOperation({ summary: 'فهرست قالب‌های چک‌لیست ورود' })
-  listTemplates(@Query() query: OnboardingTemplateQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listTemplates(query, pagination);
+  listTemplates(@Query() query: OnboardingTemplateQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listTemplates(query, pagination, user);
   }
   @Post('templates')
   @RequirePermissions(PERMISSIONS.LIFECYCLE_MANAGE)

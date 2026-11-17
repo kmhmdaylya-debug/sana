@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayMaxSize,
+  ArrayMinSize,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -182,6 +184,7 @@ export class AssignmentEntryDto {
 
   @ApiProperty({ example: '2026-05-01' })
   @IsDateString({}, { message: 'قالب تاریخ کاری نامعتبر است.' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'تاریخ کاری باید فقط شامل سال، ماه و روز باشد.' })
   workDate: string;
 
   @ApiProperty({ format: 'uuid' })
@@ -192,6 +195,8 @@ export class AssignmentEntryDto {
 export class BulkAssignDto {
   @ApiProperty({ type: [AssignmentEntryDto] })
   @IsArray({ message: 'فهرست تخصیص‌ها الزامی است.' })
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
   @ValidateNested({ each: true })
   @Type(() => AssignmentEntryDto)
   assignments: AssignmentEntryDto[];

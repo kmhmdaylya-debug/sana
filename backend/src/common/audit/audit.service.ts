@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { stringifyAudit } from './audit-redaction';
 
@@ -28,6 +28,10 @@ export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async recordInTransaction(db: Prisma.TransactionClient, userId: string | null, entry: AuditEntry): Promise<void> {
+    await db.auditLog.create({ data: { userId, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before: stringifyAudit(entry.before), after: stringifyAudit(entry.after) } });
+  }
 
   async record(
     userId: string | null | undefined,

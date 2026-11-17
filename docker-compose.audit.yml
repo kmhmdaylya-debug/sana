@@ -1,0 +1,31 @@
+# Used only by scripts/test-compose.ps1 with ephemeral credentials and volumes.
+services:
+  db:
+    container_name: ${AUDIT_PROJECT:?Run the audit script}-db
+    ports: !reset []
+    environment:
+      POSTGRES_DB: sana_audit_compose
+    volumes: !override
+      - audit-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sana -d sana_audit_compose"]
+  backend:
+    container_name: ${AUDIT_PROJECT:?Run the audit script}-backend
+    environment:
+      DATABASE_URL: postgresql://sana:${POSTGRES_PASSWORD:?Required}@db:5432/sana_audit_compose?schema=public
+      BACKUP_RESTORE_DATABASE_URL: postgresql://sana:${POSTGRES_PASSWORD:?Required}@db:5432/sana_restore_compose?schema=public
+      ADMIN_USERNAME: audit.admin
+      ADMIN_FULLNAME: Synthetic Audit Administrator
+      ADMIN_EMAIL: audit@example.invalid
+      CORS_ORIGINS: http://127.0.0.1:${AUDIT_HTTP_PORT:?Required}
+    volumes: !override
+      - audit-backups:/app/backups
+      - audit-uploads:/app/uploads
+  frontend:
+    container_name: ${AUDIT_PROJECT:?Run the audit script}-frontend
+    ports: !override
+      - "127.0.0.1:${AUDIT_HTTP_PORT:?Required}:80"
+volumes:
+  audit-pgdata:
+  audit-backups:
+  audit-uploads:

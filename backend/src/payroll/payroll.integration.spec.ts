@@ -22,7 +22,7 @@ integration('Payroll transactions and concurrency with PostgreSQL', () => {
   beforeAll(async () => {
     if (!/^\/sana_audit_test_[a-f0-9]{16}$/.test(new URL(databaseUrl!).pathname)) throw new Error('Unsafe database target');
     db = new PrismaClient({ datasources: { db: { url: databaseUrl } }, log: [] });
-    await db.company.create({ data: { id: companyId, code: `PAY-${companyId}`, name: 'Synthetic payroll company' } });
+    await db.company.create({ data: { id: companyId, code: `PAY-${companyId.slice(0, 8)}`, name: 'Synthetic payroll company' } });
     await db.employee.create({ data: { id: employeeId, companyId, code: 'PAY-TEST', firstName: 'Synthetic', lastName: 'Payroll', hireDate: new Date('2020-01-01'), monthlyBaseSalary: BigInt(1000000) } });
     await db.user.create({ data: { id: userId, username: `pay-${userId}`, fullName: 'Synthetic payroll operator', passwordHash: 'synthetic-unusable-hash', employeeId } });
     await db.employee.update({ where: { id: employeeId }, data: { userId } });
@@ -84,5 +84,13 @@ integration('Payroll transactions and concurrency with PostgreSQL', () => {
     await expect(service.generate(periodId, userId, outsider)).rejects.toThrow();
     const amendment = await db.payrollAmendment.create({ data: { periodId, employeeId, reason: 'Synthetic amendment', createdById: userId } });
     await expect(service.getAmendment(amendment.id, outsider)).rejects.toThrow();
+  });
+
+  it('does not promote an employee-only scope into company-wide payroll access', async () => {
+    const narrow = { ...actor, employeeId, scope: { ...actor.scope, companyIds: [], employeeIds: [employeeId], ownEmployeeId: employeeId } };
+    await expect(service.getPeriod(periodId, narrow)).rejects.toThrow();
+    await expect(service.generate(periodId, userId, narrow)).rejects.toThrow();
+    const periods = await service.listPeriods({} as never, { page: 1, limit: 20, skip: 0 } as never, narrow);
+    expect(periods.data).toEqual([]);
   });
 });

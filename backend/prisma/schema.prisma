@@ -453,6 +453,7 @@ model User {
   savedFilters      SavedFilter[]
   reportRuns        ReportRun[]
   backups           BackupHistory[]
+  installmentPayments LoanInstallmentPayment[]
   systemErrors      SystemError[]
   evaluations       Evaluation[]
   evaluationFeedbacks EvaluationFeedback[]
@@ -1441,6 +1442,7 @@ model PayrollPeriod {
   payslips   Payslip[]
   amendments PayrollAmendment[]
   installments LoanInstallment[]
+  installmentPayments LoanInstallmentPayment[]
 
   @@unique([companyId, year, month])
 }
@@ -2391,9 +2393,29 @@ model LoanInstallment {
 
   loan          Loan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
   payrollPeriod PayrollPeriod? @relation(fields: [payrollPeriodId], references: [id], onDelete: SetNull)
+  payments      LoanInstallmentPayment[]
 
   @@index([loanId])
   @@index([dueDate])
+}
+
+model LoanInstallmentPayment {
+  id             String   @id @default(uuid()) @db.Uuid
+  idempotencyKey String   @unique @db.Uuid
+  installmentId  String   @db.Uuid
+  payrollPeriodId String  @db.Uuid
+  amount         BigInt
+  paidAfter      BigInt
+  fullyPaid      Boolean
+  createdById    String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  installment LoanInstallment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+  payrollPeriod PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Restrict)
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([installmentId])
+  @@index([payrollPeriodId])
 }
 
 model BenefitType {

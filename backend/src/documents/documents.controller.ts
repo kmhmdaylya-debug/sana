@@ -15,7 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
-import { DocumentsService } from './documents.service';
+import { DocumentsService, UploadedFilePayload } from './documents.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CreateDocumentDto, DocumentQueryDto, UpdateDocumentDto } from './dto/documents.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
@@ -47,16 +47,16 @@ export class DocumentsController {
   }
   @Post(':id/versions')
   @RequirePermissions(PERMISSIONS.DOCUMENTS_CREATE)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 1, fieldSize: 2000 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'آپلود نسخه جدید فایل مدرک' })
   uploadVersion(
     @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: any,
+    @UploadedFile() file: UploadedFilePayload,
     @Body('note') note?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
-    return this.service.uploadVersion(id, file as never, note, user as AuthenticatedUser);
+    return this.service.uploadVersion(id, file, note, user as AuthenticatedUser);
   }
   @Patch(':id')
   @RequirePermissions(PERMISSIONS.DOCUMENTS_UPDATE)
@@ -80,6 +80,8 @@ export class DocumentsController {
   ) {
     const file = await this.service.downloadVersion(versionId, user);
     res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.fileName)}"`);
     return res.send(file.buffer);
   }

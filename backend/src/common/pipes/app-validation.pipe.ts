@@ -25,7 +25,7 @@ export class AppValidationPipe implements PipeTransform {
       forbidNonWhitelisted: true,
       ...options,
     };
-    this.strictPipe = new ValidationPipe(base);
+    this.strictPipe = new ValidationPipe({ ...base, transformOptions: { ...base.transformOptions, enableImplicitConversion: false } });
     this.lenientPipe = new ValidationPipe({ ...base, forbidNonWhitelisted: false });
   }
 

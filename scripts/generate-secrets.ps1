@@ -14,6 +14,16 @@ $rootEnv = Join-Path $root '.env'
 $backendEnv = Join-Path $root 'backend\.env'
 $backendExample = Join-Path $root 'backend\.env.example'
 
+$hasRoot = Test-Path -LiteralPath $rootEnv
+$hasBackend = Test-Path -LiteralPath $backendEnv
+if ($hasRoot -and $hasBackend) {
+  Write-Host 'فایل‌های تنظیمات موجودند؛ هیچ رمز یا کلیدی تغییر نکرد.'
+  return
+}
+if ($hasRoot -or $hasBackend) {
+  throw 'تنظیمات ناقص است. برای جلوگیری از ساخت کلید یا رمز ناسازگار، فایل مفقود را با مقادیر فایل موجود پیکربندی کنید. هیچ فایل موجودی تغییر نکرد.'
+}
+
 function New-Secret([int]$bytes = 48) {
   $buf = New-Object byte[] $bytes
   [System.Security.Cryptography.RandomNumberGenerator]::Fill($buf)
@@ -26,10 +36,16 @@ function New-Password {
   $digits = '23456789'
   $symbols = '!@%^&*-_=+'  # بدون $ و # (Docker Compose و dotenv آن‌ها را تفسیر می‌کنند)
   $all = $lower + $upper + $digits + $symbols
-  $chars = @($lower[(Get-Random -Maximum $lower.Length)], $upper[(Get-Random -Maximum $upper.Length)],
-             $digits[(Get-Random -Maximum $digits.Length)], $symbols[(Get-Random -Maximum $symbols.Length)])
-  1..12 | ForEach-Object { $chars += $all[(Get-Random -Maximum $all.Length)] }
-  -join ($chars | Sort-Object { Get-Random })
+  $chars = @($lower[[Security.Cryptography.RandomNumberGenerator]::GetInt32($lower.Length)],
+    $upper[[Security.Cryptography.RandomNumberGenerator]::GetInt32($upper.Length)],
+    $digits[[Security.Cryptography.RandomNumberGenerator]::GetInt32($digits.Length)],
+    $symbols[[Security.Cryptography.RandomNumberGenerator]::GetInt32($symbols.Length)])
+  1..20 | ForEach-Object { $chars += $all[[Security.Cryptography.RandomNumberGenerator]::GetInt32($all.Length)] }
+  for ($i = $chars.Length - 1; $i -gt 0; $i--) {
+    $j = [Security.Cryptography.RandomNumberGenerator]::GetInt32($i + 1)
+    $chars[$i], $chars[$j] = $chars[$j], $chars[$i]
+  }
+  -join $chars
 }
 
 $values = @{
@@ -84,5 +100,4 @@ if (-not (Test-Path $backendEnv)) {
 }
 
 Write-Host ''
-Write-Host 'رمز مدیر اولیه (ADMIN_PASSWORD) را یادداشت کنید:' -ForegroundColor Yellow
-Write-Host $values.ADMIN_PASSWORD
+Write-Host 'تنظیمات ساخته شد. رمز اولیه فقط در فایل‌های محلی .env است و در خروجی چاپ نمی‌شود.'

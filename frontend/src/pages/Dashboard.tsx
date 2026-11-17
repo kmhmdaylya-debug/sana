@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Clock, Mail, MessageSquare, MoreVertical } from 'lucide-react';
-import { api, apiErrorMessage } from '../lib/api';
+import axios from 'axios';
+import { api, apiErrorMessage, createAbortController } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Card, PageHeader, useToast } from '../components/ui';
 import { toPersianDigits, statusLabel, badgeKind, formatJalali } from '../lib/format';
@@ -79,14 +80,15 @@ function PersonalDashboard() {
   const canMgmt = hasPermission('dashboard.view.management');
 
   useEffect(() => {
+    const controller = createAbortController();
     let active = true;
     (async () => {
       try {
         const [m, mg, t, at] = await Promise.all([
-          api.get('/dashboard/me'),
-          canMgmt ? api.get('/dashboard/management') : null,
-          hasPermission('tasks.view') ? api.get('/tasks?limit=60') : null,
-          hasPermission('attendance.view') ? api.get('/attendance/records?limit=200') : null,
+          api.get('/dashboard/me', { signal: controller.signal }),
+          canMgmt ? api.get('/dashboard/management', { signal: controller.signal }) : null,
+          hasPermission('tasks.view') ? api.get('/tasks?limit=60', { signal: controller.signal }) : null,
+          hasPermission('attendance.view') ? api.get('/attendance/records?limit=200', { signal: controller.signal }) : null,
         ]);
         if (!active) return;
         setMy(m?.data?.data ?? null);
@@ -94,6 +96,7 @@ function PersonalDashboard() {
         setTasks(t?.data?.data?.items ?? t?.data?.data ?? []);
         setAttendance(at?.data?.data?.items ?? at?.data?.data ?? []);
       } catch (e) {
+        if (axios.isCancel(e) || (e as Error).name === 'CanceledError') return;
         toast('error', apiErrorMessage(e));
       } finally {
         if (active) setLoading(false);
@@ -101,6 +104,7 @@ function PersonalDashboard() {
     })();
     return () => {
       active = false;
+      controller.abort();
     };
   }, [canMgmt, toast]);
 

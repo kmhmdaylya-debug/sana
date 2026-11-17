@@ -42,8 +42,8 @@ export class RecruitmentController {
   @Get('requisitions')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_VIEW)
   @ApiOperation({ summary: 'فهرست درخواست‌های جذب' })
-  listRequisitions(@Query() query: RequisitionQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listRequisitions(query, pagination);
+  listRequisitions(@Query() query: RequisitionQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listRequisitions(query, pagination, user);
   }
   @Post('requisitions')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_MANAGE)
@@ -64,8 +64,8 @@ export class RecruitmentController {
   @Get('openings')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_VIEW)
   @ApiOperation({ summary: 'فهرست آگهی‌های استخدام' })
-  listOpenings(@Query() query: OpeningQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listOpenings(query, pagination);
+  listOpenings(@Query() query: OpeningQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listOpenings(query, pagination, user);
   }
   @Post('openings')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_MANAGE)
@@ -76,8 +76,8 @@ export class RecruitmentController {
   @Get('applicants')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_VIEW)
   @ApiOperation({ summary: 'فهرست داوطلبان' })
-  listApplicants(@Query() query: ApplicantQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listApplicants(query, pagination);
+  listApplicants(@Query() query: ApplicantQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listApplicants(query, pagination, user);
   }
   @Post('applicants')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_MANAGE)
@@ -94,8 +94,8 @@ export class RecruitmentController {
   @Get('interviews')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_VIEW)
   @ApiOperation({ summary: 'فهرست مصاحبه‌ها' })
-  listInterviews(@Query() pagination: PaginationDto, @Query('applicantId') applicantId?: string) {
-    return this.service.listInterviews(pagination, applicantId);
+  listInterviews(@Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser, @Query('applicantId') applicantId?: string) {
+    return this.service.listInterviews(pagination, user, applicantId);
   }
   @Post('interviews')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_INTERVIEW)
@@ -118,8 +118,8 @@ export class RecruitmentController {
   @Get('offers')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_VIEW)
   @ApiOperation({ summary: 'فهرست پیشنهادهای استخدام' })
-  listOffers(@Query() query: OfferQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listOffers(query, pagination);
+  listOffers(@Query() query: OfferQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listOffers(query, pagination, user);
   }
   @Post('offers')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_MANAGE)
@@ -136,7 +136,7 @@ export class RecruitmentController {
   @Get('applicants/:id')
   @RequirePermissions(PERMISSIONS.RECRUITMENT_VIEW)
   @ApiOperation({ summary: 'پرونده کامل داوطلب' })
-  getApplicant(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.getApplicant(id);
+  getApplicant(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getApplicant(id, user);
   }
 }

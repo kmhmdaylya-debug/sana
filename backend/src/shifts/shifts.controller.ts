@@ -34,8 +34,8 @@ export class ShiftsController {
   @Get()
   @RequirePermissions(PERMISSIONS.SHIFTS_VIEW)
   @ApiOperation({ summary: 'فهرست شیفت‌ها' })
-  list(@Query() query: ShiftQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.list(query, pagination);
+  list(@Query() query: ShiftQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.list(query, pagination, user);
   }
   @Get('swaps')
   @RequirePermissions(PERMISSIONS.SHIFTS_VIEW)
@@ -53,13 +53,13 @@ export class ShiftsController {
   @RequirePermissions(PERMISSIONS.SHIFTS_MANAGE)
   @ApiOperation({ summary: 'تعریف شیفت' })
   create(@Body() dto: CreateShiftDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.create(dto, user.id);
+    return this.service.create(dto, user);
   }
   @Patch(':id')
   @RequirePermissions(PERMISSIONS.SHIFTS_MANAGE)
   @ApiOperation({ summary: 'ویرایش شیفت' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateShiftDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.update(id, dto, user.id);
+    return this.service.update(id, dto, user);
   }
   @Post('assignments/bulk')
   @RequirePermissions(PERMISSIONS.SHIFTS_MANAGE)
@@ -88,7 +88,7 @@ export class ShiftsController {
   @Get(':id')
   @RequirePermissions(PERMISSIONS.SHIFTS_VIEW)
   @ApiOperation({ summary: 'جزئیات شیفت' })
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.get(id, user);
   }
 }

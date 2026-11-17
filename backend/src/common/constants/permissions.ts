@@ -278,7 +278,7 @@ export const PERMISSION_GROUPS: { group: string; label: string; codes: Permissio
   },
   {
     group: 'panel',
-    label: 'پنل کارمند',
+    label: 'task',
     codes: [PERMISSIONS.PANEL_VIEW, PERMISSIONS.PANEL_ATTENDANCE, PERMISSIONS.PANEL_LEAVE_REQUEST],
   },
   {

@@ -15,7 +15,7 @@ import { AccessService } from '../common/access/access.service';
 import { AuditService } from '../common/audit/audit.service';
 import { NotificationService } from '../common/notifications/notification.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { jalaliToGregorian, jalaliMonthRange } from '../attendance/jalali.util';
+import { jalaliToGregorian } from '../attendance/jalali.util';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import {
   AdjustBalanceDto,
@@ -51,8 +51,14 @@ export class LeavesService {
   // انواع مرخصی
   // =========================================================================
 
-  async listTypes(query: LeaveTypeQueryDto, pagination: PaginationDto) {
+  async listTypes(query: LeaveTypeQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+    let employeeCompanyId: string | undefined;
+    if (query.employeeId) {
+      await this.access.assertEmployeeAccess(user, query.employeeId);
+      employeeCompanyId = (await this.prisma.employee.findUniqueOrThrow({ where: { id: query.employeeId }, select: { companyId: true } })).companyId;
+    }
     const where: Prisma.LeaveTypeWhereInput = {
+      AND: [await this.access.companyWhereFor(user), ...(employeeCompanyId ? [{ companyId: employeeCompanyId }] : [])],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
     };
@@ -83,7 +89,9 @@ export class LeavesService {
     };
   }
 
-  async createType(dto: CreateLeaveTypeDto, actorId: string) {
+  async createType(dto: CreateLeaveTypeDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.access.assertCompanyAccess(user, dto.companyId);
     const duplicate = await this.prisma.leaveType.findUnique({
       where: { companyId_code: { companyId: dto.companyId, code: dto.code } },
     });
@@ -116,9 +124,11 @@ export class LeavesService {
     };
   }
 
-  async updateType(id: string, dto: UpdateLeaveTypeDto, actorId: string) {
+  async updateType(id: string, dto: UpdateLeaveTypeDto, user: AuthenticatedUser) {
+    const actorId = user.id;
     const type = await this.prisma.leaveType.findUnique({ where: { id } });
     if (!type) throw new NotFoundException('نوع مرخصی یافت نشد.');
+    await this.access.assertCompanyAccess(user, type.companyId);
     const row = await this.prisma.leaveType.update({
       where: { id },
       data: {
@@ -149,7 +159,10 @@ export class LeavesService {
   // سیاست مرخصی
   // =========================================================================
 
-  async listPolicies(leaveTypeId: string) {
+  async listPolicies(leaveTypeId: string, user: AuthenticatedUser) {
+    const type = await this.prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
+    if (!type) throw new NotFoundException('نوع مرخصی یافت نشد.');
+    await this.access.assertCompanyAccess(user, type.companyId);
     const rows = await this.prisma.leavePolicy.findMany({
       where: { leaveTypeId },
       orderBy: { employmentType: 'asc' },
@@ -162,9 +175,11 @@ export class LeavesService {
     };
   }
 
-  async upsertPolicy(dto: CreateLeavePolicyDto, actorId: string) {
+  async upsertPolicy(dto: CreateLeavePolicyDto, user: AuthenticatedUser) {
+    const actorId = user.id;
     const type = await this.prisma.leaveType.findUnique({ where: { id: dto.leaveTypeId } });
     if (!type) throw new NotFoundException('نوع مرخصی یافت نشد.');
+    await this.access.assertCompanyAccess(user, type.companyId);
 
     const row = await this.prisma.leavePolicy.upsert({
       where: { leaveTypeId_employmentType: { leaveTypeId: dto.leaveTypeId, employmentType: dto.employmentType } },
@@ -249,18 +264,23 @@ export class LeavesService {
 
   /** ثبت و ارسال درخواست مرخصی */
   async createRequest(dto: CreateLeaveRequestDto, user: AuthenticatedUser) {
+    return this.prisma.$transaction(async (db) => {
+    // Employee locking serializes overlap checks, balance reservations and decisions.
+    await this.access.assertEmployeeAccess(user, dto.employeeId);
+    await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${dto.employeeId}::uuid FOR UPDATE`;
     const start = new Date(dto.startAt);
     const end = new Date(dto.endAt);
     if (start >= end) throw new BadRequestException('زمان پایان مرخصی باید بعد از شروع باشد.');
 
-    const employee = await this.prisma.employee.findFirst({
+    const employee = await db.employee.findFirst({
       where: { id: dto.employeeId, deletedAt: null, AND: [this.access.employeeWhereFor(user)] },
       include: { user: { select: { id: true } } },
     });
     if (!employee) throw new NotFoundException('نیروی موردنظر یافت نشد.');
 
-    const leaveType = await this.prisma.leaveType.findUnique({ where: { id: dto.leaveTypeId } });
+    const leaveType = await db.leaveType.findUnique({ where: { id: dto.leaveTypeId } });
     if (!leaveType || !leaveType.isActive) throw new NotFoundException('نوع مرخصی یافت نشد یا غیرفعال است.');
+    if (leaveType.companyId !== employee.companyId) throw new BadRequestException('نوع مرخصی متعلق به شرکت این نیرو نیست.');
 
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60_000);
     if (durationMinutes > leaveType.maxDailyMinutes * 30) {
@@ -268,7 +288,7 @@ export class LeavesService {
     }
 
     // هم‌پوشانی با درخواست فعال دیگر
-    const overlap = await this.prisma.leaveRequest.findFirst({
+    const overlap = await db.leaveRequest.findFirst({
       where: {
         employeeId: dto.employeeId,
         status: { in: [...DECIDABLE, LeaveRequestStatus.APPROVED] },
@@ -280,14 +300,14 @@ export class LeavesService {
     if (overlap) throw new BadRequestException('برای این بازه درخواست مرخصی فعال دیگری وجود دارد.');
 
     // بررسی مانده برای انواع دارای سهمیه
-    const balance = await this.balanceOf(dto.employeeId, dto.leaveTypeId, new Date().getFullYear());
+    const balance = await this.balanceOf(dto.employeeId, dto.leaveTypeId, this.jalaliYear(start), db);
     if (leaveType.annualQuotaMinutes > 0 && durationMinutes > balance.remaining) {
       throw new BadRequestException(
         `مانده مرخصی کافی نیست (مانده: ${Math.round(balance.remaining / 60)} ساعت)`,
       );
     }
 
-    const request = await this.prisma.leaveRequest.create({
+    const request = await db.leaveRequest.create({
       data: {
         employeeId: dto.employeeId,
         leaveTypeId: dto.leaveTypeId,
@@ -308,7 +328,7 @@ export class LeavesService {
     });
 
     // رزرو موقت مانده
-    await this.prisma.leaveTransaction.create({
+    await db.leaveTransaction.create({
       data: {
         employeeId: dto.employeeId,
         leaveTypeId: dto.leaveTypeId,
@@ -316,25 +336,16 @@ export class LeavesService {
         minutes: durationMinutes,
         sourceType: 'LeaveRequest',
         sourceId: request.id,
+        occurredAt: start,
         note: 'رزرو برای درخواست مرخصی',
         createdById: user.id,
       },
     });
 
-    await this.audit.record(user.id, {
-      action: AuditAction.CREATE,
-      entity: 'LeaveRequest',
-      entityId: request.id,
-      after: { employeeId: dto.employeeId, durationMinutes },
-    });
+    await db.auditLog.create({ data: { userId: user.id, action: AuditAction.CREATE, entity: 'LeaveRequest', entityId: request.id, after: JSON.stringify({ employeeId: dto.employeeId, durationMinutes }) } });
 
     if (employee.userId && employee.userId !== user.id) {
-      await this.notifications.notify(employee.userId, {
-        type: 'REQUEST_RESULT',
-        title: 'درخواست مرخصی ثبت شد',
-        body: `درخواست «${leaveType.name}» در انتظار تأیید است.`,
-        link: `/leaves/${request.id}`,
-      });
+      await db.notification.create({ data: { userId: employee.userId, type: 'REQUEST_RESULT', status: 'SENT', title: 'درخواست مرخصی ثبت شد', link: `/leaves/${request.id}` } });
     }
 
     return {
@@ -342,6 +353,7 @@ export class LeavesService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+    }, { maxWait: 10000, timeout: 30000 });
   }
 
   async getRequest(id: string, user: AuthenticatedUser) {
@@ -362,8 +374,14 @@ export class LeavesService {
   }
 
   /** تصمیم روی درخواست — قاعده سرور: هیچ‌کس درخواست خودش را تأیید نمی‌کند */
-  async decide(id: string, dto: DecideLeaveRequestDto, user: AuthenticatedUser) {
-    const request = await this.prisma.leaveRequest.findUnique({
+  async decide(id: string, dto: DecideLeaveRequestDto, user: AuthenticatedUser, transaction?: Prisma.TransactionClient) {
+    const run = async (tx: Prisma.TransactionClient) => {
+    const reference = await tx.leaveRequest.findUnique({ where: { id }, select: { employeeId: true } });
+    if (!reference) throw new NotFoundException('درخواست مرخصی یافت نشد.');
+    await this.access.assertEmployeeAccess(user, reference.employeeId);
+    await tx.$queryRaw`SELECT id FROM "Employee" WHERE id = ${reference.employeeId}::uuid FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "LeaveRequest" WHERE id = ${id}::uuid FOR UPDATE`;
+    const request = await tx.leaveRequest.findUnique({
       where: { id },
       include: {
         employee: { select: { id: true, userId: true, code: true, firstName: true, lastName: true } },
@@ -385,7 +403,6 @@ export class LeavesService {
           ? LeaveRequestStatus.REJECTED
           : LeaveRequestStatus.NEEDS_REVISION;
 
-    await this.prisma.$transaction(async (tx) => {
       await tx.leaveRequest.update({
         where: { id },
         data: { status: toStatus, decidedAt: new Date() },
@@ -415,6 +432,7 @@ export class LeavesService {
               minutes: request.durationMinutes,
               sourceType: 'LeaveRequest',
               sourceId: id,
+              occurredAt: reserve.occurredAt,
               note: 'مصرف مرخصی تأییدشده',
               createdById: user.id,
             },
@@ -424,10 +442,10 @@ export class LeavesService {
           await tx.leaveTransaction.delete({ where: { id: reserve.id } });
         }
       }
-    });
-
     if (request.employee.userId) {
-      await this.notifications.notify(request.employee.userId, {
+      await tx.notification.create({ data: {
+        userId: request.employee.userId,
+        status: 'SENT',
         type: 'REQUEST_RESULT',
         title:
           toStatus === LeaveRequestStatus.APPROVED
@@ -435,28 +453,36 @@ export class LeavesService {
             : toStatus === LeaveRequestStatus.REJECTED
               ? 'درخواست مرخصی رد شد'
               : 'درخواست مرخصی نیاز به اصلاح دارد',
-        body: dto.comment ?? undefined,
         link: `/leaves/${id}`,
-      });
+      } });
     }
 
-    await this.audit.record(user.id, {
+    await tx.auditLog.create({ data: {
+      userId: user.id,
       action: toStatus === LeaveRequestStatus.APPROVED ? AuditAction.APPROVE : AuditAction.REJECT,
       entity: 'LeaveRequest',
       entityId: id,
-      after: { status: toStatus, comment: dto.comment },
-    });
+      after: JSON.stringify({ status: toStatus }),
+    } });
 
     return {
       data: { id, status: toStatus },
       success: true,
       timestamp: new Date().toISOString(),
     };
+    };
+    return transaction ? run(transaction) : this.prisma.$transaction(run, { maxWait: 10000, timeout: 30000 });
   }
 
   /** لغو درخواست توسط درخواست‌دهنده (قبل از تأیید) */
-  async cancel(id: string, user: AuthenticatedUser) {
-    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+  async cancel(id: string, user: AuthenticatedUser, transaction?: Prisma.TransactionClient) {
+    const run = async (tx: Prisma.TransactionClient) => {
+    const reference = await tx.leaveRequest.findUnique({ where: { id }, select: { employeeId: true } });
+    if (!reference) throw new NotFoundException('درخواست مرخصی یافت نشد.');
+    await this.access.assertEmployeeAccess(user, reference.employeeId);
+    await tx.$queryRaw`SELECT id FROM "Employee" WHERE id = ${reference.employeeId}::uuid FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "LeaveRequest" WHERE id = ${id}::uuid FOR UPDATE`;
+    const request = await tx.leaveRequest.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('درخواست مرخصی یافت نشد.');
     const ok = await this.access.canAccessEmployee(user, request.employeeId);
     if (!ok) throw new ForbiddenException('به این درخواست دسترسی ندارید.');
@@ -468,13 +494,12 @@ export class LeavesService {
     if (undecidable.includes(request.status)) {
       throw new BadRequestException('این درخواست قابل لغو نیست.');
     }
-    if (request.employeeId === user.employeeId || user.isSuperAdmin || ok) {
+    if (request.employeeId === user.employeeId || user.isSuperAdmin || user.permissions.includes('leaves.approve')) {
       // مجاز
     } else {
       throw new ForbiddenException('فقط درخواست‌دهنده یا سرپرست می‌تواند لغو کند.');
     }
 
-    await this.prisma.$transaction(async (tx) => {
       await tx.leaveRequest.update({
         where: { id },
         data: { status: LeaveRequestStatus.CANCELLED, decidedAt: new Date() },
@@ -492,20 +517,21 @@ export class LeavesService {
         where: { sourceId: id, type: LeaveTransactionType.RESERVE },
       });
       if (reserve) await tx.leaveTransaction.delete({ where: { id: reserve.id } });
-    });
-
-    await this.audit.record(user.id, {
+    await tx.auditLog.create({ data: {
+      userId: user.id,
       action: AuditAction.CANCEL,
       entity: 'LeaveRequest',
       entityId: id,
-      before: { status: request.status },
-    });
+      before: JSON.stringify({ status: request.status }),
+    } });
 
     return {
       data: { id, status: LeaveRequestStatus.CANCELLED },
       success: true,
       timestamp: new Date().toISOString(),
     };
+    };
+    return transaction ? run(transaction) : this.prisma.$transaction(run, { maxWait: 10000, timeout: 30000 });
   }
 
   // =========================================================================
@@ -513,14 +539,18 @@ export class LeavesService {
   // =========================================================================
 
   /** مانده مرخصی نیرو برای یک نوع در سال جاری */
-  private async balanceOf(employeeId: string, leaveTypeId: string, jalaliYear: number) {
-    const { start, end } = jalaliMonthRange(jalaliYear, 12); // برای محاسبه مرز سال شمسی
+  private jalaliYear(date = new Date()): number {
+    return Number(new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric', timeZone: 'Asia/Tehran' }).formatToParts(date).find(p => p.type === 'year')!.value);
+  }
+
+  private async balanceOf(employeeId: string, leaveTypeId: string, jalaliYear: number, db: Prisma.TransactionClient = this.prisma) {
     // ابتدای سال شمسی
     const yearStart = jalaliToGregorian(jalaliYear, 1, 1);
     const from = new Date(Date.UTC(yearStart.getFullYear(), yearStart.getMonth(), yearStart.getDate()));
-    const to = new Date(end.getTime());
+    const next = jalaliToGregorian(jalaliYear + 1, 1, 1);
+    const to = new Date(Date.UTC(next.getFullYear(), next.getMonth(), next.getDate()) - 1);
 
-    const granted = await this.prisma.leaveTransaction.aggregate({
+    const granted = await db.leaveTransaction.aggregate({
       where: {
         employeeId,
         leaveTypeId,
@@ -529,7 +559,7 @@ export class LeavesService {
       },
       _sum: { minutes: true },
     });
-    const consumed = await this.prisma.leaveTransaction.aggregate({
+    const consumed = await db.leaveTransaction.aggregate({
       where: {
         employeeId,
         leaveTypeId,
@@ -538,7 +568,7 @@ export class LeavesService {
       },
       _sum: { minutes: true },
     });
-    const adjusted = await this.prisma.leaveTransaction.aggregate({
+    const adjusted = await db.leaveTransaction.aggregate({
       where: {
         employeeId,
         leaveTypeId,
@@ -567,12 +597,12 @@ export class LeavesService {
 
     const rows = [];
     for (const t of types) {
-      const b = await this.balanceOf(query.employeeId, t.id, query.year ?? new Date().getFullYear());
+      const b = await this.balanceOf(query.employeeId, t.id, query.year ?? this.jalaliYear());
       rows.push({ leaveType: { id: t.id, code: t.code, name: t.name, color: t.color, isPaid: t.isPaid }, ...b });
     }
 
     return {
-      data: { employeeId: query.employeeId, year: query.year ?? new Date().getFullYear(), balances: rows },
+      data: { employeeId: query.employeeId, year: query.year ?? this.jalaliYear(), balances: rows },
       success: true,
       timestamp: new Date().toISOString(),
     };
@@ -580,13 +610,18 @@ export class LeavesService {
 
   /** ثبت تراکنش دستی مانده (مدیر منابع انسانی) */
   async adjustBalance(dto: AdjustBalanceDto, user: AuthenticatedUser) {
+    return this.prisma.$transaction(async (db) => {
     const ok = await this.access.canAccessEmployee(user, dto.employeeId);
     if (!ok) throw new ForbiddenException('به مانده این نیرو دسترسی ندارید.');
+    await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${dto.employeeId}::uuid FOR UPDATE`;
+    const employee = await db.employee.findUnique({ where: { id: dto.employeeId }, select: { companyId: true } });
+    const type = await db.leaveType.findUnique({ where: { id: dto.leaveTypeId }, select: { companyId: true } });
+    if (!employee || !type || employee.companyId !== type.companyId) throw new BadRequestException('نوع مرخصی متعلق به شرکت این نیرو نیست.');
     if (dto.type === LeaveTransactionType.RESERVE || dto.type === LeaveTransactionType.CONSUME) {
       throw new BadRequestException('این نوع تراکنش به‌صورت سیستمی ثبت می‌شود.');
     }
 
-    const row = await this.prisma.leaveTransaction.create({
+    const row = await db.leaveTransaction.create({
       data: {
         employeeId: dto.employeeId,
         leaveTypeId: dto.leaveTypeId,
@@ -598,18 +633,20 @@ export class LeavesService {
       },
     });
 
-    await this.audit.record(user.id, {
+    await db.auditLog.create({ data: {
+      userId: user.id,
       action: AuditAction.CREATE,
       entity: 'LeaveTransaction',
       entityId: row.id,
-      after: { employeeId: dto.employeeId, type: dto.type, minutes: dto.minutes },
-    });
+      after: JSON.stringify({ employeeId: dto.employeeId, type: dto.type, minutes: dto.minutes }),
+    } });
 
     return {
       data: { id: row.id },
       success: true,
       timestamp: new Date().toISOString(),
     };
+    }, { maxWait: 10000, timeout: 30000 });
   }
 
   async listTransactions(query: LeaveTransactionQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {

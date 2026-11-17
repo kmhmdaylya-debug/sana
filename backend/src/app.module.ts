@@ -40,6 +40,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { SettingsModule } from './settings/settings.module';
 import { BackupModule } from './backup/backup.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -94,5 +95,6 @@ import { BackupModule } from './backup/backup.module';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

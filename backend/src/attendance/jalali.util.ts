@@ -89,7 +89,9 @@ function jalCal(jy: number): JalaliCal {
 export function jalaliToGregorian(jy: number, jm: number, jd: number): Date {
   if (!Number.isInteger(jy) || jy < 1) throw new Error('سال شمسی نامعتبر است.');
   if (!Number.isInteger(jm) || jm < 1 || jm > 12) throw new Error('ماه شمسی نامعتبر است.');
-  if (!Number.isInteger(jd) || jd < 1 || jd > 31) throw new Error('روز شمسی نامعتبر است.');
+  if (!Number.isInteger(jd) || jd < 1 || jd > jalaliMonthLength(jy, jm)) {
+    throw new Error('روز شمسی نامعتبر است.');
+  }
 
   const cal = jalCal(jy);
   const jdn = g2d(cal.gy, 3, cal.march) + (jm - 1) * 31 - div(jm, 7) * (jm - 7) + jd - 1;
@@ -99,12 +101,12 @@ export function jalaliToGregorian(jy: number, jm: number, jd: number): Date {
 
 /** تعداد روزهای یک ماه شمسی (۲۹ یا ۳۰ روز برای اسفند در سال کبیسه) */
 export function jalaliMonthLength(jy: number, jm: number): number {
+  if (!Number.isInteger(jy) || jy < 1) throw new Error('سال شمسی نامعتبر است.');
+  if (!Number.isInteger(jm) || jm < 1 || jm > 12) throw new Error('ماه شمسی نامعتبر است.');
+  const { leap } = jalCal(jy);
   if (jm <= 6) return 31;
   if (jm <= 11) return 30;
-  const start = jalaliToGregorian(jy, 12, 1);
-  const nextStart = jalaliToGregorian(jy + 1, 1, 1);
-  const days = Math.round((nextStart.getTime() - start.getTime()) / 86_400_000);
-  return days === 366 ? 30 : 29;
+  return leap === 0 ? 30 : 29;
 }
 
 /** بازه میلادی یک ماه شمسی (شروع و پایان به همراه تعداد روزها) */

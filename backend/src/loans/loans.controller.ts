@@ -63,7 +63,7 @@ export class LoansController {
     return this.service.disburseLoan(id, dto, user);
   }
   @Post('installments/:installmentId/pay')
-  @RequirePermissions(PERMISSIONS.LOANS_CREATE)
+  @RequirePermissions(PERMISSIONS.LOANS_APPROVE)
   @ApiOperation({ summary: 'ثبت کسر قسط در دوره حقوق' })
   payInstallment(
     @Param('installmentId', ParseUUIDPipe) installmentId: string,
@@ -75,8 +75,8 @@ export class LoansController {
   @Get('benefit-types')
   @RequirePermissions(PERMISSIONS.LOANS_VIEW)
   @ApiOperation({ summary: 'فهرست انواع مزایا' })
-  listBenefitTypes(@Query() query: BenefitTypeQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listBenefitTypes(query, pagination);
+  listBenefitTypes(@Query() query: BenefitTypeQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listBenefitTypes(query, pagination, user);
   }
   @Post('benefit-types')
   @RequirePermissions(PERMISSIONS.LOANS_APPROVE)
@@ -93,8 +93,8 @@ export class LoansController {
   @Get('packages')
   @RequirePermissions(PERMISSIONS.LOANS_VIEW)
   @ApiOperation({ summary: 'فهرست بسته‌های مزایا' })
-  listPackages(@Query() pagination: PaginationDto, @Query('companyId') companyId?: string) {
-    return this.service.listPackages(pagination, companyId);
+  listPackages(@Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser, @Query('companyId') companyId?: string) {
+    return this.service.listPackages(pagination, user, companyId);
   }
   @Post('packages')
   @RequirePermissions(PERMISSIONS.LOANS_APPROVE)

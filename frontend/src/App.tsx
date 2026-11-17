@@ -37,6 +37,7 @@ const Org = lazy(() => import('./pages/Org'));
 const Audit = lazy(() => import('./pages/Audit'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Backup = lazy(() => import('./pages/Backup'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoading() {
   return (
@@ -84,6 +85,8 @@ export default function App() {
         >
           <Route path="/" element={<HomeRoute />} />
           <Route path="/approvals" element={<RequirePermission anyOf={['approvals.view']}><Approvals /></RequirePermission>} />
+          <Route path="/employees" element={<RequirePermission anyOf={['employees.view']}><Employees /></RequirePermission>} />
+          <Route path="/employees/:employeeId" element={<RequirePermission anyOf={['employees.view']}><Employees /></RequirePermission>} />
           <Route path="/contracts" element={<RequirePermission anyOf={['contracts.view']}><Contracts /></RequirePermission>} />
           <Route path="/documents" element={<RequirePermission anyOf={['documents.view']}><Documents /></RequirePermission>} />
           <Route path="/attendance" element={<RequirePermission anyOf={['dashboard.view.management']}><RequirePermission anyOf={['attendance.view']}><Attendance /></RequirePermission></RequirePermission>} />
@@ -110,7 +113,7 @@ export default function App() {
           <Route path="/audit" element={<RequirePermission anyOf={['audit.view']}><Audit /></RequirePermission>} />
           <Route path="/settings" element={<RequirePermission anyOf={['settings.view']}><Settings /></RequirePermission>} />
           <Route path="/backup" element={<RequirePermission anyOf={['backup.manage']}><Backup /></RequirePermission>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </Suspense>

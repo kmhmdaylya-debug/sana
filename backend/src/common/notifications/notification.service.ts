@@ -3,6 +3,7 @@ import {
   NotificationChannel,
   NotificationSeverity,
   NotificationType,
+  Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -25,8 +26,8 @@ export interface NotifyInput {
 export class NotificationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async notify(userId: string, input: NotifyInput): Promise<void> {
-    await this.prisma.notification.create({
+  async notify(userId: string, input: NotifyInput, db: Prisma.TransactionClient = this.prisma): Promise<void> {
+    await db.notification.create({
       data: {
         userId,
         type: input.type ?? NotificationType.SYSTEM,
@@ -43,9 +44,9 @@ export class NotificationService {
     });
   }
 
-  async notifyMany(userIds: string[], input: NotifyInput): Promise<void> {
+  async notifyMany(userIds: string[], input: NotifyInput, db: Prisma.TransactionClient = this.prisma): Promise<void> {
     if (!userIds.length) return;
-    await this.prisma.notification.createMany({
+    await db.notification.createMany({
       data: userIds.map((userId) => ({
         userId,
         type: input.type ?? NotificationType.SYSTEM,

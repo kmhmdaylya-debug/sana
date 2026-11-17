@@ -5,6 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Reflector } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { JwtService } from '@nestjs/jwt';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -40,7 +41,7 @@ async function bootstrap(): Promise<void> {
 
   const corsOrigins = config.get<string[]>('app.corsOrigins') ?? [];
   app.enableCors({
-    origin: corsOrigins.length ? corsOrigins : true,
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Requested-With', 'X-Device-Name'],
@@ -50,7 +51,27 @@ async function bootstrap(): Promise<void> {
   app.use(require('express').json({ limit: '10mb' }));
   app.use(require('express').urlencoded({ extended: true, limit: '10mb' }));
 
-  app.use(require('helmet')({ contentSecurityPolicy: false }));
+  app.use(require('helmet')({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        scriptSrc: ["'self'"],
+        connectSrc: ["'self'", 'https:'],
+        fontSrc: ["'self'", 'https:'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: true,
+    crossOriginOpenerPolicy: true,
+    crossOriginResourcePolicy: { policy: 'same-origin' },
+    originAgentCluster: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  }));
   // کوکی refresh_token باید خوانده شود
   app.use(require('cookie-parser')());
 
@@ -99,6 +120,27 @@ async function bootstrap(): Promise<void> {
       swaggerOptions: { persistAuthorization: true, docExpansion: 'none', filter: true },
       customSiteTitle: 'سنا — مستندات API',
     });
+
+    // امن‌سازی دسترسی به Swagger در تولید — فقط از طریق احراز هویت یا IP مجاز
+    if (config.get<string>('app.env') === 'production') {
+      app.use('/api/docs', (req: any, res: any, next: any) => {
+        const allowedIps = (config.get<string[]>('app.swaggerAllowedIps') ?? []).concat(['127.0.0.1', '::1']);
+        const clientIp = req.ip ?? req.socket?.remoteAddress ?? '';
+        if (allowedIps.includes(clientIp)) return next();
+        const auth = req.headers?.authorization;
+        if (auth && auth.startsWith('Bearer ')) {
+          try {
+            const token = auth.slice(7);
+            const jwt = app.get(JwtService);
+            jwt.verify(token, { secret: config.get<string>('app.jwt.accessSecret') });
+            return next();
+          } catch {
+            return res.status(401).json({ success: false, message: 'دسترسی به مستندات API نیاز به احراز هویت دارد.' });
+          }
+        }
+        return res.status(403).json({ success: false, message: 'دسترسی به مستندات API مجاز نیست.' });
+      });
+    }
   }
 
   const port = config.get<number>('app.port') ?? 4114;

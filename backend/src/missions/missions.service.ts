@@ -3,15 +3,15 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { AuditAction, MissionStatus, Prisma } from '@prisma/client';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AccessService } from '../common/access/access.service';
-import { AuditService } from '../common/audit/audit.service';
-import { NotificationService } from '../common/notifications/notification.service';
-import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { dateOnlyKey, toDateOnly } from '../attendance/jalali.util';
-import { PaginationDto } from '../common/dto/pagination.dto';
+} from "@nestjs/common";
+import { AuditAction, MissionStatus, Prisma } from "@prisma/client";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { AccessService } from "../common/access/access.service";
+import { AuditService } from "../common/audit/audit.service";
+import { NotificationService } from "../common/notifications/notification.service";
+import { AuthenticatedUser } from "../common/decorators/current-user.decorator";
+import { dateOnlyKey, toDateOnly } from "../attendance/jalali.util";
+import { PaginationDto } from "../common/dto/pagination.dto";
 import {
   AttendanceImpactQueryDto,
   CompleteMissionDto,
@@ -20,7 +20,7 @@ import {
   DecideExpenseDto,
   MissionQueryDto,
   UpdateMissionDto,
-} from './dto/missions.dto';
+} from "./dto/missions.dto";
 
 @Injectable()
 export class MissionsService {
@@ -32,33 +32,52 @@ export class MissionsService {
   ) {}
 
   /** دریافت مأموریت با بررسی دسترسی */
-  private async getMissionEntity(id: string) {
-    const mission = await this.prisma.mission.findUnique({
+  private async getMissionEntity(
+    id: string,
+    user: AuthenticatedUser,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const mission = await db.mission.findUnique({
       where: { id },
       include: {
-        employee: { select: { id: true, code: true, firstName: true, lastName: true, userId: true } },
+        employee: {
+          select: {
+            id: true,
+            code: true,
+            firstName: true,
+            lastName: true,
+            userId: true,
+          },
+        },
         orgUnit: { select: { id: true, name: true } },
-        expenses: { orderBy: { spentAt: 'desc' } },
+        expenses: { orderBy: { spentAt: "desc" } },
       },
     });
-    if (!mission) throw new NotFoundException('مأموریت موردنظر یافت نشد.');
+    if (!mission) throw new NotFoundException("مأموریت موردنظر یافت نشد.");
+    await this.access.assertEmployeeAccess(user, mission.employeeId);
     return mission;
   }
 
   /** فهرست مأموریت‌ها با فیلتر و محدوده دسترسی */
-  async list(query: MissionQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+  async list(
+    query: MissionQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.MissionWhereInput = {
       employee: this.access.employeeWhereFor(user),
       ...(query.employeeId ? { employeeId: query.employeeId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.from ? { startAt: { gte: new Date(query.from) } } : {}),
-      ...(query.to ? { endAt: { lte: new Date(`${query.to}T23:59:59.999Z`) } } : {}),
+      ...(query.to
+        ? { endAt: { lte: new Date(`${query.to}T23:59:59.999Z`) } }
+        : {}),
       ...(query.search
         ? {
             OR: [
-              { title: { contains: query.search, mode: 'insensitive' } },
-              { destination: { contains: query.search, mode: 'insensitive' } },
-              { projectName: { contains: query.search, mode: 'insensitive' } },
+              { title: { contains: query.search, mode: "insensitive" } },
+              { destination: { contains: query.search, mode: "insensitive" } },
+              { projectName: { contains: query.search, mode: "insensitive" } },
             ],
           }
         : {}),
@@ -72,9 +91,11 @@ export class MissionsService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { startAt: 'desc' },
+        orderBy: { startAt: "desc" },
         include: {
-          employee: { select: { id: true, code: true, firstName: true, lastName: true } },
+          employee: {
+            select: { id: true, code: true, firstName: true, lastName: true },
+          },
           orgUnit: { select: { id: true, name: true } },
           _count: { select: { expenses: true } },
         },
@@ -97,9 +118,13 @@ export class MissionsService {
   }
 
   async get(id: string, user: AuthenticatedUser) {
-    const mission = await this.getMissionEntity(id);
-    const canAccess = await this.access.canAccessEmployee(user, mission.employeeId);
-    if (!canAccess) throw new ForbiddenException('به مأموریت این نیرو دسترسی ندارید.');
+    const mission = await this.getMissionEntity(id, user);
+    const canAccess = await this.access.canAccessEmployee(
+      user,
+      mission.employeeId,
+    );
+    if (!canAccess)
+      throw new ForbiddenException("به مأموریت این نیرو دسترسی ندارید.");
     return {
       data: this.publicMission(mission),
       success: true,
@@ -112,274 +137,530 @@ export class MissionsService {
       ...mission,
       estimatedCost: Number(mission.estimatedCost ?? 0),
       actualCost: Number(mission.actualCost ?? 0),
-      expenses: (mission.expenses ?? []).map((e: any) => ({ ...e, amount: Number(e.amount ?? 0) })),
+      expenses: (mission.expenses ?? []).map((e: any) => ({
+        ...e,
+        amount: Number(e.amount ?? 0),
+      })),
     };
   }
 
   /** ثبت درخواست مأموریت */
   async create(dto: CreateMissionDto, user: AuthenticatedUser) {
-    if (new Date(dto.startAt) >= new Date(dto.endAt)) {
-      throw new BadRequestException('زمان شروع مأموریت باید قبل از زمان پایان باشد.');
-    }
-    const employee = await this.prisma.employee.findUnique({ where: { id: dto.employeeId } });
-    if (!employee || employee.deletedAt) throw new NotFoundException('نیروی موردنظر یافت نشد.');
-    const canAccess = await this.access.canAccessEmployee(user, dto.employeeId);
-    if (!canAccess) throw new ForbiddenException('به پرونده این نیرو دسترسی ندارید.');
+    return this.prisma.$transaction(
+      async (db) => {
+        await this.access.assertEmployeeAccess(user, dto.employeeId);
+        await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${dto.employeeId}::uuid FOR UPDATE`;
 
-    // هم‌پوشانی با مأموریت فعال دیگر
-    const overlap = await this.prisma.mission.findFirst({
-      where: {
-        employeeId: dto.employeeId,
-        status: { in: [MissionStatus.REQUESTED, MissionStatus.PENDING_APPROVAL, MissionStatus.APPROVED, MissionStatus.IN_PROGRESS] },
-        startAt: { lt: new Date(dto.endAt) },
-        endAt: { gt: new Date(dto.startAt) },
+        if (new Date(dto.startAt) >= new Date(dto.endAt)) {
+          throw new BadRequestException(
+            "زمان شروع مأموریت باید قبل از زمان پایان باشد.",
+          );
+        }
+        const employee = await db.employee.findUnique({
+          where: { id: dto.employeeId },
+        });
+        if (!employee || employee.deletedAt)
+          throw new NotFoundException("نیروی موردنظر یافت نشد.");
+        await this.access.assertEmployeeRelations(employee.companyId, {
+          orgUnitId: dto.orgUnitId,
+        });
+        const canAccess = await this.access.canAccessEmployee(
+          user,
+          dto.employeeId,
+        );
+        if (!canAccess)
+          throw new ForbiddenException("به پرونده این نیرو دسترسی ندارید.");
+
+        // هم‌پوشانی با مأموریت فعال دیگر
+        const overlap = await db.mission.findFirst({
+          where: {
+            employeeId: dto.employeeId,
+            status: {
+              in: [
+                MissionStatus.REQUESTED,
+                MissionStatus.PENDING_APPROVAL,
+                MissionStatus.APPROVED,
+                MissionStatus.IN_PROGRESS,
+              ],
+            },
+            startAt: { lt: new Date(dto.endAt) },
+            endAt: { gt: new Date(dto.startAt) },
+          },
+          select: { id: true },
+        });
+        if (overlap)
+          throw new BadRequestException(
+            "برای این نیرو در این بازه مأموریت فعالی ثبت شده است.",
+          );
+
+        const mission = await db.mission.create({
+          data: {
+            employeeId: dto.employeeId,
+            orgUnitId: dto.orgUnitId ?? employee.orgUnitId,
+            title: dto.title.trim(),
+            destination: dto.destination.trim(),
+            purpose: dto.purpose ?? null,
+            startAt: new Date(dto.startAt),
+            endAt: new Date(dto.endAt),
+            transport: dto.transport ?? null,
+            projectName: dto.projectName ?? null,
+            estimatedCost: BigInt(dto.estimatedCost ?? 0),
+            isAttendanceExempt: dto.isAttendanceExempt ?? true,
+            status: MissionStatus.REQUESTED,
+          },
+        });
+
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.CREATE,
+          entity: "Mission",
+          entityId: mission.id,
+          after: { title: mission.title, destination: mission.destination },
+        });
+
+        // اطلاع به مأمور (اگر درخواست توسط دیگری ثبت شده باشد)
+        const empUser = await db.employee.findUnique({
+          where: { id: dto.employeeId },
+          select: { userId: true },
+        });
+        if (empUser?.userId && empUser.userId !== user.id) {
+          await db.notification.create({
+            data: {
+              userId: empUser.userId,
+              status: "SENT",
+              type: "SYSTEM",
+              title: "درخواست مأموریت ثبت شد",
+              body: `مأموریت «${mission.title}» برای شما ثبت شد و در انتظار تأیید است.`,
+              link: `/missions/${mission.id}`,
+            },
+          });
+        }
+
+        return {
+          data: { id: mission.id, status: mission.status },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
       },
-      select: { id: true },
-    });
-    if (overlap) throw new BadRequestException('برای این نیرو در این بازه مأموریت فعالی ثبت شده است.');
-
-    const mission = await this.prisma.mission.create({
-      data: {
-        employeeId: dto.employeeId,
-        orgUnitId: dto.orgUnitId ?? employee.orgUnitId,
-        title: dto.title.trim(),
-        destination: dto.destination.trim(),
-        purpose: dto.purpose ?? null,
-        startAt: new Date(dto.startAt),
-        endAt: new Date(dto.endAt),
-        transport: dto.transport ?? null,
-        projectName: dto.projectName ?? null,
-        estimatedCost: BigInt(dto.estimatedCost ?? 0),
-        isAttendanceExempt: dto.isAttendanceExempt ?? true,
-        status: MissionStatus.REQUESTED,
-      },
-    });
-
-    await this.audit.record(user.id, {
-      action: AuditAction.CREATE,
-      entity: 'Mission',
-      entityId: mission.id,
-      after: { title: mission.title, destination: mission.destination },
-    });
-
-    // اطلاع به مأمور (اگر درخواست توسط دیگری ثبت شده باشد)
-    const empUser = await this.prisma.employee.findUnique({
-      where: { id: dto.employeeId },
-      select: { userId: true },
-    });
-    if (empUser?.userId && empUser.userId !== user.id) {
-      await this.notifications.notify(empUser.userId, {
-        type: 'SYSTEM',
-        title: 'درخواست مأموریت ثبت شد',
-        body: `مأموریت «${mission.title}» برای شما ثبت شد و در انتظار تأیید است.`,
-        link: `/missions/${mission.id}`,
-      });
-    }
-
-    return {
-      data: { id: mission.id, status: mission.status },
-      success: true,
-      timestamp: new Date().toISOString(),
-    };
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** ویرایش مأموریت — فقط در وضعیت‌های پیش از تأیید */
   async update(id: string, dto: UpdateMissionDto, user: AuthenticatedUser) {
-    const mission = await this.getMissionEntity(id);
-    const editable: MissionStatus[] = [
-      MissionStatus.REQUESTED,
-      MissionStatus.PENDING_APPROVAL,
-      MissionStatus.REJECTED,
-    ];
-    if (!editable.includes(mission.status)) {
-      throw new BadRequestException('مأموریت تأییدشده قابل ویرایش نیست.');
-    }
-    const updated = await this.prisma.mission.update({
-      where: { id },
-      data: {
-        ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
-        ...(dto.destination !== undefined ? { destination: dto.destination.trim() } : {}),
-        ...(dto.purpose !== undefined ? { purpose: dto.purpose } : {}),
-        ...(dto.startAt !== undefined ? { startAt: new Date(dto.startAt) } : {}),
-        ...(dto.endAt !== undefined ? { endAt: new Date(dto.endAt) } : {}),
-        ...(dto.transport !== undefined ? { transport: dto.transport } : {}),
-        ...(dto.projectName !== undefined ? { projectName: dto.projectName } : {}),
-        ...(dto.estimatedCost !== undefined ? { estimatedCost: BigInt(dto.estimatedCost) } : {}),
-        ...(dto.isAttendanceExempt !== undefined ? { isAttendanceExempt: dto.isAttendanceExempt } : {}),
+    return this.prisma.$transaction(
+      async (db) => {
+        const reference = await db.mission.findUnique({
+          where: { id },
+          select: { employeeId: true },
+        });
+        if (!reference) throw new NotFoundException("مأموریت یافت نشد.");
+        await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${reference.employeeId}::uuid FOR UPDATE`;
+        await db.$queryRaw`SELECT id FROM "Mission" WHERE id = ${id}::uuid FOR UPDATE`;
+
+        const mission = await this.getMissionEntity(id, user, db);
+        const editable: MissionStatus[] = [
+          MissionStatus.REQUESTED,
+          MissionStatus.PENDING_APPROVAL,
+          MissionStatus.REJECTED,
+        ];
+        if (!editable.includes(mission.status)) {
+          throw new BadRequestException("مأموریت تأییدشده قابل ویرایش نیست.");
+        }
+        const startAt = dto.startAt ? new Date(dto.startAt) : mission.startAt;
+        const endAt = dto.endAt ? new Date(dto.endAt) : mission.endAt;
+        if (startAt >= endAt)
+          throw new BadRequestException("زمان پایان باید بعد از شروع باشد.");
+        const overlap = await db.mission.findFirst({
+          where: {
+            id: { not: id },
+            employeeId: mission.employeeId,
+            status: {
+              in: [
+                MissionStatus.REQUESTED,
+                MissionStatus.PENDING_APPROVAL,
+                MissionStatus.APPROVED,
+                MissionStatus.IN_PROGRESS,
+              ],
+            },
+            startAt: { lt: endAt },
+            endAt: { gt: startAt },
+          },
+          select: { id: true },
+        });
+        if (overlap)
+          throw new BadRequestException("در این بازه مأموریت دیگری وجود دارد.");
+        const updated = await db.mission.update({
+          where: { id },
+          data: {
+            ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+            ...(dto.destination !== undefined
+              ? { destination: dto.destination.trim() }
+              : {}),
+            ...(dto.purpose !== undefined ? { purpose: dto.purpose } : {}),
+            ...(dto.startAt !== undefined
+              ? { startAt: new Date(dto.startAt) }
+              : {}),
+            ...(dto.endAt !== undefined ? { endAt: new Date(dto.endAt) } : {}),
+            ...(dto.transport !== undefined
+              ? { transport: dto.transport }
+              : {}),
+            ...(dto.projectName !== undefined
+              ? { projectName: dto.projectName }
+              : {}),
+            ...(dto.estimatedCost !== undefined
+              ? { estimatedCost: BigInt(dto.estimatedCost) }
+              : {}),
+            ...(dto.isAttendanceExempt !== undefined
+              ? { isAttendanceExempt: dto.isAttendanceExempt }
+              : {}),
+          },
+        });
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.UPDATE,
+          entity: "Mission",
+          entityId: id,
+          before: { title: mission.title, status: mission.status },
+          after: { title: updated.title },
+        });
+        return {
+          data: { id: updated.id },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
       },
-    });
-    await this.audit.record(user.id, {
-      action: AuditAction.UPDATE,
-      entity: 'Mission',
-      entityId: id,
-      before: { title: mission.title, status: mission.status },
-      after: { title: updated.title },
-    });
-    return { data: { id: updated.id }, success: true, timestamp: new Date().toISOString() };
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** تصمیم تأیید — هیچ‌کس مأموریت خودش را تأیید نمی‌کند */
-  async decide(id: string, decision: 'APPROVE' | 'REJECT', comment: string | undefined, user: AuthenticatedUser) {
-    const mission = await this.getMissionEntity(id);
-    if (mission.status !== MissionStatus.REQUESTED && mission.status !== MissionStatus.PENDING_APPROVAL) {
-      throw new BadRequestException('این مأموریت در مرحله قابل تصمیم نیست.');
-    }
-    if (mission.employee.userId === user.id && !user.isSuperAdmin) {
-      throw new ForbiddenException('هیچ‌کس اجازه تأیید مأموریت خودش را ندارد.');
-    }
+  async decide(
+    id: string,
+    decision: "APPROVE" | "REJECT",
+    comment: string | undefined,
+    user: AuthenticatedUser,
+    transaction?: Prisma.TransactionClient,
+  ) {
+    const run = async (db: Prisma.TransactionClient) => {
+      await db.$queryRaw`SELECT id FROM "Mission" WHERE id = ${id}::uuid FOR UPDATE`;
 
-    const status = decision === 'APPROVE' ? MissionStatus.APPROVED : MissionStatus.REJECTED;
-    await this.prisma.mission.update({
-      where: { id },
-      data: { status, approvedById: decision === 'APPROVE' ? user.id : null },
-    });
+      const mission = await this.getMissionEntity(id, user, db);
+      if (
+        mission.status !== MissionStatus.REQUESTED &&
+        mission.status !== MissionStatus.PENDING_APPROVAL
+      ) {
+        throw new BadRequestException("این مأموریت در مرحله قابل تصمیم نیست.");
+      }
+      if (mission.employee.userId === user.id && !user.isSuperAdmin) {
+        throw new ForbiddenException(
+          "هیچ‌کس اجازه تأیید مأموریت خودش را ندارد.",
+        );
+      }
 
-    if (mission.employee.userId) {
-      await this.notifications.notify(mission.employee.userId, {
-        type: 'REQUEST_RESULT',
-        title: decision === 'APPROVE' ? 'مأموریت شما تأیید شد' : 'درخواست مأموریت رد شد',
-        body: comment ?? undefined,
-        link: `/missions/${id}`,
+      const status =
+        decision === "APPROVE"
+          ? MissionStatus.APPROVED
+          : MissionStatus.REJECTED;
+      await db.mission.update({
+        where: { id },
+        data: { status, approvedById: decision === "APPROVE" ? user.id : null },
       });
-    }
 
-    await this.audit.record(user.id, {
-      action: decision === 'APPROVE' ? AuditAction.APPROVE : AuditAction.REJECT,
-      entity: 'Mission',
-      entityId: id,
-      after: { status, comment },
-    });
+      if (mission.employee.userId) {
+        await db.notification.create({
+          data: {
+            userId: mission.employee.userId,
+            status: "SENT",
+            type: "REQUEST_RESULT",
+            title:
+              decision === "APPROVE"
+                ? "مأموریت شما تأیید شد"
+                : "درخواست مأموریت رد شد",
+            body: comment ?? undefined,
+            link: `/missions/${id}`,
+          },
+        });
+      }
 
-    return { data: { id, status }, success: true, timestamp: new Date().toISOString() };
+      await this.audit.recordInTransaction(db, user.id, {
+        action:
+          decision === "APPROVE" ? AuditAction.APPROVE : AuditAction.REJECT,
+        entity: "Mission",
+        entityId: id,
+        after: { status, comment },
+      });
+
+      return {
+        data: { id, status },
+        success: true,
+        timestamp: new Date().toISOString(),
+      };
+    };
+    return transaction
+      ? run(transaction)
+      : this.prisma.$transaction(run, { maxWait: 10000, timeout: 30000 });
   }
 
   /** شروع و پایان مأموریت توسط مأمور */
   async setStatus(id: string, status: MissionStatus, user: AuthenticatedUser) {
-    const mission = await this.getMissionEntity(id);
-    if (mission.status !== MissionStatus.APPROVED && status === MissionStatus.IN_PROGRESS) {
-      throw new BadRequestException('فقط مأموریت تأییدشده قابل شروع است.');
-    }
-    await this.prisma.mission.update({ where: { id }, data: { status } });
-    await this.audit.record(user.id, {
-      action: AuditAction.UPDATE,
-      entity: 'Mission',
-      entityId: id,
-      after: { status },
-    });
-    return { data: { id, status }, success: true, timestamp: new Date().toISOString() };
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Mission" WHERE id = ${id}::uuid FOR UPDATE`;
+
+        const mission = await this.getMissionEntity(id, user, db);
+        if (status !== MissionStatus.IN_PROGRESS)
+          throw new BadRequestException(
+            "از عملیات مخصوص تغییر وضعیت استفاده کنید.",
+          );
+        if (
+          mission.employeeId !== user.employeeId &&
+          !this.access.hasPermission(user, "missions.create")
+        )
+          throw new ForbiddenException(
+            "شروع مأموریت فقط برای صاحب آن یا مدیر مجاز است.",
+          );
+        if (
+          mission.status !== MissionStatus.APPROVED &&
+          status === MissionStatus.IN_PROGRESS
+        ) {
+          throw new BadRequestException("فقط مأموریت تأییدشده قابل شروع است.");
+        }
+        await db.mission.update({ where: { id }, data: { status } });
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.UPDATE,
+          entity: "Mission",
+          entityId: id,
+          after: { status },
+        });
+        return {
+          data: { id, status },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** تکمیل مأموریت با گزارش نهایی */
   async complete(id: string, dto: CompleteMissionDto, user: AuthenticatedUser) {
-    const mission = await this.getMissionEntity(id);
-    const completable: MissionStatus[] = [MissionStatus.APPROVED, MissionStatus.IN_PROGRESS];
-    if (!completable.includes(mission.status)) {
-      throw new BadRequestException('این مأموریت در وضعیت قابل تکمیل نیست.');
-    }
-    await this.prisma.mission.update({
-      where: { id },
-      data: {
-        status: MissionStatus.COMPLETED,
-        report: dto.report,
-        actualCost: BigInt(dto.actualCost ?? mission.actualCost),
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Mission" WHERE id = ${id}::uuid FOR UPDATE`;
+
+        const mission = await this.getMissionEntity(id, user, db);
+        if (
+          mission.employeeId !== user.employeeId &&
+          !this.access.hasPermission(user, "missions.create")
+        )
+          throw new ForbiddenException(
+            "تکمیل مأموریت فقط برای صاحب آن یا مدیر مجاز است.",
+          );
+        const completable: MissionStatus[] = [
+          MissionStatus.APPROVED,
+          MissionStatus.IN_PROGRESS,
+        ];
+        if (!completable.includes(mission.status)) {
+          throw new BadRequestException(
+            "این مأموریت در وضعیت قابل تکمیل نیست.",
+          );
+        }
+        await db.mission.update({
+          where: { id },
+          data: {
+            status: MissionStatus.COMPLETED,
+            report: dto.report,
+            actualCost: BigInt(dto.actualCost ?? mission.actualCost),
+          },
+        });
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.UPDATE,
+          entity: "Mission",
+          entityId: id,
+          after: { status: MissionStatus.COMPLETED },
+        });
+        return {
+          data: { id, status: MissionStatus.COMPLETED },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
       },
-    });
-    await this.audit.record(user.id, {
-      action: AuditAction.UPDATE,
-      entity: 'Mission',
-      entityId: id,
-      after: { status: MissionStatus.COMPLETED },
-    });
-    return { data: { id, status: MissionStatus.COMPLETED }, success: true, timestamp: new Date().toISOString() };
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** لغو مأموریت */
   async cancel(id: string, user: AuthenticatedUser) {
-    const mission = await this.getMissionEntity(id);
-    if (mission.status === MissionStatus.COMPLETED) {
-      throw new BadRequestException('مأموریت تکمیل‌شده قابل لغو نیست.');
-    }
-    await this.prisma.mission.update({ where: { id }, data: { status: MissionStatus.CANCELLED } });
-    await this.audit.record(user.id, {
-      action: AuditAction.CANCEL,
-      entity: 'Mission',
-      entityId: id,
-      before: { status: mission.status },
-    });
-    return { data: { id, status: MissionStatus.CANCELLED }, success: true, timestamp: new Date().toISOString() };
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Mission" WHERE id = ${id}::uuid FOR UPDATE`;
+
+        const mission = await this.getMissionEntity(id, user, db);
+        if (mission.status === MissionStatus.COMPLETED) {
+          throw new BadRequestException("مأموریت تکمیل‌شده قابل لغو نیست.");
+        }
+        await db.mission.update({
+          where: { id },
+          data: { status: MissionStatus.CANCELLED },
+        });
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.CANCEL,
+          entity: "Mission",
+          entityId: id,
+          before: { status: mission.status },
+        });
+        return {
+          data: { id, status: MissionStatus.CANCELLED },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   // =========================================================================
   // هزینه‌های مأموریت
   // =========================================================================
 
-  async addExpense(id: string, dto: CreateMissionExpenseDto, user: AuthenticatedUser) {
-    const mission = await this.getMissionEntity(id);
-    const expense = await this.prisma.missionExpense.create({
-      data: {
-        missionId: id,
-        description: dto.description.trim(),
-        amount: BigInt(dto.amount),
-        spentAt: toDateOnly(new Date(dto.spentAt)),
-        receiptPath: dto.receiptPath ?? null,
-        status: 'PENDING',
+  async addExpense(
+    id: string,
+    dto: CreateMissionExpenseDto,
+    user: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Mission" WHERE id = ${id}::uuid FOR UPDATE`;
+
+        const mission = await this.getMissionEntity(id, user, db);
+        if (
+          mission.employeeId !== user.employeeId &&
+          !this.access.hasPermission(user, "missions.create")
+        )
+          throw new ForbiddenException(
+            "ثبت هزینه فقط برای صاحب مأموریت یا مدیر مجاز است.",
+          );
+        if (
+          mission.status === MissionStatus.REJECTED ||
+          mission.status === MissionStatus.CANCELLED
+        )
+          throw new BadRequestException(
+            "ثبت هزینه برای مأموریت لغوشده یا ردشده مجاز نیست.",
+          );
+        const expense = await db.missionExpense.create({
+          data: {
+            missionId: id,
+            description: dto.description.trim(),
+            amount: BigInt(dto.amount),
+            spentAt: toDateOnly(new Date(dto.spentAt)),
+            receiptPath: dto.receiptPath ?? null,
+            status: "PENDING",
+          },
+        });
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.CREATE,
+          entity: "MissionExpense",
+          entityId: expense.id,
+          after: { missionId: id, amount: dto.amount },
+        });
+        return {
+          data: { id: expense.id, amount: Number(expense.amount) },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
       },
-    });
-    await this.audit.record(user.id, {
-      action: AuditAction.CREATE,
-      entity: 'MissionExpense',
-      entityId: expense.id,
-      after: { missionId: id, amount: dto.amount },
-    });
-    return { data: { id: expense.id, amount: Number(expense.amount) }, success: true, timestamp: new Date().toISOString() };
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** تصمیم روی هزینه — تأییدکننده نباید درخواست‌دهنده همان مأموریت باشد */
-  async decideExpense(expenseId: string, dto: DecideExpenseDto, user: AuthenticatedUser) {
-    const expense = await this.prisma.missionExpense.findUnique({
-      where: { id: expenseId },
-      include: { mission: { include: { employee: { select: { userId: true } } } } },
-    });
-    if (!expense) throw new NotFoundException('هزینه موردنظر یافت نشد.');
-    if (expense.status !== 'PENDING') throw new BadRequestException('این هزینه قبلاً بررسی شده است.');
-    if (expense.mission.employee.userId === user.id && !user.isSuperAdmin) {
-      throw new ForbiddenException('هیچ‌کس اجازه تأیید هزینه مأموریت خودش را ندارد.');
-    }
+  async decideExpense(
+    expenseId: string,
+    dto: DecideExpenseDto,
+    user: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "MissionExpense" WHERE id = ${expenseId}::uuid FOR UPDATE`;
 
-    const approved = dto.decision === 'APPROVE';
-    await this.prisma.missionExpense.update({
-      where: { id: expenseId },
-      data: {
-        status: approved ? 'APPROVED' : 'REJECTED',
-        approvedById: user.id,
+        const expense = await db.missionExpense.findUnique({
+          where: { id: expenseId },
+          include: {
+            mission: { include: { employee: { select: { userId: true } } } },
+          },
+        });
+        if (!expense) throw new NotFoundException("هزینه موردنظر یافت نشد.");
+        await this.access.assertEmployeeAccess(
+          user,
+          expense.mission.employeeId,
+        );
+        if (expense.status !== "PENDING")
+          throw new BadRequestException("این هزینه قبلاً بررسی شده است.");
+        if (expense.mission.employee.userId === user.id && !user.isSuperAdmin) {
+          throw new ForbiddenException(
+            "هیچ‌کس اجازه تأیید هزینه مأموریت خودش را ندارد.",
+          );
+        }
+
+        const approved = dto.decision === "APPROVE";
+        await db.missionExpense.update({
+          where: { id: expenseId },
+          data: {
+            status: approved ? "APPROVED" : "REJECTED",
+            approvedById: user.id,
+          },
+        });
+        if (expense.mission.employee.userId) {
+          await db.notification.create({
+            data: {
+              userId: expense.mission.employee.userId,
+              status: "SENT",
+              type: "REQUEST_RESULT",
+              title: approved
+                ? "هزینه مأموریت تأیید شد"
+                : "هزینه مأموریت رد شد",
+              body: dto.comment ?? undefined,
+              link: `/missions/${expense.missionId}`,
+            },
+          });
+        }
+        await this.audit.recordInTransaction(db, user.id, {
+          action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
+          entity: "MissionExpense",
+          entityId: expenseId,
+          after: { decision: dto.decision, comment: dto.comment },
+        });
+        return {
+          data: { id: expenseId, status: approved ? "APPROVED" : "REJECTED" },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
       },
-    });
-    if (expense.mission.employee.userId) {
-      await this.notifications.notify(expense.mission.employee.userId, {
-        type: 'REQUEST_RESULT',
-        title: approved ? 'هزینه مأموریت تأیید شد' : 'هزینه مأموریت رد شد',
-        body: dto.comment ?? undefined,
-        link: `/missions/${expense.missionId}`,
-      });
-    }
-    await this.audit.record(user.id, {
-      action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
-      entity: 'MissionExpense',
-      entityId: expenseId,
-      after: { decision: dto.decision, comment: dto.comment },
-    });
-    return { data: { id: expenseId, status: approved ? 'APPROVED' : 'REJECTED' }, success: true, timestamp: new Date().toISOString() };
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** تأثیر مأموریت‌ها بر حضور (روزهای معاف) */
-  async attendanceImpact(query: AttendanceImpactQueryDto, user: AuthenticatedUser) {
-    const canAccess = await this.access.canAccessEmployee(user, query.employeeId);
-    if (!canAccess) throw new ForbiddenException('به پرونده این نیرو دسترسی ندارید.');
+  async attendanceImpact(
+    query: AttendanceImpactQueryDto,
+    user: AuthenticatedUser,
+  ) {
+    const canAccess = await this.access.canAccessEmployee(
+      user,
+      query.employeeId,
+    );
+    if (!canAccess)
+      throw new ForbiddenException("به پرونده این نیرو دسترسی ندارید.");
 
     const missions = await this.prisma.mission.findMany({
       where: {
         employeeId: query.employeeId,
-        status: { in: [MissionStatus.APPROVED, MissionStatus.IN_PROGRESS, MissionStatus.COMPLETED] },
+        status: {
+          in: [
+            MissionStatus.APPROVED,
+            MissionStatus.IN_PROGRESS,
+            MissionStatus.COMPLETED,
+          ],
+        },
         isAttendanceExempt: true,
         startAt: { lte: new Date(`${query.to}T23:59:59.999Z`) },
         endAt: { gte: new Date(query.from) },
@@ -391,8 +672,12 @@ export class MissionsService {
     const from = toDateOnly(new Date(query.from));
     const to = toDateOnly(new Date(query.to));
     for (const m of missions) {
-      let cursor = toDateOnly(new Date(Math.max(m.startAt.getTime(), from.getTime())));
-      const end = toDateOnly(new Date(Math.min(m.endAt.getTime(), to.getTime())));
+      let cursor = toDateOnly(
+        new Date(Math.max(m.startAt.getTime(), from.getTime())),
+      );
+      const end = toDateOnly(
+        new Date(Math.min(m.endAt.getTime(), to.getTime())),
+      );
       while (cursor <= end) {
         days.push(dateOnlyKey(cursor));
         cursor = new Date(cursor.getTime() + 86_400_000);
@@ -400,7 +685,11 @@ export class MissionsService {
     }
 
     return {
-      data: { employeeId: query.employeeId, exemptDays: [...new Set(days)].sort(), missions },
+      data: {
+        employeeId: query.employeeId,
+        exemptDays: [...new Set(days)].sort(),
+        missions,
+      },
       success: true,
       timestamp: new Date().toISOString(),
     };

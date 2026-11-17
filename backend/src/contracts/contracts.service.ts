@@ -1,15 +1,31 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuditAction, ContractStatus, Prisma } from '@prisma/client';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AccessService } from '../common/access/access.service';
-import { AuditService } from '../common/audit/audit.service';
-import { NotificationService } from '../common/notifications/notification.service';
-import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { PaginationDto } from '../common/dto/pagination.dto';
-import { employeeVisibility } from '../employees/employee-privacy';
-import { CreateContractDto, CreateContractVersionDto, ContractQueryDto, UpdateContractDto } from './dto/contracts.dto';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { AuditAction, ContractStatus, Prisma } from "@prisma/client";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { AccessService } from "../common/access/access.service";
+import { AuditService } from "../common/audit/audit.service";
+import { NotificationService } from "../common/notifications/notification.service";
+import { AuthenticatedUser } from "../common/decorators/current-user.decorator";
+import { PaginationDto } from "../common/dto/pagination.dto";
+import { employeeVisibility } from "../employees/employee-privacy";
+import {
+  CreateContractDto,
+  CreateContractVersionDto,
+  ContractQueryDto,
+  UpdateContractDto,
+} from "./dto/contracts.dto";
 
-const VERSION_MONEY_FIELDS = ['baseSalary', 'housingAllowance', 'foodAllowance', 'childAllowance', 'seniorityPay'] as const;
+const VERSION_MONEY_FIELDS = [
+  "baseSalary",
+  "housingAllowance",
+  "foodAllowance",
+  "childAllowance",
+  "seniorityPay",
+] as const;
 const NEXT_STATUS: Partial<Record<ContractStatus, ContractStatus>> = {
   DRAFT: ContractStatus.PENDING_APPROVAL,
   PENDING_APPROVAL: ContractStatus.READY_TO_SIGN,
@@ -25,7 +41,11 @@ export class ContractsService {
     private readonly notifications: NotificationService,
   ) {}
 
-  async list(query: ContractQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+  async list(
+    query: ContractQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.ContractWhereInput = {
       deletedAt: null,
       employee: this.access.employeeWhereFor(user),
@@ -42,11 +62,19 @@ export class ContractsService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
-          employee: { select: { id: true, code: true, firstName: true, lastName: true, employmentType: true } },
+          employee: {
+            select: {
+              id: true,
+              code: true,
+              firstName: true,
+              lastName: true,
+              employmentType: true,
+            },
+          },
           versions: {
-            orderBy: { version: 'desc' },
+            orderBy: { version: "desc" },
             take: 1,
           },
         },
@@ -54,7 +82,12 @@ export class ContractsService {
     ]);
 
     return {
-      data: rows.map((c) => ({ ...c, versions: c.versions.map((v) => this.versionPublic(v, user, c.employeeId)) })),
+      data: rows.map((c) => ({
+        ...c,
+        versions: c.versions.map((v) =>
+          this.versionPublic(v, user, c.employeeId),
+        ),
+      })),
       meta: {
         total,
         page,
@@ -80,14 +113,28 @@ export class ContractsService {
         versions: { some: { endDate: { gte: new Date(), lte: to } } },
       },
       include: {
-        employee: { select: { id: true, code: true, firstName: true, lastName: true } },
-        versions: { orderBy: { version: 'desc' }, take: 1 },
+        employee: {
+          select: { id: true, code: true, firstName: true, lastName: true },
+        },
+        versions: { orderBy: { version: "desc" }, take: 1 },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
     return {
-      data: rows.map((c) => ({ ...c, versions: c.versions.map((v) => this.versionPublic(v, user, c.employeeId)) })),
-      meta: { total: rows.length, page: 1, limit: rows.length, totalPages: 1, hasNext: false, hasPrev: false },
+      data: rows.map((c) => ({
+        ...c,
+        versions: c.versions.map((v) =>
+          this.versionPublic(v, user, c.employeeId),
+        ),
+      })),
+      meta: {
+        total: rows.length,
+        page: 1,
+        limit: rows.length,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
       success: true,
       timestamp: new Date().toISOString(),
     };
@@ -95,18 +142,34 @@ export class ContractsService {
 
   async get(id: string, user: AuthenticatedUser) {
     const contract = await this.prisma.contract.findFirst({
-      where: { id, deletedAt: null, employee: this.access.employeeWhereFor(user) },
+      where: {
+        id,
+        deletedAt: null,
+        employee: this.access.employeeWhereFor(user),
+      },
       include: {
         employee: {
-          select: { id: true, code: true, firstName: true, lastName: true, employmentType: true, status: true },
+          select: {
+            id: true,
+            code: true,
+            firstName: true,
+            lastName: true,
+            employmentType: true,
+            status: true,
+          },
         },
-        versions: { orderBy: { version: 'desc' } },
+        versions: { orderBy: { version: "desc" } },
       },
     });
-    if (!contract) throw new NotFoundException('قرارداد موردنظر یافت نشد.');
-    await this.audit.recordView(user.id, 'Contract', id);
+    if (!contract) throw new NotFoundException("قرارداد موردنظر یافت نشد.");
+    await this.audit.recordView(user.id, "Contract", id);
     return {
-      data: { ...contract, versions: contract.versions.map((v) => this.versionPublic(v, user, contract.employeeId)) },
+      data: {
+        ...contract,
+        versions: contract.versions.map((v) =>
+          this.versionPublic(v, user, contract.employeeId),
+        ),
+      },
       success: true,
       timestamp: new Date().toISOString(),
     };
@@ -115,12 +178,18 @@ export class ContractsService {
   /** ایجاد قرارداد با نسخه اول */
   async create(dto: CreateContractDto, user: AuthenticatedUser) {
     if (dto.endDate && new Date(dto.startDate) >= new Date(dto.endDate)) {
-      throw new BadRequestException('تاریخ پایان قرارداد باید بعد از تاریخ شروع باشد.');
+      throw new BadRequestException(
+        "تاریخ پایان قرارداد باید بعد از تاریخ شروع باشد.",
+      );
     }
     const employee = await this.prisma.employee.findFirst({
-      where: { id: dto.employeeId, deletedAt: null, AND: [this.access.employeeWhereFor(user)] },
+      where: {
+        id: dto.employeeId,
+        deletedAt: null,
+        AND: [this.access.employeeWhereFor(user)],
+      },
     });
-    if (!employee) throw new NotFoundException('نیروی موردنظر یافت نشد.');
+    if (!employee) throw new NotFoundException("نیروی موردنظر یافت نشد.");
 
     const contract = await this.prisma.contract.create({
       data: {
@@ -128,14 +197,14 @@ export class ContractsService {
         companyId: employee.companyId,
         status: ContractStatus.DRAFT,
         versions: {
-          create: this.versionData(dto, 1, user.id, 'ایجاد قرارداد'),
+          create: this.versionData(dto, 1, user.id, "ایجاد قرارداد"),
         },
       },
     });
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'Contract',
+      entity: "Contract",
       entityId: contract.id,
       after: { employeeId: employee.id, contractType: dto.contractType },
     });
@@ -148,135 +217,232 @@ export class ContractsService {
   }
 
   /** ایجاد نسخه جدید قرارداد (تمدید/تغییر شرایط) */
-  async addVersion(id: string, dto: CreateContractVersionDto, user: AuthenticatedUser) {
-    const contract = await this.getContract(id, user);
-    const version = contract.currentVersion + 1;
+  async addVersion(
+    id: string,
+    dto: CreateContractVersionDto,
+    user: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Contract" WHERE id = ${id}::uuid FOR UPDATE`;
+        const contract = await this.getContract(id, user, db);
+        if (dto.endDate && new Date(dto.startDate) >= new Date(dto.endDate))
+          throw new BadRequestException(
+            "تاریخ پایان قرارداد باید بعد از شروع باشد.",
+          );
+        const version = contract.currentVersion + 1;
 
-    await this.prisma.contractVersion.create({
-      data: this.versionData(dto, version, user.id, dto.changeReason),
-    });
-    await this.prisma.contract.update({
-      where: { id },
-      data: { currentVersion: version },
-    });
+        await db.contractVersion.create({
+          data: {
+            ...this.versionData(dto, version, user.id, dto.changeReason),
+            contractId: id,
+          },
+        });
+        await db.contract.update({
+          where: { id },
+          data: { currentVersion: version },
+        });
 
-    if (dto.endDate) {
-      await this.prisma.contract.update({
-        where: { id },
-        data: { status: ContractStatus.RENEWED },
-      });
-    }
+        if (dto.endDate) {
+          await db.contract.update({
+            where: { id },
+            data: { status: ContractStatus.RENEWED },
+          });
+        }
 
-    await this.audit.record(user.id, {
-      action: AuditAction.CREATE,
-      entity: 'ContractVersion',
-      entityId: id,
-      after: { version, changeReason: dto.changeReason },
-    });
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.CREATE,
+          entity: "ContractVersion",
+          entityId: id,
+          after: { version, changeReason: dto.changeReason },
+        });
 
-    if (contract.employee.userId) {
-      await this.notifications.notify(contract.employee.userId, {
-        type: 'SYSTEM',
-        title: 'نسخه جدید قرارداد ثبت شد',
-        body: `نسخه ${version} قرارداد شما با دلیل «${dto.changeReason}» ثبت شد.`,
-        link: `/contracts/${id}`,
-      });
-    }
+        if (contract.employee.userId) {
+          await db.notification.create({
+            data: {
+              userId: contract.employee.userId,
+              status: "SENT",
+              type: "SYSTEM",
+              title: "نسخه جدید قرارداد ثبت شد",
+              link: `/contracts/${id}`,
+            },
+          });
+        }
 
-    return {
-      data: { id, version },
-      success: true,
-      timestamp: new Date().toISOString(),
-    };
+        return {
+          data: { id, version },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** تغییر وضعیت قرارداد (سرور قاعده تأیید را اعمال می‌کند) */
   async setStatus(id: string, dto: UpdateContractDto, user: AuthenticatedUser) {
-    const contract = await this.getContract(id, user);
-    const target = dto.status;
-    if (!target) throw new BadRequestException('وضعیت مقصد ارسال نشده است.');
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Contract" WHERE id = ${id}::uuid FOR UPDATE`;
 
-    // قاعده سرور: هیچ‌کس قرارداد خودش را تأیید نمی‌کند
-    if (
-      (target === ContractStatus.ACTIVE || target === ContractStatus.PENDING_APPROVAL || target === ContractStatus.READY_TO_SIGN)
-      && contract.employeeId && user.employeeId === contract.employeeId && !user.isSuperAdmin
-    ) {
-      throw new BadRequestException('هیچ‌کس اجازه تأیید قرارداد خودش را ندارد.');
-    }
+        const contract = await this.getContract(id, user, db);
+        const target = dto.status;
+        if (!target)
+          throw new BadRequestException("وضعیت مقصد ارسال نشده است.");
+        const approval =
+          target === ContractStatus.READY_TO_SIGN ||
+          target === ContractStatus.ACTIVE;
+        if (
+          !this.access.hasPermission(
+            user,
+            approval ? "contracts.approve" : "contracts.update",
+          )
+        )
+          throw new ForbiddenException(
+            "مجوز تغییر این وضعیت قرارداد را ندارید.",
+          );
+        if (approval && NEXT_STATUS[contract.status] !== target)
+          throw new BadRequestException(
+            "ترتیب مراحل تأیید قرارداد رعایت نشده است.",
+          );
 
-    await this.prisma.contract.update({ where: { id }, data: { status: target } });
-    await this.audit.record(user.id, {
-      action: target === ContractStatus.ACTIVE ? AuditAction.APPROVE : AuditAction.UPDATE,
-      entity: 'Contract',
-      entityId: id,
-      before: { status: contract.status },
-      after: { status: target },
-    });
+        // قاعده سرور: هیچ‌کس قرارداد خودش را تأیید نمی‌کند
+        if (
+          (target === ContractStatus.ACTIVE ||
+            target === ContractStatus.PENDING_APPROVAL ||
+            target === ContractStatus.READY_TO_SIGN) &&
+          contract.employeeId &&
+          user.employeeId === contract.employeeId &&
+          !user.isSuperAdmin
+        ) {
+          throw new BadRequestException(
+            "هیچ‌کس اجازه تأیید قرارداد خودش را ندارد.",
+          );
+        }
 
-    if (contract.employee.userId) {
-      await this.notifications.notify(contract.employee.userId, {
-        type: 'SYSTEM',
-        title: 'وضعیت قرارداد تغییر کرد',
-        body: `وضعیت قرارداد شما به «${target}» تغییر کرد.`,
-        link: `/contracts/${id}`,
-      });
-    }
+        await db.contract.update({ where: { id }, data: { status: target } });
+        await this.audit.recordInTransaction(db, user.id, {
+          action:
+            target === ContractStatus.ACTIVE
+              ? AuditAction.APPROVE
+              : AuditAction.UPDATE,
+          entity: "Contract",
+          entityId: id,
+          before: { status: contract.status },
+          after: { status: target },
+        });
 
-    return {
-      data: { id, status: target },
-      success: true,
-      timestamp: new Date().toISOString(),
-    };
+        if (contract.employee.userId) {
+          await this.notifications.notify(
+            contract.employee.userId,
+            {
+              type: "SYSTEM",
+              title: "وضعیت قرارداد تغییر کرد",
+              body: `وضعیت قرارداد شما به «${target}» تغییر کرد.`,
+              link: `/contracts/${id}`,
+            },
+            db,
+          );
+        }
+
+        return {
+          data: { id, status: target },
+          success: true,
+          timestamp: new Date().toISOString(),
+        };
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   /** حذف منطقی */
   async remove(id: string, user: AuthenticatedUser) {
-    const contract = await this.getContract(id, user);
-    if (contract.status === ContractStatus.ACTIVE) {
-      throw new BadRequestException('قرارداد فعال قابل حذف نیست؛ ابتدا آن را خاتمه دهید.');
-    }
-    await this.prisma.contract.update({ where: { id }, data: { deletedAt: new Date() } });
-    await this.audit.record(user.id, {
-      action: AuditAction.DELETE,
-      entity: 'Contract',
-      entityId: id,
-      before: { status: contract.status },
-    });
-    return { success: true, timestamp: new Date().toISOString() };
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Contract" WHERE id = ${id}::uuid FOR UPDATE`;
+
+        const contract = await this.getContract(id, user, db);
+        if (contract.status === ContractStatus.ACTIVE) {
+          throw new BadRequestException(
+            "قرارداد فعال قابل حذف نیست؛ ابتدا آن را خاتمه دهید.",
+          );
+        }
+        await db.contract.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+        await this.audit.recordInTransaction(db, user.id, {
+          action: AuditAction.DELETE,
+          entity: "Contract",
+          entityId: id,
+          before: { status: contract.status },
+        });
+        return { success: true, timestamp: new Date().toISOString() };
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
-  private async getContract(id: string, user: AuthenticatedUser) {
-    const contract = await this.prisma.contract.findFirst({
-      where: { id, deletedAt: null, employee: this.access.employeeWhereFor(user) },
+  private async getContract(
+    id: string,
+    user: AuthenticatedUser,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const contract = await db.contract.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        employee: this.access.employeeWhereFor(user),
+      },
       include: {
-        employee: { select: { id: true, userId: true, code: true, firstName: true, lastName: true } },
+        employee: {
+          select: {
+            id: true,
+            userId: true,
+            code: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
-    if (!contract) throw new NotFoundException('قرارداد موردنظر یافت نشد یا به حوزه دسترسی شما تعلق ندارد.');
+    if (!contract)
+      throw new NotFoundException(
+        "قرارداد موردنظر یافت نشد یا به حوزه دسترسی شما تعلق ندارد.",
+      );
     return contract;
   }
 
-  private versionData(dto: CreateContractDto | CreateContractVersionDto, version: number, actorId: string, reason: string) {
-    const data: Prisma.ContractVersionUncheckedCreateInput = {
-      contractId: undefined as never,
-      version,
-      contractType: String((dto as CreateContractDto).contractType ?? 'CONTRACTUAL'),
-      startDate: new Date((dto as CreateContractDto).startDate),
-      endDate: (dto as CreateContractDto).endDate ? new Date((dto as CreateContractDto).endDate as string) : null,
-      effectiveDate: new Date((dto as CreateContractDto).effectiveDate ?? (dto as CreateContractDto).startDate),
-      workHoursPerDay: (dto as CreateContractDto).workHoursPerDay ?? 8,
-      workHoursPerMonth: (dto as CreateContractDto).workHoursPerMonth ?? 220,
-      terms: (dto as CreateContractDto).terms ?? null,
-      changeReason: reason,
-      createdById: actorId,
-    };
+  private versionData(
+    dto: CreateContractDto | CreateContractVersionDto,
+    version: number,
+    actorId: string,
+    reason: string,
+  ) {
+    const data: Omit<Prisma.ContractVersionUncheckedCreateInput, "contractId"> =
+      {
+        version,
+        contractType: dto.contractType,
+        startDate: new Date(dto.startDate),
+        endDate: dto.endDate ? new Date(dto.endDate) : null,
+        effectiveDate: new Date(dto.effectiveDate ?? dto.startDate),
+        workHoursPerDay: dto.workHoursPerDay ?? 8,
+        workHoursPerMonth: dto.workHoursPerMonth ?? 220,
+        terms: dto.terms ?? null,
+        changeReason: reason,
+        createdById: actorId,
+      };
     for (const f of VERSION_MONEY_FIELDS) {
-      (data as any)[f] = BigInt((dto as any)[f] ?? 0);
+      data[f] = BigInt(dto[f] ?? 0);
     }
     return data;
   }
 
-  private versionPublic(v: Prisma.ContractVersionGetPayload<Record<string, never>>, user: AuthenticatedUser, employeeId: string) {
+  private versionPublic(
+    v: Prisma.ContractVersionGetPayload<Record<string, never>>,
+    user: AuthenticatedUser,
+    employeeId: string,
+  ) {
     const visibility = employeeVisibility(user, employeeId);
     return {
       ...v,

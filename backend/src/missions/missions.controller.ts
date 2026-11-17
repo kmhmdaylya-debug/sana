@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MissionsService } from './missions.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -41,55 +41,55 @@ export class MissionsController {
   @Patch(':id')
   @RequirePermissions(PERMISSIONS.MISSIONS_CREATE)
   @ApiOperation({ summary: 'ویرایش مأموریت (قبل از تأیید)' })
-  update(@Param('id') id: string, @Body() dto: UpdateMissionDto, @CurrentUser() user: AuthenticatedUser) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMissionDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.update(id, dto, user);
   }
   @Post(':id/approve')
   @RequirePermissions(PERMISSIONS.MISSIONS_APPROVE)
   @ApiOperation({ summary: 'تأیید مأموریت' })
-  approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  approve(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.decide(id, 'APPROVE', undefined, user);
   }
   @Post(':id/reject')
   @RequirePermissions(PERMISSIONS.MISSIONS_APPROVE)
   @ApiOperation({ summary: 'رد مأموریت' })
-  reject(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  reject(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.decide(id, 'REJECT', undefined, user);
   }
   @Post(':id/start')
   @RequirePermissions(PERMISSIONS.MISSIONS_VIEW)
   @ApiOperation({ summary: 'شروع مأموریت' })
-  start(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  start(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.setStatus(id, 'IN_PROGRESS', user);
   }
   @Post(':id/complete')
   @RequirePermissions(PERMISSIONS.MISSIONS_VIEW)
   @ApiOperation({ summary: 'تکمیل مأموریت با گزارش' })
-  complete(@Param('id') id: string, @Body() dto: CompleteMissionDto, @CurrentUser() user: AuthenticatedUser) {
+  complete(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CompleteMissionDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.complete(id, dto, user);
   }
   @Delete(':id')
   @RequirePermissions(PERMISSIONS.MISSIONS_CREATE)
   @ApiOperation({ summary: 'لغو مأموریت' })
-  cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  cancel(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.cancel(id, user);
   }
   @Post(':id/expenses')
   @RequirePermissions(PERMISSIONS.MISSIONS_VIEW)
   @ApiOperation({ summary: 'ثبت هزینه مأموریت' })
-  addExpense(@Param('id') id: string, @Body() dto: CreateMissionExpenseDto, @CurrentUser() user: AuthenticatedUser) {
+  addExpense(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateMissionExpenseDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.addExpense(id, dto, user);
   }
   @Post('expenses/:expenseId/decide')
   @RequirePermissions(PERMISSIONS.MISSIONS_APPROVE)
   @ApiOperation({ summary: 'بررسی هزینه مأموریت' })
-  decideExpense(@Param('expenseId') expenseId: string, @Body() dto: DecideExpenseDto, @CurrentUser() user: AuthenticatedUser) {
+  decideExpense(@Param('expenseId', ParseUUIDPipe) expenseId: string, @Body() dto: DecideExpenseDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.decideExpense(expenseId, dto, user);
   }
   @Get(':id')
   @RequirePermissions(PERMISSIONS.MISSIONS_VIEW)
   @ApiOperation({ summary: 'جزئیات مأموریت' })
-  get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.get(id, user);
   }
 }

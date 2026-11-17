@@ -149,6 +149,7 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
     const row = await this.prisma.$transaction(async tx => {
       // Serialize with daily closing and concurrent edits; keep the record and audit atomic.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(7341, 2411)::text AS locked`;
+      await tx.$queryRaw`SELECT id FROM "Employee" WHERE id = ${employeeId}::uuid FOR UPDATE`;
       const before = await tx.attendanceRecord.findUnique({ where: { employeeId_workDate: { employeeId, workDate } } });
       if (before?.lockedAt || before?.lastOut || before?.workMinutes || before?.overtimeMinutes) throw new BadRequestException('این رکورد دارای کارکرد یا قفل است؛ از بخش اصلاحیهٔ حضور استفاده کنید.');
       const data = {

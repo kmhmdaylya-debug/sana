@@ -40,26 +40,26 @@ export class LeavesController {
   @Get('types')
   @RequirePermissions(PERMISSIONS.LEAVES_VIEW)
   @ApiOperation({ summary: 'فهرست انواع مرخصی' })
-  listTypes(@Query() query: LeaveTypeQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listTypes(query, pagination);
+  listTypes(@Query() query: LeaveTypeQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listTypes(query, pagination, user);
   }
   @Post('types')
   @RequirePermissions(PERMISSIONS.LEAVES_MANAGE_TYPES)
   @ApiOperation({ summary: 'ایجاد نوع مرخصی' })
   createType(@Body() dto: CreateLeaveTypeDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.createType(dto, user.id);
+    return this.service.createType(dto, user);
   }
   @Patch('types/:id')
   @RequirePermissions(PERMISSIONS.LEAVES_MANAGE_TYPES)
   @ApiOperation({ summary: 'ویرایش نوع مرخصی' })
   updateType(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateLeaveTypeDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.updateType(id, dto, user.id);
+    return this.service.updateType(id, dto, user);
   }
   @Post('policies')
   @RequirePermissions(PERMISSIONS.LEAVES_MANAGE_TYPES)
   @ApiOperation({ summary: 'ثبت/به‌روزرسانی سیاست مرخصی' })
   upsertPolicy(@Body() dto: CreateLeavePolicyDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.upsertPolicy(dto, user.id);
+    return this.service.upsertPolicy(dto, user);
   }
   @Get('requests')
   @RequirePermissions(PERMISSIONS.LEAVES_VIEW)
@@ -114,8 +114,8 @@ export class LeavesController {
   @Get('types/:id/policies')
   @RequirePermissions(PERMISSIONS.LEAVES_VIEW)
   @ApiOperation({ summary: 'سیاست‌های نوع مرخصی' })
-  listPolicies(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.listPolicies(id);
+  listPolicies(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listPolicies(id, user);
   }
   @Get('requests/:id')
   @RequirePermissions(PERMISSIONS.LEAVES_VIEW)

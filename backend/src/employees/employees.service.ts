@@ -241,6 +241,7 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException('نیروی موردنظر یافت نشد یا به حوزه دسترسی شما تعلق ندارد.');
     await this.access.assertEmployeeRelations(employee.companyId,dto);
+    await this.access.assertEmployeeMutable(user, id);
     if (dto.userId !== undefined && !user.isSuperAdmin) throw new ForbiddenException('اتصال حساب ورود از بخش مدیریت کاربران انجام می‌شود.');
 
     const data: Prisma.EmployeeUpdateInput = {};
@@ -319,6 +320,8 @@ export class EmployeesService {
 
   /** حذف منطقی نیرو */
   async remove(id: string, reason: string | undefined, user: AuthenticatedUser) {
+    await this.access.assertEmployeeAccess(user, id);
+    await this.access.assertEmployeeMutable(user, id, true);
     const employee = await this.prisma.employee.findFirst({
       where: { id, AND: [this.access.employeeWhereFor(user)] },
     });

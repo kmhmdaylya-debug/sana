@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, apiErrorMessage, downloadReport } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
+import { attendanceCorrectionPayload } from '../lib/workflowPayloads';
 import { EntityPicker, DatePicker, Input, Tabs,
   Badge,
   Button,
@@ -54,23 +55,22 @@ export default function Attendance() {
   const records = useList<Record>('/attendance/records');
   const corrections = useList<Correction>('/attendance/corrections');
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ employeeId: '', workDate: '', firstIn: '', lastOut: '', reason: '' });
+  const [form, setForm] = useState({ employeeId: '', workDate: '', field: 'firstIn' as 'firstIn' | 'lastOut', newValue: '', reason: '' });
   const [saving, setSaving] = useState(false);
 
   const canApprove = hasPermission('attendance.approve');
   const canCreate = hasPermission('attendance.create');
 
   const submitCorrection = async () => {
+    if (saving) return;
     setSaving(true);
     try {
-      const workDate = parseDateInput(form.workDate);
-      if (!workDate) throw new Error('قالب تاریخ کارکرد معتبر نیست (نمونه: ۱۴۰۴/۰۱/۰۱).');
-      await api.post('/attendance/corrections', { ...form, workDate });
+      await api.post('/attendance/corrections', attendanceCorrectionPayload(form));
       toast('success', 'درخواست اصلاح ثبت شد.');
       setCreateOpen(false);
       corrections.reload();
     } catch (e) {
-      toast('error', e instanceof Error ? e.message : apiErrorMessage(e));
+      toast('error', apiErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -182,8 +182,8 @@ export default function Attendance() {
         <div className="col" style={{ gap: 14 }}>
           <Field label="کارمند" required><EntityPicker value={form.employeeId} onValueChange={(value) => setForm((f) => ({ ...f, employeeId: value }))} endpoint="/employees" title="انتخاب کارمند" /></Field>
           <Field label="تاریخ کارکرد" required hint="شمسی یا میلادی — ۱۴۰۴/۰۱/۰۱"><DatePicker className="input ltr" value={form.workDate} onValueChange={(value) => setForm((f) => ({ ...f, workDate: value }))} placeholder="1404/01/01" /></Field>
-          <Field label="ساعت ورود صحیح (اختیاری)"><Input className="input ltr" value={form.firstIn} onChange={(e) => setForm((f) => ({ ...f, firstIn: e.target.value }))} placeholder="08:30" /></Field>
-          <Field label="ساعت خروج صحیح (اختیاری)"><Input className="input ltr" value={form.lastOut} onChange={(e) => setForm((f) => ({ ...f, lastOut: e.target.value }))} placeholder="17:00" /></Field>
+          <Field label="مورد اصلاح" required><Select value={form.field} onChange={event => setForm(value => ({ ...value, field: event.target.value as 'firstIn' | 'lastOut' }))}><option value="firstIn">ساعت ورود</option><option value="lastOut">ساعت خروج</option></Select></Field>
+          <Field label="ساعت صحیح تهران" required><Input type="time" className="ltr" value={form.newValue} onChange={event => setForm(value => ({ ...value, newValue: event.target.value }))} /></Field>
           <Field label="دلیل اصلاح" required><Textarea value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} /></Field>
         </div>
       </Modal>

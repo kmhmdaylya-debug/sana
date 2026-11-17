@@ -17,6 +17,7 @@ import {
   CreateSavedFilterDto,
   CustomFieldQueryDto,
   SettingQueryDto,
+  UpdateSettingDto,
 } from './dto/settings.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
@@ -34,22 +35,22 @@ export class SettingsController {
   @Get()
   @RequirePermissions(PERMISSIONS.SETTINGS_VIEW)
   @ApiOperation({ summary: 'فهرست تنظیمات' })
-  listSettings(@Query() query: SettingQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listSettings(query, pagination);
+  listSettings(@Query() query: SettingQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listSettings(query, pagination, user);
   }
 
   @Get('groups')
   @RequirePermissions(PERMISSIONS.SETTINGS_VIEW)
   @ApiOperation({ summary: 'گروه‌های تنظیمات' })
-  settingGroups() {
-    return this.service.settingGroups();
+  settingGroups(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.settingGroups(user);
   }
 
   @Patch(':key')
   @RequirePermissions(PERMISSIONS.SETTINGS_MANAGE)
   @ApiOperation({ summary: 'به‌روزرسانی مقدار تنظیم' })
-  updateSetting(@Param('key') key: string, @Body('value') value: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.updateSetting(key, value, user);
+  updateSetting(@Param('key') key: string, @Body() dto: UpdateSettingDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.updateSetting(key, dto.value, user);
   }
 
   // =========================================================================
@@ -59,8 +60,8 @@ export class SettingsController {
   @Get('custom-fields')
   @RequirePermissions(PERMISSIONS.SETTINGS_VIEW)
   @ApiOperation({ summary: 'فهرست فیلدهای سفارشی' })
-  listCustomFields(@Query() query: CustomFieldQueryDto, @Query() pagination: PaginationDto) {
-    return this.service.listCustomFields(query, pagination);
+  listCustomFields(@Query() query: CustomFieldQueryDto, @Query() pagination: PaginationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listCustomFields(query, pagination, user);
   }
 
   @Post('custom-fields')

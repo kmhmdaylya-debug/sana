@@ -4,19 +4,26 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
-} from '@nestjs/common';
-import { timingSafeEqual } from 'crypto';
-import { ConfigService } from '@nestjs/config';
-import { AttendanceEventType, AttendanceRecordStatus, AttendanceSource, AuditAction, Prisma } from '@prisma/client';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { AccessService } from '../common/access/access.service';
-import { AuditService } from '../common/audit/audit.service';
-import { NotificationService } from '../common/notifications/notification.service';
-import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { PERMISSIONS } from '../common/constants/permissions';
-import { attendanceIdempotencyKey, hashToken } from '../common/utils/crypto.util';
-import { PaginationDto } from '../common/dto/pagination.dto';
+} from "@nestjs/common";
+import { timingSafeEqual } from "crypto";
+import { ConfigService } from "@nestjs/config";
 import {
+  AttendanceEventType,
+  AttendanceRecordStatus,
+  AttendanceSource,
+  AuditAction,
+  Prisma,
+} from "@prisma/client";
+import { PrismaService } from "../common/prisma/prisma.service";
+import { AccessService } from "../common/access/access.service";
+import { AuditService } from "../common/audit/audit.service";
+import { NotificationService } from "../common/notifications/notification.service";
+import { AuthenticatedUser } from "../common/decorators/current-user.decorator";
+import { PERMISSIONS } from "../common/constants/permissions";
+import { hashToken } from "../common/utils/crypto.util";
+import { PaginationDto } from "../common/dto/pagination.dto";
+import {
+  AttendanceEventDto,
   AttendanceRecordQueryDto,
   ComputeAttendanceDto,
   CorrectionQueryDto,
@@ -28,8 +35,16 @@ import {
   MonthlySheetDto,
   MyAttendanceQueryDto,
   UpdateDeviceDto,
-} from './dto/attendance.dto';
-import { asLocalDate, dayBounds, dateOnlyKey, jalaliMonthRange, jalaliToGregorian, minutesBetween, toDateOnly } from './jalali.util';
+} from "./dto/attendance.dto";
+import {
+  asLocalDate,
+  dayBounds,
+  dateOnlyKey,
+  jalaliMonthRange,
+  jalaliToGregorian,
+  minutesBetween,
+  toDateOnly,
+} from "./jalali.util";
 
 const DEFAULT_WORK_MINUTES = 480;
 const DEFAULT_START_MINUTES = 8 * 60; // 08:00
@@ -46,7 +61,9 @@ export class AttendanceService {
   ) {}
 
   /** حذف کلید دستگاه از پاسخ‌ها — کلید هرگز برگردانده نمی‌شود */
-  private publicDevice<T extends { secret?: string | null }>(row: T): Omit<T, 'secret'> & { hasSecret: boolean } {
+  private publicDevice<T extends { secret?: string | null }>(
+    row: T,
+  ): Omit<T, "secret"> & { hasSecret: boolean } {
     const { secret, ...rest } = row;
     return { ...rest, hasSecret: !!secret };
   }
@@ -55,15 +72,20 @@ export class AttendanceService {
   // دستگاه‌ها
   // =========================================================================
 
-  async listDevices(query: DeviceQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+  async listDevices(
+    query: DeviceQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.AttendanceDeviceWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
       ...(query.search
         ? {
             OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { code: { contains: query.search, mode: 'insensitive' } },
+              { name: { contains: query.search, mode: "insensitive" } },
+              { code: { contains: query.search, mode: "insensitive" } },
             ],
           }
         : {}),
@@ -77,7 +99,7 @@ export class AttendanceService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { name: 'asc' },
+        orderBy: { name: "asc" },
         include: {
           company: { select: { id: true, code: true, name: true } },
           branch: { select: { id: true, code: true, name: true } },
@@ -101,7 +123,7 @@ export class AttendanceService {
     };
   }
 
-  async getDevice(id: string) {
+  async getDevice(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.attendanceDevice.findUnique({
       where: { id },
       include: {
@@ -110,13 +132,22 @@ export class AttendanceService {
         _count: { select: { events: true } },
       },
     });
-    if (!row) throw new NotFoundException('دستگاه حضور موردنظر یافت نشد.');
+    if (!row) throw new NotFoundException("دستگاه حضور موردنظر یافت نشد.");
+    await this.access.assertCompanyAccess(user, row.companyId);
     return this.publicDevice(row);
   }
 
-  async createDevice(dto: CreateDeviceDto, actorId: string) {
-    const duplicate = await this.prisma.attendanceDevice.findUnique({ where: { code: dto.code } });
-    if (duplicate) throw new BadRequestException(`کد دستگاه «${dto.code}» قبلاً ثبت شده است.`);
+  async createDevice(dto: CreateDeviceDto, user: AuthenticatedUser) {
+    const actorId = user.id;
+    await this.access.assertCompanyAccess(user, dto.companyId);
+    await this.access.assertEmployeeRelations(dto.companyId, dto);
+    const duplicate = await this.prisma.attendanceDevice.findUnique({
+      where: { code: dto.code },
+    });
+    if (duplicate)
+      throw new BadRequestException(
+        `کد دستگاه «${dto.code}» قبلاً ثبت شده است.`,
+      );
 
     const row = await this.prisma.attendanceDevice.create({
       data: {
@@ -124,7 +155,7 @@ export class AttendanceService {
         branchId: dto.branchId ?? null,
         code: dto.code.trim(),
         name: dto.name.trim(),
-        deviceType: dto.deviceType ?? 'CARD_READER',
+        deviceType: dto.deviceType ?? "CARD_READER",
         apiUrl: dto.apiUrl ?? null,
         // کلید دستگاه فقط به‌صورت هش ذخیره می‌شود
         secret: dto.secret ? hashToken(dto.secret) : null,
@@ -132,15 +163,21 @@ export class AttendanceService {
     });
     await this.audit.record(actorId, {
       action: AuditAction.CREATE,
-      entity: 'AttendanceDevice',
+      entity: "AttendanceDevice",
       entityId: row.id,
       after: { code: row.code, name: row.name },
     });
     return this.publicDevice(row);
   }
 
-  async updateDevice(id: string, dto: UpdateDeviceDto, actorId: string) {
-    await this.getDevice(id);
+  async updateDevice(
+    id: string,
+    dto: UpdateDeviceDto,
+    user: AuthenticatedUser,
+  ) {
+    const actorId = user.id;
+    const before = await this.getDevice(id, user);
+    await this.access.assertEmployeeRelations(before.companyId, dto);
     const row = await this.prisma.attendanceDevice.update({
       where: { id },
       data: {
@@ -148,25 +185,31 @@ export class AttendanceService {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.deviceType !== undefined ? { deviceType: dto.deviceType } : {}),
         ...(dto.apiUrl !== undefined ? { apiUrl: dto.apiUrl } : {}),
-        ...(dto.secret !== undefined ? { secret: dto.secret ? hashToken(dto.secret) : null } : {}),
+        ...(dto.secret !== undefined
+          ? { secret: dto.secret ? hashToken(dto.secret) : null }
+          : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },
     });
     await this.audit.record(actorId, {
       action: AuditAction.UPDATE,
-      entity: 'AttendanceDevice',
+      entity: "AttendanceDevice",
       entityId: id,
       after: { code: row.code, isActive: row.isActive },
     });
     return this.publicDevice(row);
   }
 
-  async deleteDevice(id: string, actorId: string) {
-    const row = await this.getDevice(id);
-    await this.prisma.attendanceDevice.update({ where: { id }, data: { isActive: false } });
+  async deleteDevice(id: string, user: AuthenticatedUser) {
+    const actorId = user.id;
+    const row = await this.getDevice(id, user);
+    await this.prisma.attendanceDevice.update({
+      where: { id },
+      data: { isActive: false },
+    });
     await this.audit.record(actorId, {
       action: AuditAction.DEACTIVATE,
-      entity: 'AttendanceDevice',
+      entity: "AttendanceDevice",
       entityId: id,
       before: { code: row.code },
     });
@@ -181,15 +224,23 @@ export class AttendanceService {
    * ورود رویدادها از دستگاه حضور: دستگاه با کد و کلید خود احراز هویت می‌شود.
    * دامنهٔ ثبت فقط شرکت همان دستگاه است و زمان رویداد طبق سیاست سرور کنترل می‌شود.
    */
-  async ingestFromDevice(dto: IngestEventsDto, deviceCode: string | undefined, deviceSecret: string | undefined) {
-    if (!deviceCode || !deviceSecret) throw new UnauthorizedException('مشخصات دستگاه ارسال نشده است.');
-    const device = await this.prisma.attendanceDevice.findUnique({ where: { code: deviceCode } });
-    if (!device || !device.isActive || !device.secret) throw new UnauthorizedException('دستگاه نامعتبر است.');
+  async ingestFromDevice(
+    dto: IngestEventsDto,
+    deviceCode: string | undefined,
+    deviceSecret: string | undefined,
+  ) {
+    if (!deviceCode || !deviceSecret)
+      throw new UnauthorizedException("مشخصات دستگاه ارسال نشده است.");
+    const device = await this.prisma.attendanceDevice.findUnique({
+      where: { code: deviceCode },
+    });
+    if (!device || !device.isActive || !device.secret)
+      throw new UnauthorizedException("دستگاه نامعتبر است.");
 
     const given = Buffer.from(hashToken(deviceSecret));
     const expected = Buffer.from(device.secret);
     if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
-      throw new UnauthorizedException('دستگاه نامعتبر است.');
+      throw new UnauthorizedException("دستگاه نامعتبر است.");
     }
 
     const deviceScope: AuthenticatedUser = {
@@ -222,60 +273,155 @@ export class AttendanceService {
   }
 
   async ingestEvents(dto: IngestEventsDto, user: AuthenticatedUser) {
-    const items: IngestEventsDto[] = [];
-    if (dto.events?.length) {
-      for (const e of dto.events) items.push(e as any);
-    } else if (dto.employeeId && dto.type && dto.eventTime && dto.source) {
+    const items: AttendanceEventDto[] = [];
+    if (dto.events?.length) items.push(...dto.events);
+    else if (dto.employeeId && dto.type && dto.eventTime && dto.source) {
       items.push({
+        ...dto,
         employeeId: dto.employeeId,
         type: dto.type,
         eventTime: dto.eventTime,
         source: dto.source,
       });
-    } else {
-      throw new BadRequestException('رویداد حضور ناقص است؛ employeeId، type، eventTime و source الزامی است.');
-    }
-
-    const employeeIds = [...new Set(items.map((i) => i.employeeId))];
-    const allowed = await this.prisma.employee.findMany({
-      where: { id: { in: employeeIds }, deletedAt: null, AND: [this.access.employeeWhereFor(user)] },
-      select: { id: true },
+    } else throw new BadRequestException("رویداد حضور ناقص است.");
+    const devices = await this.prisma.attendanceDevice.findMany({
+      where: {
+        id: {
+          in: [
+            ...new Set(
+              items.flatMap((item) => (item.deviceId ? [item.deviceId] : [])),
+            ),
+          ],
+        },
+        isActive: true,
+      },
+      select: { id: true, companyId: true },
     });
-    const allowedIds = new Set(allowed.map((a) => a.id));
-
-    const results: Array<{ employeeId: string; type: string; status: 'CREATED' | 'DUPLICATE' | 'FORBIDDEN' }> = [];
+    const results: Array<{
+      employeeId: string;
+      type: string;
+      status: "CREATED" | "DUPLICATE" | "FORBIDDEN" | "CONFLICT" | "FAILED";
+    }> = [];
     for (const item of items) {
-      if (!allowedIds.has(item.employeeId)) {
-        results.push({ employeeId: item.employeeId, type: item.type, status: 'FORBIDDEN' });
-        continue;
-      }
-      const eventTime = this.resolveEventTime(item.eventTime);
-      const idem =
-        item.idempotencyKey ??
-        attendanceIdempotencyKey(item.deviceId ?? 'manual', eventTime, item.type);
       try {
-        await this.prisma.attendanceEvent.create({
-          data: {
-            employeeId: item.employeeId,
-            deviceId: item.deviceId ?? null,
-            type: item.type,
-            eventTime,
-            source: item.source,
-            idempotencyKey: idem,
-            rawPayload: item.rawPayload ?? null,
-            latitude: item.latitude ?? null,
-            longitude: item.longitude ?? null,
-            locationName: item.locationName ?? null,
+        const status = await this.prisma.$transaction(
+          async (db) => {
+            await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${item.employeeId}::uuid FOR UPDATE`;
+            const employee = await db.employee.findFirst({
+              where: {
+                id: item.employeeId,
+                deletedAt: null,
+                AND: [this.access.employeeWhereFor(user)],
+              },
+              select: { companyId: true },
+            });
+            if (
+              !employee ||
+              (item.deviceId &&
+                !devices.some(
+                  (device) =>
+                    device.id === item.deviceId &&
+                    device.companyId === employee.companyId,
+                ))
+            )
+              return "FORBIDDEN" as const;
+            const rawTime = new Date(item.eventTime);
+            const identity = item.idempotencyKey
+              ? ["explicit", item.idempotencyKey]
+              : ["automatic", rawTime.toISOString(), item.type];
+            const prefix =
+              "v2:" +
+              hashToken(
+                JSON.stringify([
+                  item.employeeId,
+                  item.deviceId ?? null,
+                  identity,
+                ]),
+              ) +
+              ":";
+            const fingerprint = hashToken(
+              JSON.stringify([
+                rawTime.toISOString(),
+                item.type,
+                item.source,
+                item.latitude ?? null,
+                item.longitude ?? null,
+                item.locationName ?? null,
+                item.rawPayload ?? null,
+              ]),
+            );
+            const key = prefix + fingerprint;
+            const existing = await db.attendanceEvent.findFirst({
+              where: {
+                employeeId: item.employeeId,
+                deviceId: item.deviceId ?? null,
+                OR: [
+                  { idempotencyKey: { startsWith: prefix } },
+                  ...(item.idempotencyKey
+                    ? [{ idempotencyKey: item.idempotencyKey }]
+                    : []),
+                ],
+              },
+            });
+            if (existing) {
+              if (existing.idempotencyKey === key) return "DUPLICATE" as const;
+              if (
+                !existing.idempotencyKey.startsWith("v2:") &&
+                existing.eventTime.getTime() === rawTime.getTime() &&
+                existing.type === item.type &&
+                existing.source === item.source
+              )
+                return "DUPLICATE" as const;
+              return "CONFLICT" as const;
+            }
+            // Preserve exact legacy event retries without changing existing keys.
+            if (
+              !item.idempotencyKey &&
+              (await db.attendanceEvent.findFirst({
+                where: {
+                  employeeId: item.employeeId,
+                  deviceId: item.deviceId ?? null,
+                  eventTime: rawTime,
+                  type: item.type,
+                  source: item.source,
+                },
+                select: { id: true },
+              }))
+            )
+              return "DUPLICATE" as const;
+            const eventTime = this.resolveEventTime(rawTime);
+            await db.attendanceEvent.create({
+              data: {
+                employeeId: item.employeeId,
+                deviceId: item.deviceId ?? null,
+                type: item.type,
+                eventTime,
+                source: item.source,
+                idempotencyKey: key,
+                rawPayload: item.rawPayload ?? null,
+                latitude: item.latitude ?? null,
+                longitude: item.longitude ?? null,
+                locationName: item.locationName ?? null,
+              },
+            });
+            return "CREATED" as const;
           },
-        });
-        results.push({ employeeId: item.employeeId, type: item.type, status: 'CREATED' });
+          { maxWait: 10000, timeout: 30000 },
+        );
+        results.push({ employeeId: item.employeeId, type: item.type, status });
       } catch {
-        results.push({ employeeId: item.employeeId, type: item.type, status: 'DUPLICATE' });
+        results.push({
+          employeeId: item.employeeId,
+          type: item.type,
+          status: "FAILED",
+        });
       }
     }
-
     return {
-      data: { ingested: results.filter((r) => r.status === 'CREATED').length, results },
+      data: {
+        ingested: results.filter((row) => row.status === "CREATED").length,
+        results,
+      },
       success: true,
       timestamp: new Date().toISOString(),
     };
@@ -287,11 +433,15 @@ export class AttendanceService {
    */
   private resolveEventTime(raw: string | Date): Date {
     const parsed = new Date(raw);
-    if (Number.isNaN(parsed.getTime())) throw new BadRequestException('زمان رویداد نامعتبر است.');
+    if (Number.isNaN(parsed.getTime()))
+      throw new BadRequestException("زمان رویداد نامعتبر است.");
     const now = Date.now();
-    const source = this.config.get<string>('app.security.attendanceTimeSource') ?? 'SERVER';
-    const skewMs = (this.config.get<number>('app.security.deviceClockSkewSeconds') ?? 120) * 1000;
-    if (source === 'SERVER' && Math.abs(parsed.getTime() - now) > skewMs) {
+    const source =
+      this.config.get<string>("app.security.attendanceTimeSource") ?? "SERVER";
+    const skewMs =
+      (this.config.get<number>("app.security.deviceClockSkewSeconds") ?? 120) *
+      1000;
+    if (source === "SERVER" && Math.abs(parsed.getTime() - now) > skewMs) {
       return new Date(now);
     }
     return parsed;
@@ -303,16 +453,16 @@ export class AttendanceService {
 
   async compute(dto: ComputeAttendanceDto, user: AuthenticatedUser) {
     if (new Date(dto.from) > new Date(dto.to)) {
-      throw new BadRequestException('بازه تاریخ نامعتبر است.');
+      throw new BadRequestException("بازه تاریخ نامعتبر است.");
     }
     const from = toDateOnly(new Date(dto.from));
     const to = toDateOnly(new Date(dto.to));
     if ((to.getTime() - from.getTime()) / 86_400_000 > 92) {
-      throw new BadRequestException('بازه محاسبه حداکثر ۹۲ روز است.');
+      throw new BadRequestException("بازه محاسبه حداکثر ۹۲ روز است.");
     }
 
     const employeeWhere: Prisma.EmployeeWhereInput = {
-      status: { not: 'TERMINATED' },
+      status: { not: "TERMINATED" },
       AND: [this.access.employeeWhereFor(user)],
       ...(dto.orgUnitId ? { orgUnitId: dto.orgUnitId } : {}),
       ...(dto.employeeIds?.length ? { id: { in: dto.employeeIds } } : {}),
@@ -321,7 +471,12 @@ export class AttendanceService {
       where: employeeWhere,
       select: { id: true },
     });
-    if (!employees.length) return { data: { processed: 0, records: 0 }, success: true, timestamp: new Date().toISOString() };
+    if (!employees.length)
+      return {
+        data: { processed: 0, records: 0 },
+        success: true,
+        timestamp: new Date().toISOString(),
+      };
 
     let processed = 0;
     for (const employee of employees) {
@@ -329,98 +484,147 @@ export class AttendanceService {
       processed += 1;
     }
     return {
-      data: { processed, range: { from: dateOnlyKey(from), to: dateOnlyKey(to) } },
+      data: {
+        processed,
+        range: { from: dateOnlyKey(from), to: dateOnlyKey(to) },
+      },
       success: true,
       timestamp: new Date().toISOString(),
     };
   }
 
   /** محاسبه رکورد روزانه برای یک نیرو در بازه مشخص */
-  private async computeEmployeeRange(employeeId: string, from: Date, to: Date): Promise<void> {
-    const events = await this.prisma.attendanceEvent.findMany({
-      where: { employeeId, eventTime: { gte: dayBounds(asLocalDate(from)).start, lte: dayBounds(asLocalDate(to)).end } },
-      orderBy: { eventTime: 'asc' },
-    });
-    if (!events.length) return;
+  private async computeEmployeeRange(
+    employeeId: string,
+    from: Date,
+    to: Date,
+  ): Promise<void> {
+    return this.prisma.$transaction(
+      async (db) => {
+        await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${employeeId}::uuid FOR UPDATE`;
 
-    const assignments = await this.prisma.shiftAssignment.findMany({
-      where: { employeeId, workDate: { gte: from, lte: to } },
-      include: { shift: true },
-    });
-    const assignmentByDate = new Map<string, (typeof assignments)[number]>();
-    for (const a of assignments) assignmentByDate.set(dateOnlyKey(a.workDate), a);
+        const events = await db.attendanceEvent.findMany({
+          where: {
+            employeeId,
+            eventTime: {
+              gte: dayBounds(asLocalDate(from)).start,
+              lte: dayBounds(asLocalDate(to)).end,
+            },
+          },
+          orderBy: { eventTime: "asc" },
+        });
+        if (!events.length) return;
 
-    const leaves = await this.prisma.leaveRequest.findMany({
-      where: {
-        employeeId,
-        status: 'APPROVED',
-        startAt: { lte: dayBounds(asLocalDate(to)).end },
-        endAt: { gte: dayBounds(asLocalDate(from)).start },
+        const assignments = await db.shiftAssignment.findMany({
+          where: { employeeId, workDate: { gte: from, lte: to } },
+          include: { shift: true },
+        });
+        const assignmentByDate = new Map<
+          string,
+          (typeof assignments)[number]
+        >();
+        for (const a of assignments)
+          assignmentByDate.set(dateOnlyKey(a.workDate), a);
+
+        const leaves = await db.leaveRequest.findMany({
+          where: {
+            employeeId,
+            status: "APPROVED",
+            startAt: { lte: dayBounds(asLocalDate(to)).end },
+            endAt: { gte: dayBounds(asLocalDate(from)).start },
+          },
+          select: { startAt: true, endAt: true },
+        });
+
+        const byDay = new Map<string, { ins: Date[]; outs: Date[] }>();
+        for (const ev of events) {
+          const key = dateOnlyKey(toDateOnly(ev.eventTime));
+          const bucket = byDay.get(key) ?? { ins: [], outs: [] };
+          (ev.type === AttendanceEventType.IN ? bucket.ins : bucket.outs).push(
+            ev.eventTime,
+          );
+          byDay.set(key, bucket);
+        }
+
+        for (const [dayKey, bucket] of byDay.entries()) {
+          const workDate = new Date(`${dayKey}T00:00:00.000Z`);
+          const current = await db.attendanceRecord.findUnique({
+            where: { employeeId_workDate: { employeeId, workDate } },
+          });
+          if (
+            current?.lockedAt ||
+            (await db.attendanceCorrection.count({
+              where: { employeeId, workDate, status: "APPROVED" },
+            }))
+          )
+            continue;
+          const firstIn = bucket.ins.length ? bucket.ins[0] : null;
+          const lastOut = bucket.outs.length
+            ? bucket.outs[bucket.outs.length - 1]
+            : null;
+
+          const assignment = assignmentByDate.get(dayKey);
+          const shift = assignment?.shift;
+          const startMinutes = shift
+            ? this.timeToMin(shift.startTime)
+            : DEFAULT_START_MINUTES;
+          const endMinutes = shift
+            ? this.timeToMin(shift.endTime)
+            : DEFAULT_END_MINUTES;
+          const planned = shift ? shift.durationMinutes : DEFAULT_WORK_MINUTES;
+          const breakMinutes = shift?.breakMinutes ?? 0;
+
+          let workMinutes = 0;
+          let overtimeMinutes = 0;
+          let lateMinutes = 0;
+          let earlyLeaveMinutes = 0;
+          let status: AttendanceRecordStatus = AttendanceRecordStatus.COMPLETE;
+
+          if (firstIn && lastOut) {
+            workMinutes = Math.max(
+              0,
+              minutesBetween(firstIn, lastOut) - breakMinutes,
+            );
+            overtimeMinutes = Math.max(0, workMinutes - planned);
+            const inLocal = firstIn.getHours() * 60 + firstIn.getMinutes();
+            lateMinutes = Math.max(0, inLocal - startMinutes);
+            const outLocal = lastOut.getHours() * 60 + lastOut.getMinutes();
+            earlyLeaveMinutes = Math.max(0, endMinutes - outLocal);
+          } else {
+            status = AttendanceRecordStatus.INCOMPLETE;
+          }
+
+          const isLeave = leaves.some(
+            (l) =>
+              l.startAt <= dayBounds(workDate).end &&
+              l.endAt >= dayBounds(workDate).start,
+          );
+          if (isLeave && !firstIn) status = AttendanceRecordStatus.LEAVE;
+
+          const data = {
+            firstIn,
+            lastOut,
+            workMinutes,
+            overtimeMinutes,
+            lateMinutes,
+            earlyLeaveMinutes,
+            status,
+            shiftAssignmentId: assignment?.id ?? null,
+          };
+
+          await db.attendanceRecord.upsert({
+            where: { employeeId_workDate: { employeeId, workDate } },
+            create: { employeeId, workDate, ...data },
+            update: data,
+          });
+        }
       },
-      select: { startAt: true, endAt: true },
-    });
-
-    const byDay = new Map<string, { ins: Date[]; outs: Date[] }>();
-    for (const ev of events) {
-      const key = dateOnlyKey(toDateOnly(ev.eventTime));
-      const bucket = byDay.get(key) ?? { ins: [], outs: [] };
-      (ev.type === AttendanceEventType.IN ? bucket.ins : bucket.outs).push(ev.eventTime);
-      byDay.set(key, bucket);
-    }
-
-    for (const [dayKey, bucket] of byDay.entries()) {
-      const workDate = new Date(`${dayKey}T00:00:00.000Z`);
-      const firstIn = bucket.ins.length ? bucket.ins[0] : null;
-      const lastOut = bucket.outs.length ? bucket.outs[bucket.outs.length - 1] : null;
-
-      const assignment = assignmentByDate.get(dayKey);
-      const shift = assignment?.shift;
-      const startMinutes = shift ? this.timeToMin(shift.startTime) : DEFAULT_START_MINUTES;
-      const endMinutes = shift ? this.timeToMin(shift.endTime) : DEFAULT_END_MINUTES;
-      const planned = shift ? shift.durationMinutes : DEFAULT_WORK_MINUTES;
-      const breakMinutes = shift?.breakMinutes ?? 0;
-
-      let workMinutes = 0;
-      let overtimeMinutes = 0;
-      let lateMinutes = 0;
-      let earlyLeaveMinutes = 0;
-      let status: AttendanceRecordStatus = AttendanceRecordStatus.COMPLETE;
-
-      if (firstIn && lastOut) {
-        workMinutes = Math.max(0, minutesBetween(firstIn, lastOut) - breakMinutes);
-        overtimeMinutes = Math.max(0, workMinutes - planned);
-        const inLocal = firstIn.getHours() * 60 + firstIn.getMinutes();
-        lateMinutes = Math.max(0, inLocal - startMinutes);
-        const outLocal = lastOut.getHours() * 60 + lastOut.getMinutes();
-        earlyLeaveMinutes = Math.max(0, endMinutes - outLocal);
-      } else {
-        status = AttendanceRecordStatus.INCOMPLETE;
-      }
-
-      const isLeave = leaves.some((l) => l.startAt <= dayBounds(workDate).end && l.endAt >= dayBounds(workDate).start);
-      if (isLeave && !firstIn) status = AttendanceRecordStatus.LEAVE;
-
-      const data = {
-        firstIn,
-        lastOut,
-        workMinutes,
-        overtimeMinutes,
-        lateMinutes,
-        earlyLeaveMinutes,
-        status,
-        shiftAssignmentId: assignment?.id ?? null,
-      };
-
-      await this.prisma.attendanceRecord.upsert({
-        where: { employeeId_workDate: { employeeId, workDate } },
-        create: { employeeId, workDate, ...data },
-        update: data,
-      });
-    }
+      { maxWait: 10000, timeout: 30000 },
+    );
   }
 
   private timeToMin(time: string): number {
-    const [h, m] = String(time).split(':');
+    const [h, m] = String(time).split(":");
     return Number(h) * 60 + Number(m ?? 0);
   }
 
@@ -428,13 +632,21 @@ export class AttendanceService {
   // گزارش‌ها
   // =========================================================================
 
-  async listRecords(query: AttendanceRecordQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+  async listRecords(
+    query: AttendanceRecordQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.AttendanceRecordWhereInput = {
       employee: this.access.employeeWhereFor(user),
       ...(query.employeeId ? { employeeId: query.employeeId } : {}),
       ...(query.orgUnitId ? { employee: { orgUnitId: query.orgUnitId } } : {}),
-      ...(query.from ? { workDate: { gte: toDateOnly(new Date(query.from)) } } : {}),
-      ...(query.to ? { workDate: { lte: toDateOnly(new Date(query.to)) } } : {}),
+      ...(query.from
+        ? { workDate: { gte: toDateOnly(new Date(query.from)) } }
+        : {}),
+      ...(query.to
+        ? { workDate: { lte: toDateOnly(new Date(query.to)) } }
+        : {}),
       ...(query.status ? { status: query.status } : {}),
     };
 
@@ -446,12 +658,20 @@ export class AttendanceService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: [{ workDate: 'desc' }],
+        orderBy: [{ workDate: "desc" }],
         include: {
           employee: {
-            select: { id: true, code: true, firstName: true, lastName: true, orgUnit: { select: { name: true } } },
+            select: {
+              id: true,
+              code: true,
+              firstName: true,
+              lastName: true,
+              orgUnit: { select: { name: true } },
+            },
           },
-          shiftAssignment: { include: { shift: { select: { code: true, name: true } } } },
+          shiftAssignment: {
+            include: { shift: { select: { code: true, name: true } } },
+          },
         },
       }),
     ]);
@@ -472,17 +692,28 @@ export class AttendanceService {
   }
 
   async myAttendance(query: MyAttendanceQueryDto, user: AuthenticatedUser) {
-    if (!user.employeeId) throw new ForbiddenException('این حساب به پرونده پرسنلی متصل نیست.');
+    if (!user.employeeId)
+      throw new ForbiddenException("این حساب به پرونده پرسنلی متصل نیست.");
     const rows = await this.prisma.attendanceRecord.findMany({
       where: {
         employeeId: user.employeeId,
-        workDate: { gte: toDateOnly(new Date(query.from)), lte: toDateOnly(new Date(query.to)) },
+        workDate: {
+          gte: toDateOnly(new Date(query.from)),
+          lte: toDateOnly(new Date(query.to)),
+        },
       },
-      orderBy: { workDate: 'desc' },
+      orderBy: { workDate: "desc" },
     });
     return {
       data: rows,
-      meta: { total: rows.length, page: 1, limit: rows.length, totalPages: 1, hasNext: false, hasPrev: false },
+      meta: {
+        total: rows.length,
+        page: 1,
+        limit: rows.length,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
       success: true,
       timestamp: new Date().toISOString(),
     };
@@ -500,12 +731,15 @@ export class AttendanceService {
     const employees = await this.prisma.employee.findMany({
       where: employeeWhere,
       select: { id: true, code: true, firstName: true, lastName: true },
-      orderBy: { code: 'asc' },
+      orderBy: { code: "asc" },
       take: 100,
     });
 
     const records = await this.prisma.attendanceRecord.findMany({
-      where: { employeeId: { in: employees.map((e) => e.id) }, workDate: { gte: toDateOnly(start), lte: toDateOnly(end) } },
+      where: {
+        employeeId: { in: employees.map((e) => e.id) },
+        workDate: { gte: toDateOnly(start), lte: toDateOnly(end) },
+      },
     });
 
     const byEmployee = new Map<string, Map<string, (typeof records)[number]>>();
@@ -517,14 +751,21 @@ export class AttendanceService {
 
     const sheet = employees.map((e) => {
       const map = byEmployee.get(e.id) ?? new Map();
-      const cells: Array<{ day: number; workMinutes: number; overtimeMinutes: number; status: string }> = [];
+      const cells: Array<{
+        day: number;
+        workMinutes: number;
+        overtimeMinutes: number;
+        status: string;
+      }> = [];
       for (let d = 1; d <= days; d += 1) {
-        const rec = map.get(dateOnlyKey(monthDayDate(query.year, query.month, d)));
+        const rec = map.get(
+          dateOnlyKey(monthDayDate(query.year, query.month, d)),
+        );
         cells.push({
           day: d,
           workMinutes: rec?.workMinutes ?? 0,
           overtimeMinutes: rec?.overtimeMinutes ?? 0,
-          status: rec?.status ?? 'NO_RECORD',
+          status: rec?.status ?? "NO_RECORD",
         });
       }
       const totalWork = cells.reduce((s, c) => s + c.workMinutes, 0);
@@ -544,12 +785,22 @@ export class AttendanceService {
   // =========================================================================
 
   async createCorrection(dto: CreateCorrectionDto, user: AuthenticatedUser) {
-    const employee = await this.prisma.employee.findUnique({ where: { id: dto.employeeId } });
-    if (!employee || employee.deletedAt) throw new NotFoundException('نیروی موردنظر یافت نشد.');
-    if (!(user.isSuperAdmin || user.scope.unrestricted) && user.employeeId !== dto.employeeId) {
+    await this.access.assertEmployeeAccess(user, dto.employeeId);
+    this.correctionPatch(dto.field, dto.newValue);
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: dto.employeeId },
+    });
+    if (!employee || employee.deletedAt)
+      throw new NotFoundException("نیروی موردنظر یافت نشد.");
+    if (
+      !(user.isSuperAdmin || user.scope.unrestricted) &&
+      user.employeeId !== dto.employeeId
+    ) {
       // کارمند عادی فقط اصلاحیه خودش را ثبت می‌کند؛ سرپرست/HR با مجوز هم
       if (!user.permissions.includes(PERMISSIONS.ATTENDANCE_UPDATE)) {
-        throw new ForbiddenException('اجازه ثبت اصلاحیه برای این نیرو را ندارید.');
+        throw new ForbiddenException(
+          "اجازه ثبت اصلاحیه برای این نیرو را ندارید.",
+        );
       }
     }
 
@@ -557,6 +808,8 @@ export class AttendanceService {
     const record = await this.prisma.attendanceRecord.findUnique({
       where: { employeeId_workDate: { employeeId: dto.employeeId, workDate } },
     });
+    if (record?.lockedAt)
+      throw new BadRequestException("رکورد حضور قفل شده است.");
 
     const row = await this.prisma.attendanceCorrection.create({
       data: {
@@ -564,18 +817,20 @@ export class AttendanceService {
         attendanceRecordId: record?.id ?? null,
         workDate,
         field: dto.field,
-        oldValue: record ? String((record as any)[dto.field] ?? '') : null,
+        oldValue: record ? String((record as any)[dto.field] ?? "") : null,
         newValue: dto.newValue,
         reason: dto.reason,
-        status: 'PENDING',
+        status: "PENDING",
         requestedById: user.id,
       },
-      include: { employee: { select: { code: true, firstName: true, lastName: true } } },
+      include: {
+        employee: { select: { code: true, firstName: true, lastName: true } },
+      },
     });
 
     await this.audit.record(user.id, {
       action: AuditAction.CREATE,
-      entity: 'AttendanceCorrection',
+      entity: "AttendanceCorrection",
       entityId: row.id,
       after: { field: dto.field, newValue: dto.newValue, reason: dto.reason },
     });
@@ -583,7 +838,11 @@ export class AttendanceService {
     return row;
   }
 
-  async listCorrections(query: CorrectionQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+  async listCorrections(
+    query: CorrectionQueryDto,
+    pagination: PaginationDto,
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.AttendanceCorrectionWhereInput = {
       employee: this.access.employeeWhereFor(user),
       ...(query.employeeId ? { employeeId: query.employeeId } : {}),
@@ -597,7 +856,7 @@ export class AttendanceService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           employee: { select: { code: true, firstName: true, lastName: true } },
           requestedBy: { select: { fullName: true } },
@@ -621,60 +880,205 @@ export class AttendanceService {
   }
 
   /** تصمیم روی اصلاحیه — هیچ‌کس اصلاحیه خودش را تأیید نمی‌کند */
-  async decideCorrection(id: string, dto: DecideCorrectionDto, user: AuthenticatedUser) {
-    const row = await this.prisma.attendanceCorrection.findUnique({ where: { id } });
-    if (!row) throw new NotFoundException('اصلاحیه موردنظر یافت نشد.');
-    if (row.status !== 'PENDING') throw new BadRequestException('این اصلاحیه قبلاً بررسی شده است.');
-    if (row.requestedById === user.id && !user.isSuperAdmin) {
-      throw new ForbiddenException('هیچ‌کس اجازه تأیید اصلاحیه ثبت‌شده توسط خودش را ندارد.');
+  private correctionPatch(
+    field: string,
+    value: string,
+  ): Partial<Prisma.AttendanceRecordUncheckedCreateInput> {
+    if (["firstIn", "lastOut"].includes(field)) {
+      if (value === "") return { [field]: null };
+      const time = new Date(value);
+      if (
+        Number.isNaN(time.getTime()) ||
+        !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+      )
+        throw new BadRequestException(
+          "ساعت اصلاح باید تاریخ و منطقه زمانی معتبر داشته باشد.",
+        );
+      return { [field]: time };
     }
-    // تأییدکننده فقط برای نیروهای داخل حوزهٔ دسترسی خودش می‌تواند تصمیم بگیرد
-    if (!(await this.access.canAccessEmployee(user, row.employeeId))) {
-      throw new ForbiddenException('اجازه بررسی اصلاحیه این نیرو را ندارید.');
+    if (
+      [
+        "workMinutes",
+        "lateMinutes",
+        "earlyLeaveMinutes",
+        "overtimeMinutes",
+        "absenceMinutes",
+      ].includes(field)
+    ) {
+      const minutes = Number(value);
+      if (
+        !/^\d+$/.test(value) ||
+        !Number.isSafeInteger(minutes) ||
+        minutes > 2880
+      )
+        throw new BadRequestException("مقدار دقیقه معتبر نیست.");
+      return { [field]: minutes };
     }
+    if (
+      field === "status" &&
+      Object.values(AttendanceRecordStatus).includes(
+        value as AttendanceRecordStatus,
+      )
+    )
+      return { status: value as AttendanceRecordStatus };
+    if (field === "note" && value.length <= 500) return { note: value };
+    throw new BadRequestException("فیلد یا مقدار اصلاح معتبر نیست.");
+  }
 
-    const approved = dto.decision === 'APPROVE';
-    const updated = await this.prisma.attendanceCorrection.update({
-      where: { id },
-      data: {
-        status: approved ? 'APPROVED' : 'REJECTED',
-        approvedById: user.id,
-        decidedAt: new Date(),
-      },
-    });
-
-    if (approved && row.attendanceRecordId && row.newValue !== null) {
-      const patch: any = { [row.field]: row.field === 'status' ? row.newValue : row.newValue };
-      if (['firstIn', 'lastOut'].includes(row.field)) {
-        const parsed = new Date(row.newValue);
-        patch[row.field] = Number.isNaN(parsed.getTime()) ? row.newValue : parsed;
-      } else if (['workMinutes', 'lateMinutes', 'earlyLeaveMinutes', 'overtimeMinutes', 'absenceMinutes'].includes(row.field)) {
-        patch[row.field] = Number(row.newValue) || 0;
+  async decideCorrection(
+    id: string,
+    dto: DecideCorrectionDto,
+    user: AuthenticatedUser,
+    transaction?: Prisma.TransactionClient,
+  ) {
+    const run = async (db: Prisma.TransactionClient) => {
+      await db.$queryRaw`SELECT id FROM "AttendanceCorrection" WHERE id = ${id}::uuid FOR UPDATE`;
+      const row = await db.attendanceCorrection.findUnique({ where: { id } });
+      if (!row) throw new NotFoundException("اصلاحیه موردنظر یافت نشد.");
+      if (row.status !== "PENDING")
+        throw new BadRequestException("این اصلاحیه قبلاً بررسی شده است.");
+      if (row.requestedById === user.id && !user.isSuperAdmin)
+        throw new ForbiddenException(
+          "هیچ‌کس اجازه تأیید اصلاحیه ثبت‌شده توسط خودش را ندارد.",
+        );
+      await this.access.assertEmployeeAccess(user, row.employeeId);
+      await db.$queryRaw`SELECT id FROM "Employee" WHERE id = ${row.employeeId}::uuid FOR UPDATE`;
+      const approved = dto.decision === "APPROVE";
+      let recordId = row.attendanceRecordId;
+      if (approved) {
+        const patch = this.correctionPatch(row.field, row.newValue ?? "");
+        const where = {
+          employeeId_workDate: {
+            employeeId: row.employeeId,
+            workDate: row.workDate,
+          },
+        };
+        const current = await db.attendanceRecord.findUnique({ where });
+        if (current?.lockedAt)
+          throw new BadRequestException("رکورد حضور قفل شده است.");
+        const firstIn =
+          patch.firstIn === undefined ? current?.firstIn : patch.firstIn;
+        const lastOut =
+          patch.lastOut === undefined ? current?.lastOut : patch.lastOut;
+        if (firstIn && lastOut && new Date(firstIn) >= new Date(lastOut))
+          throw new BadRequestException("خروج باید بعد از ورود باشد.");
+        if (row.field === "firstIn" || row.field === "lastOut") {
+          const assignment = await db.shiftAssignment.findFirst({
+            where: { employeeId: row.employeeId, workDate: row.workDate },
+            include: { shift: true },
+          });
+          const shift = assignment?.shift;
+          const work =
+            firstIn && lastOut
+              ? Math.max(
+                  0,
+                  minutesBetween(new Date(firstIn), new Date(lastOut)) -
+                    (shift?.breakMinutes ?? 0),
+                )
+              : 0;
+          const employee = await db.employee.findUniqueOrThrow({
+            where: { id: row.employeeId },
+            select: { company: { select: { timezone: true } } },
+          });
+          const localMinute = (value: Date | string) => {
+            const parts = Object.fromEntries(
+              new Intl.DateTimeFormat("en-US", {
+                timeZone: employee.company.timezone,
+                year: "numeric",
+                month: "numeric",
+                day: "numeric",
+                hour: "numeric",
+                minute: "numeric",
+                hourCycle: "h23",
+              })
+                .formatToParts(new Date(value))
+                .filter((part) => part.type !== "literal")
+                .map((part) => [part.type, Number(part.value)]),
+            );
+            return (
+              (Date.UTC(parts.year, parts.month - 1, parts.day) -
+                row.workDate.getTime()) /
+                60000 +
+              parts.hour * 60 +
+              parts.minute
+            );
+          };
+          patch.workMinutes = work;
+          patch.overtimeMinutes = Math.max(
+            0,
+            work - (shift?.durationMinutes ?? DEFAULT_WORK_MINUTES),
+          );
+          patch.lateMinutes = firstIn
+            ? Math.max(
+                0,
+                localMinute(new Date(firstIn)) -
+                  (shift
+                    ? this.timeToMin(shift.startTime)
+                    : DEFAULT_START_MINUTES),
+              )
+            : 0;
+          patch.earlyLeaveMinutes = lastOut
+            ? Math.max(
+                0,
+                (shift
+                  ? this.timeToMin(shift.endTime) +
+                    (shift.crossMidnight ? 1440 : 0)
+                  : DEFAULT_END_MINUTES) - localMinute(new Date(lastOut)),
+              )
+            : 0;
+          patch.status =
+            firstIn && lastOut
+              ? AttendanceRecordStatus.COMPLETE
+              : AttendanceRecordStatus.INCOMPLETE;
+          patch.shiftAssignmentId = assignment?.id ?? null;
+        }
+        const record = await db.attendanceRecord.upsert({
+          where,
+          create: {
+            employeeId: row.employeeId,
+            workDate: row.workDate,
+            status: "INCOMPLETE",
+            ...patch,
+          },
+          update: patch,
+        });
+        recordId = record.id;
       }
-      try {
-        await this.prisma.attendanceRecord.update({ where: { id: row.attendanceRecordId }, data: patch });
-      } catch {
-        // مقدار نامعتبر — اصلاحیه تأییدشده باقی می‌ماند و رکورد دستی اصلاح می‌شود
-      }
-    }
-
-    if (row.requestedById) {
-      await this.notifications.notify(row.requestedById, {
-        type: 'REQUEST_RESULT',
-        title: approved ? 'اصلاحیه حضور تأیید شد' : 'اصلاحیه حضور رد شد',
-        body: dto.comment ?? undefined,
-        link: `/attendance/corrections/${id}`,
+      const updated = await db.attendanceCorrection.update({
+        where: { id },
+        data: {
+          status: approved ? "APPROVED" : "REJECTED",
+          approvedById: user.id,
+          decidedAt: new Date(),
+          attendanceRecordId: recordId,
+        },
       });
-    }
-
-    await this.audit.record(user.id, {
-      action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
-      entity: 'AttendanceCorrection',
-      entityId: id,
-      after: { status: updated.status, comment: dto.comment },
-    });
-
-    return updated;
+      if (row.requestedById)
+        await db.notification.create({
+          data: {
+            userId: row.requestedById,
+            type: "REQUEST_RESULT",
+            title: approved ? "اصلاحیه حضور تأیید شد" : "اصلاحیه حضور رد شد",
+            body: dto.comment ?? null,
+            status: "SENT",
+            sentAt: new Date(),
+            link: "/attendance",
+          },
+        });
+      await db.auditLog.create({
+        data: {
+          userId: user.id,
+          action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
+          entity: "AttendanceCorrection",
+          entityId: id,
+          after: JSON.stringify({ status: updated.status, field: row.field }),
+        },
+      });
+      return updated;
+    };
+    return transaction
+      ? run(transaction)
+      : this.prisma.$transaction(run, { maxWait: 10000, timeout: 30000 });
   }
 }
 

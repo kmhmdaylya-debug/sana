@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Eye, Plus } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList, useItem } from '../lib/useList';
 import { useAuth } from '../lib/auth';
@@ -63,6 +64,8 @@ interface OrgOptions {
 const emptyOptions: OrgOptions = { companies: [], positions: [] };
 
 export default function Employees() {
+  const { employeeId } = useParams<{ employeeId: string }>();
+  const navigate = useNavigate();
   const toast = useToast();
   const { hasPermission, user } = useAuth();
   const list = useList<Employee>('/employees');
@@ -73,6 +76,7 @@ export default function Employees() {
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [options, setOptions] = useState<OrgOptions>(emptyOptions);
+  useEffect(() => { setDetailId(employeeId ?? null); }, [employeeId]);
 
   void list.search;
 
@@ -189,7 +193,7 @@ export default function Employees() {
         </div>
       </Card>
 
-      {detailId && <EmployeeDetail id={detailId} onClose={() => setDetailId(null)} />}
+      {detailId && <EmployeeDetail id={detailId} onClose={() => { setDetailId(null); if (employeeId) navigate('/employees', { replace: true }); }} />}
 
       <Modal
         open={createOpen}

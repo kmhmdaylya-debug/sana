@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
+import { AccessService } from '../common/access/access.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import {
@@ -20,13 +22,15 @@ export class SettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly access: AccessService,
   ) {}
 
   // =========================================================================
   // تنظیمات سیستمی
   // =========================================================================
 
-  async listSettings(query: SettingQueryDto, pagination: PaginationDto) {
+  async listSettings(query: SettingQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
+    if (!user.isSuperAdmin) throw new ForbiddenException('تنظیمات سراسری فقط برای مدیر ارشد قابل مشاهده است.');
     const where: Prisma.SettingWhereInput = {
       ...(query.group ? { group: query.group } : {}),
       ...(query.key ? { key: { contains: query.key, mode: 'insensitive' } } : {}),
@@ -60,7 +64,8 @@ export class SettingsService {
   }
 
   /** گروه‌های تنظیمات برای فیلتر */
-  async settingGroups() {
+  async settingGroups(user: AuthenticatedUser) {
+    if (!user.isSuperAdmin) throw new ForbiddenException('تنظیمات سراسری فقط برای مدیر ارشد قابل مشاهده است.');
     const rows = await this.prisma.setting.groupBy({ by: ['group'] });
     return {
       data: rows.map((r) => r.group),
@@ -71,6 +76,7 @@ export class SettingsService {
   }
 
   async updateSetting(key: string, value: string, user: AuthenticatedUser) {
+    if (!user.isSuperAdmin) throw new ForbiddenException('تغییر تنظیمات سراسری فقط برای مدیر ارشد مجاز است.');
     const setting = await this.prisma.setting.findUnique({ where: { key } });
     if (!setting) throw new NotFoundException(`تنظیم «${key}» یافت نشد.`);
 
@@ -98,8 +104,9 @@ export class SettingsService {
   // فیلدهای سفارشی
   // =========================================================================
 
-  async listCustomFields(query: CustomFieldQueryDto, pagination: PaginationDto) {
+  async listCustomFields(query: CustomFieldQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const where: Prisma.CustomFieldDefinitionWhereInput = {
+      AND: [await this.access.companyWhereFor(user)],
       ...(query.companyId ? { companyId: query.companyId } : {}),
       ...(query.entity ? { entity: query.entity } : {}),
     };
@@ -132,6 +139,7 @@ export class SettingsService {
   }
 
   async createCustomField(dto: CreateCustomFieldDto, user: AuthenticatedUser) {
+    await this.access.assertCompanyAccess(user, dto.companyId);
     const duplicate = await this.prisma.customFieldDefinition.findUnique({
       where: { companyId_entity_code: { companyId: dto.companyId, entity: dto.entity, code: dto.code.trim() } },
     });
@@ -168,6 +176,7 @@ export class SettingsService {
   async removeCustomField(id: string, user: AuthenticatedUser) {
     const field = await this.prisma.customFieldDefinition.findUnique({ where: { id } });
     if (!field) throw new NotFoundException('فیلد سفارشی یافت نشد.');
+    await this.access.assertCompanyAccess(user, field.companyId);
 
     await this.prisma.customFieldDefinition.update({ where: { id }, data: { isActive: false } });
     await this.audit.record(user.id, {

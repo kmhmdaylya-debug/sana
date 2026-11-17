@@ -47,7 +47,7 @@ async function main() {
   }
 }
 
-main().catch(() => {
-  console.error('Integration checks failed. Confidential connection details suppressed.');
+main().catch(error => {
+  console.error(error?.code === 'P1001' ? 'Integration database is unavailable. Start the configured PostgreSQL service.' : 'Integration checks failed. Confidential connection details suppressed.');
   process.exitCode = 1;
 });

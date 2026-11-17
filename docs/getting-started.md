@@ -1,23 +1,30 @@
 # راهنمای راه‌اندازی
 
-## ۱. توسعهٔ محلی (توصیه‌شده)
+## ۱. ارتقای نصب موجود
+
+پیش‌نیاز: Node.js 22.22.2 یا جدیدتر، PowerShell 7 و PostgreSQL 16. تنظیمات موجود، کلید پشتیبان و volume دیتابیس را حفظ کنید.
+قبل از ارتقا از دیتابیس و مدارک نسخهٔ پشتیبان بگیرید. Seed و `db:reset` مسیر ارتقا نیستند.
 
 ```powershell
 # از ریشهٔ پروژه
-powershell -ExecutionPolicy Bypass -File scripts\setup-dev.ps1
+pwsh -File scripts\setup-dev.ps1
 ```
 
 اسکریپت بالا: PostgreSQL را با Docker بالا می‌آورد، `.env` را می‌سازد،
-وابستگی‌ها را نصب، مهاجرت‌ها را اعمال و seed می‌کند.
+وابستگی‌های بک‌اند را نصب و Migrationها را بدون Reset اعمال می‌کند؛ Seed پیش‌فرض غیرفعال است.
+فایل‌های `.env` موجود تغییر نمی‌کنند. اگر فقط یکی از فایل‌های تنظیمات وجود دارد، فایل مفقود باید با مقادیر سازگار تکمیل شود.
 
 سپس در دو ترمینال جداگانه:
 
 ```powershell
 # ترمینال ۱ — API
-cd backend ; npm run start:dev
+cd backend
+npm run start:dev
 
 # ترمینال ۲ — فرانت‌اند
-cd frontend ; npm run dev
+cd frontend
+npm ci
+npm run dev -- --host 0.0.0.0
 ```
 
 | آدرس | توضیح |
@@ -25,13 +32,20 @@ cd frontend ; npm run dev
 | `http://localhost:5183` | رابط کاربری |
 | `http://localhost:4114/api/docs` | Swagger |
 
-## ۲. تغییر کلیدهای امنیتی
+برای گوشی در همان Wi-Fi از `http://<LAN-IP>:5183/login` استفاده کنید؛ Vite را به اینترنت عمومی باز نکنید.
+Health واقعی دیتابیس: `http://127.0.0.1:4114/api/v1/health`.
+
+## ۲. اولین نصب خالی و کلیدها
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\generate-secrets.ps1
+pwsh -File scripts\generate-secrets.ps1
+pwsh -File scripts\setup-dev.ps1 -Bootstrap
 ```
 
-خروجی را در `backend/.env` جایگزین کنید (`JWT_ACCESS_SECRET`، `JWT_REFRESH_SECRET`، `ADMIN_PASSWORD`).
+این دستورات فقط برای نصب جدید هستند. تولیدکنندهٔ تنظیمات هیچ رمز یا کلیدی چاپ نمی‌کند و فایل موجود را بازنویسی نمی‌کند.
+Bootstrap وجود حساب را بررسی می‌کند و روی نصب دارای کاربر Seed نمی‌کند.
+نام و رمز مدیر اولیه از `ADMIN_USERNAME` و `ADMIN_PASSWORD` خوانده می‌شود؛ تغییر `.env` رمز حساب موجود را عوض نمی‌کند.
+Seed را برای تازه‌سازی مجوزهای نقش‌های نصب موجود اجرا نکنید. کلید Backup را بدون طرح نگهداری کلید قبلی عوض نکنید.
 
 ## ۳. اجرای تولیدی
 
@@ -39,7 +53,11 @@ powershell -ExecutionPolicy Bypass -File scripts\generate-secrets.ps1
 docker compose up -d --build
 ```
 
-کانتینر بک‌اند پیش از اجرا `migrate deploy` و `seed` را انجام می‌دهد.
+کانتینر بک‌اند فقط `migrate deploy` را انجام می‌دهد، نه Seed خودکار حساب و نقش.
+فرانت و API پراکسی‌شده روی `http://localhost:8080` هستند؛ API پورت عمومی مستقلی ندارد.
+در نصب خالی، ایجاد اولیهٔ مدیر صریح است: `docker compose exec backend npm run db:seed`.
+Volumeهای دیتابیس، `uploads` و `backups` را حفظ کنید؛ روی نصب واقعی `down --volumes` اجرا نکنید.
+HTTP محلی تأییدیهٔ Production نیست؛ TLS، دامنهٔ واقعی، Cookie امن، CORS محدود، فایروال و حفاظت Secret لازم‌اند.
 برای تغییر نسخهٔ دیتابیس در آینده فقط `docker compose exec backend npx prisma migrate deploy` را دوباره اجرا کنید.
 
 ## ۴. عیب‌یابی رایج
@@ -50,4 +68,21 @@ docker compose up -d --build
 | خطای `JWT secrets` | مقدار پیش‌فرض CHANGE_ME را عوض کنید (حداقل ۳۲ کاراکتر) |
 | 401 مداوم در فرانت | کوکی refresh پاک شده؛ خروج/ورود مجدد |
 | خطای CORS | `CORS_ORIGINS` در `.env` باید آدرس فرانت را شامل شود |
-| Seed خطای تکراری | طبیعی است — seed مقاوم به اجرای مجدد است (upsert) |
+| رمز مدیر با `.env` متفاوت است | تنظیمات فقط رمز ایجاد اولیه‌اند؛ از تغییر رمز مجاز سامانه با احراز هویت مجدد استفاده کنید |
+| Docker خطای دریافت تصویر می‌دهد | اتصال و مجوز مخزن تصاویر را بررسی کنید؛ اجرای ناموفق را موفق حساب نکنید |
+
+## ۵. شرکت، نقش و کاربران
+
+مدیر ارشد ابتدا شرکت و ساختار سازمانی، سپس پروندهٔ کارمند و حساب مرتبط را ایجاد می‌کند.
+نقش و محدودهٔ رکورد جداگانه تعیین می‌شوند؛ محدودهٔ یک کارمند یا واحد، مجوز همهٔ کارکنان شرکت نیست.
+مجوزهای `employees.view.sensitive`، `employees.view.bank` و `employees.view.salary` مستقل‌اند و
+باید فقط به نقش نیازمند آن اطلاعات داده شوند؛ Migration آن‌ها را خودکار به نقش قبلی نمی‌دهد.
+مدیریت عادی کاربران، مجوز تغییر مدیر ارشد نیست. حضور دستی در اختیار مدیر مجاز است؛ کارمند دکمهٔ اعلام حضور ندارد.
+
+## ۶. تست و بازیابی
+
+در بک‌اند `npm run test:integration` و `npm run build`، و در فرانت `npm test` و `npm run build` را اجرا کنید.
+تست یکپارچه دیتابیس‌های تصادفی کنترل‌شده با دادهٔ ساختگی می‌سازد و دیتابیس اصلی را Reset نمی‌کند.
+از ریشه `pwsh -File scripts/test-compose.ps1` پشتهٔ Docker را با نام، Secret، دیتابیس و volumeهای آزمایشی جدا بررسی می‌کند.
+راهنمای کلیدها، ابزار PostgreSQL و Restore ایمن: [backup-restore.md](backup-restore.md).
+نتایج واقعی و محدودیت‌ها: [FINAL_AUDIT_REPORT.md](../FINAL_AUDIT_REPORT.md).

@@ -135,6 +135,11 @@ export class LeaveTypeQueryDto extends PaginationDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID('4')
+  employeeId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('4')
   companyId?: string;
 
   @ApiPropertyOptional()

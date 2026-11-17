@@ -268,6 +268,20 @@ export class AccessService {
     if (!await this.canAccessEmployee(user, employeeId)) throw new ForbiddenException('به این پرونده دسترسی ندارید.');
   }
 
+  async assertEmployeeMutable(user: AuthenticatedUser, employeeId: string, destructive = false): Promise<void> {
+    const employee = await this.prisma.employee.findUnique({ where: { id: employeeId }, select: { userId: true } });
+    const protectedUser = await this.prisma.user.findFirst({
+      where: {
+        AND: [
+          { OR: [{ employeeId }, ...(employee?.userId ? [{ id: employee.userId }] : [])] },
+          { OR: [{ isSuperAdmin: true }, { userRoles: { some: { role: { OR: [{ code: 'SUPER_ADMIN' }, { rolePermissions: { some: { permission: { code: { in: ['*', 'users.manage.superadmin'] } } } } }] } } } }] },
+        ],
+      },
+      select: { id: true },
+    });
+    if (protectedUser && (destructive || !user.isSuperAdmin)) throw new ForbiddenException('پرونده حساب محافظت‌شده از این مسیر قابل تغییر یا خاتمه نیست.');
+  }
+
   async assertOrganizationAccess(user: AuthenticatedUser, companyId: string, branchId?: string | null, orgUnitId?: string | null): Promise<void> {
     await this.assertCompanyAccess(user, companyId);
     await this.assertEmployeeRelations(companyId, { branchId, orgUnitId });

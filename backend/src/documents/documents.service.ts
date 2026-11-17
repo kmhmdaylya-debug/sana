@@ -14,11 +14,16 @@ import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PERMISSIONS } from '../common/constants/permissions';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { randomFileName } from '../common/utils/crypto.util';
+import { employeeVisibility } from '../employees/employee-privacy';
 import { CreateDocumentDto, DocumentQueryDto, UpdateDocumentDto } from './dto/documents.dto';
+import { ConfigService } from '@nestjs/config';
+import { execSync } from 'child_process';
 
-const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'documents');
+const UPLOAD_ROOT = path.resolve(process.cwd(), 'uploads');
+const UPLOAD_DIR = path.join(UPLOAD_ROOT, 'documents');
 const ALLOWED_EXT = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx'];
 const MAX_SIZE = 10 * 1024 * 1024;
+const PERSONAL_DOCUMENTS: DocumentType[] = ['NATIONAL_ID', 'BIRTH_CERTIFICATE', 'RESUME', 'NDA'];
 
 export interface UploadedFilePayload {
   originalname: string;
@@ -27,19 +32,52 @@ export interface UploadedFilePayload {
   buffer: Buffer;
 }
 
+/** اسکن آنتی‌ویروس فایل (در صورت فعال بودن) */
+function scanFileForViruses(filePath: string): void {
+  const config = new ConfigService();
+  if (!config.get<boolean>('security.antivirusEnabled')) return;
+  try {
+    const command = `${config.get<string>('security.antivirusCommand')} --no-summary --infected "${filePath}"`;
+    const result = execSync(command, { timeout: config.get<number>('security.antivirusTimeoutMs') ?? 30000, encoding: 'utf8' });
+    if (result && result.includes('FOUND')) {
+      fs.unlinkSync(filePath);
+      throw new BadRequestException('فایل آپلودی حاوی محتوای خطرناک است و رد شد.');
+    }
+  } catch (e: any) {
+    if (e instanceof BadRequestException) throw e;
+    // اگر اسکنر نصب نیست یا خطای غیرمنتظره رخ داد، فایل را می‌پذیریم اما لاگ می‌کنیم
+    console.warn(`Antivirus scan skipped or failed: ${e.message}`);
+  }
+}
+
 /** اعتبارسنجی و ذخیره فایل آپلودی */
 export function storeUpload(file: UploadedFilePayload, subdir: string): { fileName: string; filePath: string } {
   if (!file) throw new BadRequestException('فایل پیوست الزامی است.');
-  if (file.size > MAX_SIZE) throw new BadRequestException('حجم فایل نباید از ۱۰ مگابایت بیشتر باشد.');
+  if (!Buffer.isBuffer(file.buffer) || !file.buffer.length || file.size !== file.buffer.length || file.size > MAX_SIZE) throw new BadRequestException('حجم فایل معتبر نیست یا از ۱۰ مگابایت بیشتر است.');
+  if (!/^[a-z0-9-]{1,40}$/.test(subdir)) throw new BadRequestException('مسیر ذخیره فایل معتبر نیست.');
   const ext = path.extname(file.originalname).toLowerCase();
   if (!ALLOWED_EXT.includes(ext)) {
     throw new BadRequestException(`پسوند «${ext}» مجاز نیست. پسوندهای مجاز: ${ALLOWED_EXT.join('، ')}`);
   }
-  const dir = path.join(UPLOAD_DIR, subdir);
-  fs.mkdirSync(dir, { recursive: true });
+  const signatures: Record<string, { mime: string[]; prefix: number[] }> = {
+    '.pdf': { mime: ['application/pdf'], prefix: [0x25, 0x50, 0x44, 0x46, 0x2d] },
+    '.png': { mime: ['image/png'], prefix: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+    '.jpg': { mime: ['image/jpeg'], prefix: [0xff, 0xd8, 0xff] },
+    '.jpeg': { mime: ['image/jpeg'], prefix: [0xff, 0xd8, 0xff] },
+    '.doc': { mime: ['application/msword'], prefix: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1] },
+    '.xls': { mime: ['application/vnd.ms-excel'], prefix: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1] },
+    '.docx': { mime: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'], prefix: [0x50, 0x4b, 0x03, 0x04] },
+    '.xlsx': { mime: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'], prefix: [0x50, 0x4b, 0x03, 0x04] },
+  };
+  const expected = signatures[ext];
+  if (!expected.mime.includes(file.mimetype) || !file.buffer.subarray(0, expected.prefix.length).equals(Buffer.from(expected.prefix))) throw new BadRequestException('محتوای فایل با نوع آن مطابقت ندارد.');
+  const dir = path.join(UPLOAD_ROOT, subdir);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const stored = `${randomFileName(ext)}`;
-  fs.writeFileSync(path.join(dir, stored), file.buffer);
-  return { fileName: file.originalname, filePath: `${subdir}/${stored}` };
+  const fullPath = path.join(dir, stored);
+  fs.writeFileSync(fullPath, file.buffer, { flag: 'wx', mode: 0o600 });
+  scanFileForViruses(fullPath);
+  return { fileName: path.basename(file.originalname.replace(/\\/g, '/')).replace(/[\x00-\x1f\x7f]/g, '').slice(0, 255), filePath: `${subdir}/${stored}` };
 }
 
 @Injectable()
@@ -48,18 +86,18 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
   ) {}
 
   async list(query: DocumentQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
-    const canSeeConfidential =
-      user.isSuperAdmin || user.permissions.includes(PERMISSIONS.EMPLOYEES_VIEW_SENSITIVE);
     const where: Prisma.EmployeeDocumentWhereInput = {
+      AND: [this.documentVisibility(user)],
       deletedAt: null,
       employee: this.access.employeeWhereFor(user),
       ...(query.employeeId ? { employeeId: query.employeeId } : {}),
       ...(query.docType ? { docType: query.docType } : {}),
       ...(query.confidentiality ? { confidentiality: query.confidentiality } : {}),
-      ...(!canSeeConfidential ? { confidentiality: { not: 'SECRET' } } : {}),
+      ...(['true', '1'].includes(query.expiring ?? '') ? { expiryDate: { gte: new Date(), lte: new Date(Date.now() + 60 * 86400000) } } : {}),
     };
 
     const page = pagination.page ?? 1;
@@ -78,22 +116,14 @@ export class DocumentsService {
       }),
     ]);
 
-    // فیلتر «در حال انقضا» روی آخرین نسخه — ساده و در حافظه
-    let data = rows;
-    if (query.expiring === 'true' || query.expiring === '1') {
-      const to = new Date();
-      to.setDate(to.getDate() + 60);
-      data = rows.filter((d) => d.expiryDate && d.expiryDate >= new Date() && d.expiryDate <= to);
-    }
-
     return {
-      data,
+      data: rows.map(row => ({ ...row, versions: row.versions.map(({ filePath: _path, ...version }) => version) })),
       meta: {
-        total: query.expiring ? data.length : total,
+        total,
         page,
         limit,
-        totalPages: Math.max(1, Math.ceil((query.expiring ? data.length : total) / limit)),
-        hasNext: page * limit < (query.expiring ? data.length : total),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+        hasNext: page * limit < total,
         hasPrev: page > 1,
       },
       success: true,
@@ -108,6 +138,7 @@ export class DocumentsService {
     to.setDate(to.getDate() + 60);
     const rows = await this.prisma.employeeDocument.findMany({
       where: {
+        AND: [this.documentVisibility(user)],
         deletedAt: null,
         expiryDate: { gte: from, lte: to },
         employee: this.access.employeeWhereFor(user),
@@ -172,11 +203,16 @@ export class DocumentsService {
 
   /** آپلود نسخه فایل مدرک */
   async uploadVersion(id: string, file: UploadedFilePayload, note: string | undefined, user: AuthenticatedUser) {
-    const doc = await this.getDoc(id, user);
-    const stored = storeUpload(file, 'documents');
+    if (note !== undefined && (typeof note !== 'string' || note.length > 2000)) throw new BadRequestException('یادداشت فایل معتبر نیست.');
+    let stored: ReturnType<typeof storeUpload> | undefined;
+    try {
+    return await this.prisma.$transaction(async (db) => {
+    await db.$queryRaw`SELECT id FROM "EmployeeDocument" WHERE id = ${id}::uuid FOR UPDATE`;
+    const doc = await this.getDoc(id, user, db);
+    stored = storeUpload(file, 'documents');
 
     const version = doc.currentVersion + 1;
-    await this.prisma.employeeDocumentVersion.create({
+    await db.employeeDocumentVersion.create({
       data: {
         documentId: id,
         version,
@@ -188,13 +224,13 @@ export class DocumentsService {
         uploadedById: user.id,
       },
     });
-    const updated = await this.prisma.employeeDocument.update({
+    const updated = await db.employeeDocument.update({
       where: { id },
       data: { currentVersion: version },
     });
 
-    await this.audit.record(user.id, {
-      action: AuditAction.DOWNLOAD,
+    await this.audit.recordInTransaction(db, user.id, {
+      action: AuditAction.CREATE,
       entity: 'EmployeeDocumentVersion',
       entityId: id,
       after: { version, fileName: stored.fileName, size: file.size },
@@ -206,6 +242,14 @@ export class DocumentsService {
       success: true,
       timestamp: new Date().toISOString(),
     };
+    }, { maxWait: 10000, timeout: 30000 });
+    } catch (error) {
+      if (stored) {
+        const absolute = path.resolve(UPLOAD_ROOT, stored.filePath);
+        if (path.dirname(absolute) === UPLOAD_DIR) fs.unlinkSync(absolute);
+      }
+      throw error;
+    }
   }
 
   /** دانلود فایل مدرک (فقط مجازهای مناسب) */
@@ -216,16 +260,13 @@ export class DocumentsService {
     });
     if (!version || version.document.deletedAt) throw new NotFoundException('نسخه مدرک یافت نشد.');
 
-    const canSeeConfidential =
-      user.isSuperAdmin || user.permissions.includes(PERMISSIONS.EMPLOYEES_VIEW_SENSITIVE);
-    if (version.document.confidentiality === 'SECRET' && !canSeeConfidential) {
+    if (!this.canReadDocument(version.document, user)) {
       throw new ForbiddenException('این مدرک محرمانه است و دسترسی به آن ندارید.');
     }
     const ok = await this.access.canAccessEmployee(user, version.document.employeeId);
     if (!ok) throw new ForbiddenException('به مدارک این نیرو دسترسی ندارید.');
 
-    const absolute = path.join(UPLOAD_DIR, '..', version.filePath);
-    if (!fs.existsSync(absolute)) throw new NotFoundException('فایل روی سرور یافت نشد.');
+    const absolute = this.resolveDocumentFile(version.filePath);
 
     await this.audit.record(user.id, {
       action: AuditAction.DOWNLOAD,
@@ -278,8 +319,8 @@ export class DocumentsService {
     return { success: true, timestamp: new Date().toISOString() };
   }
 
-  private async getDoc(id: string, user: AuthenticatedUser) {
-    const doc = await this.prisma.employeeDocument.findFirst({
+  private async getDoc(id: string, user: AuthenticatedUser, db: Prisma.TransactionClient = this.prisma) {
+    const doc = await db.employeeDocument.findFirst({
       where: { id, deletedAt: null, employee: this.access.employeeWhereFor(user) },
       include: {
         employee: { select: { id: true, userId: true, code: true, firstName: true, lastName: true } },
@@ -288,11 +329,39 @@ export class DocumentsService {
     });
     if (!doc) throw new NotFoundException('مدرک موردنظر یافت نشد یا به حوزه دسترسی شما تعلق ندارد.');
 
-    const canSeeConfidential =
-      user.isSuperAdmin || user.permissions.includes(PERMISSIONS.EMPLOYEES_VIEW_SENSITIVE);
-    if (doc.confidentiality === 'SECRET' && !canSeeConfidential) {
+    if (!this.canReadDocument(doc, user)) {
       throw new ForbiddenException('این مدرک محرمانه است و دسترسی به آن ندارید.');
     }
     return doc;
+  }
+
+  private documentVisibility(user: AuthenticatedUser): Prisma.EmployeeDocumentWhereInput {
+    const visibility = employeeVisibility(user, '__document_scope__');
+    const excluded: DocumentType[] = visibility.personal ? [] : [...PERSONAL_DOCUMENTS];
+    if (!visibility.personal || !visibility.salary) excluded.push('CONTRACT');
+    return { OR: [{ AND: [visibility.personal ? {} : { confidentiality: 'NORMAL' }, { docType: { notIn: excluded } }] }, ...(user.employeeId ? [{ employeeId: user.employeeId }] : [])] };
+  }
+
+  private canReadDocument(doc: { employeeId: string; docType: DocumentType; confidentiality: string }, user: AuthenticatedUser): boolean {
+    const visibility = employeeVisibility(user, doc.employeeId);
+    if (doc.confidentiality !== 'NORMAL' && !visibility.personal) return false;
+    if (PERSONAL_DOCUMENTS.includes(doc.docType) && !visibility.personal) return false;
+    return doc.docType !== 'CONTRACT' || (visibility.personal && visibility.salary);
+  }
+
+  private resolveDocumentFile(storedPath: string): string {
+    if (!/^documents\/[a-zA-Z0-9_.-]+$/.test(storedPath)) throw new NotFoundException('فایل معتبر یافت نشد.');
+    if (!fs.existsSync(UPLOAD_DIR)) throw new NotFoundException('فایل یافت نشد.');
+    const root = fs.realpathSync(UPLOAD_DIR);
+    // Retain access to files written by the old, duplicated documents directory.
+    for (const candidate of [path.resolve(UPLOAD_ROOT, storedPath), path.resolve(UPLOAD_DIR, storedPath)]) {
+      if (!fs.existsSync(candidate)) continue;
+      const real = fs.realpathSync(candidate);
+      const relative = path.relative(root, real);
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) continue;
+      const stat = fs.statSync(real);
+      if (stat.isFile() && stat.size <= MAX_SIZE) return real;
+    }
+    throw new NotFoundException('فایل معتبر یافت نشد.');
   }
 }

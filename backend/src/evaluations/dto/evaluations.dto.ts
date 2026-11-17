@@ -112,6 +112,14 @@ export class EvaluationItemInputDto {
   sortOrder?: number;
 }
 
+export class ReplaceEvaluationItemsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => EvaluationItemInputDto)
+  items: EvaluationItemInputDto[];
+}
+
 export class CreateEvaluationFormDto {
   @ApiProperty({ example: 'فرم ارزیابی عملکرد سالانه' })
   @IsString({ message: 'نام فرم الزامی است.' })

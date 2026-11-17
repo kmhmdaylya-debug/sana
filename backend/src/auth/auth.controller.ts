@@ -23,7 +23,7 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'ورود با نام کاربری یا شماره موبایل' })
   login(@Body() dto: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
@@ -32,6 +32,7 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'تازه‌سازی توکن دسترسی' })
   refresh(
@@ -47,7 +48,7 @@ export class AuthController {
   @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'خروج از حساب کاربری (با کوکی refresh؛ نیاز به توکن دسترسی ندارد)' })
+  @ApiOperation({ summary: 'خروج با کوکی refresh یا توکن دسترسی معتبر؛ ابطال نشست در سرور' })
   async logout(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,

@@ -10,6 +10,14 @@ export function setAccessToken(token: string | null) {
   accessToken = token;
 }
 
+/**
+ * ایجاد AbortController برای لغو درخواست در هنگام Unmount کامپوننت.
+ * استفاده: const controller = new AbortController(); api.get(url, { signal: controller.signal });
+ */
+export function createAbortController(): AbortController {
+  return new AbortController();
+}
+
 export const api = axios.create({
   baseURL: '/api/v1',
   withCredentials: true, // ارسال cookie با refresh token
@@ -70,6 +78,7 @@ export function apiErrorMessage(e: unknown): string {
   if (Array.isArray(m)) return m.join('، ');
   if (typeof m === 'string') return m;
   if (err.message === 'Network Error') return 'ارتباط با سرور برقرار نشد.';
+  if (!axios.isAxiosError(e) && e instanceof Error) return e.message;
   return 'خطای غیرمنتظره رخ داد.';
 }
 

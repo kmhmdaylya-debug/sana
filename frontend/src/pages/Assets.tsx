@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
+import { assetPayload } from '../lib/workflowPayloads';
 import {
   Badge,
   Button,
@@ -28,24 +29,45 @@ interface Asset {
   category?: string;
   status: string;
   serialNumber?: string;
-  purchaseValue?: bigint | number;
+  purchasePrice?: bigint | number;
   custodian?: { firstName: string; lastName: string } | null;
 }
 
 export default function Assets() {
   const toast = useToast();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const list = useList<Asset>('/assets');
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ code: '', name: '', category: '', serialNumber: '', purchaseValue: 0, note: '' });
+  const [form, setForm] = useState({ code: '', name: '', category: '', serialNumber: '', purchasePrice: 0, note: '' });
   const [saving, setSaving] = useState(false);
+  const [companyId, setCompanyId] = useState(user?.employee?.company?.id ?? '');
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const [companyError, setCompanyError] = useState('');
+
+  useEffect(() => {
+    if (!createOpen) return;
+    const controller = new AbortController();
+    setCompanyLoading(true);
+    setCompanyError('');
+    api.get('/org/companies/options', { signal: controller.signal }).then(response => {
+      if (controller.signal.aborted) return;
+      const rows: Array<{ id: string; name: string }> = response.data.data ?? [];
+      setCompanies(rows);
+      setCompanyId(current => rows.some(row => row.id === current) ? current : rows.length === 1 ? rows[0].id : '');
+    }).catch(error => {
+      if (!controller.signal.aborted) setCompanyError(apiErrorMessage(error));
+    }).finally(() => { if (!controller.signal.aborted) setCompanyLoading(false); });
+    return () => controller.abort();
+  }, [createOpen]);
 
   const canManage = hasPermission('assets.manage');
 
   const submit = async () => {
+    if (saving) return;
     setSaving(true);
     try {
-      await api.post('/assets', form);
+      await api.post('/assets', assetPayload(form, companyId));
       toast('success', 'دارایی ثبت شد.');
       setCreateOpen(false);
       list.reload();
@@ -62,7 +84,7 @@ export default function Assets() {
     { key: 'category', header: 'دسته' },
     { key: 'serialNumber', header: 'شمارهٔ سری', render: (r) => <span className="ltr">{r.serialNumber ?? '—'}</span> },
     { key: 'custodian', header: 'نگهدارنده', render: (r) => (r.custodian ? `${r.custodian.firstName} ${r.custodian.lastName}` : '—') },
-    { key: 'purchaseValue', header: 'ارزش خرید', render: (r) => (r.purchaseValue ? formatRial(Number(r.purchaseValue)) : '—') },
+    { key: 'purchasePrice', header: 'ارزش خرید', render: (r) => (r.purchasePrice != null ? formatRial(Number(r.purchasePrice)) : '—') },
     { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status)}>{statusLabel(r.status)}</Badge> },
   ];
 
@@ -96,17 +118,24 @@ export default function Assets() {
         onClose={() => setCreateOpen(false)}
         footer={
           <>
-            <Button onClick={submit} loading={saving}>ثبت</Button>
+            <Button onClick={submit} loading={saving} disabled={companyLoading || !!companyError || !companyId}>ثبت</Button>
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>انصراف</Button>
           </>
         }
       >
         <div className="form-grid">
+          <Field label="شرکت" required>
+            <Select value={companyId} disabled={companyLoading} onChange={event => setCompanyId(event.target.value)}>
+              <option value="">{companyLoading ? 'در حال دریافت شرکت‌ها' : 'انتخاب شرکت'}</option>
+              {companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
+            </Select>
+            {companyError && <span className="text-danger" role="alert">{companyError}</span>}
+          </Field>
           <Field label="کد دارایی" required><Input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} /></Field>
           <Field label="نام دارایی" required><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></Field>
-          <Field label="دسته"><Input value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder="لپ‌تاپ / موبایل / ابزار" /></Field>
+          <Field label="دسته" required><Input value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder="لپ‌تاپ / موبایل / ابزار" /></Field>
           <Field label="شمارهٔ سری"><Input value={form.serialNumber} onChange={(e) => setForm((f) => ({ ...f, serialNumber: e.target.value }))} /></Field>
-          <Field label="ارزش خرید (ریال)"><Input type="number" value={form.purchaseValue} onChange={(e) => setForm((f) => ({ ...f, purchaseValue: Number(e.target.value) }))} /></Field>
+          <Field label="ارزش خرید (ریال)"><Input type="number" min={0} step={1} value={form.purchasePrice} onChange={(e) => setForm((f) => ({ ...f, purchasePrice: Number(e.target.value) }))} /></Field>
         </div>
         <div className="mt"><Field label="توضیحات"><Textarea value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} /></Field></div>
       </Modal>

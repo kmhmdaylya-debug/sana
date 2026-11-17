@@ -30,6 +30,65 @@ function loadIsolatedModule(path, mocks, globals = {}) {
   return module.exports;
 }
 
+const workflow = loadIsolatedModule('../src/lib/workflowPayloads.ts', { './format': format });
+
+test('Tehran form times do not depend on the phone timezone and preserve historical daylight saving', () => {
+  assert.equal(workflow.tehranDateTime('۱۴۰۵/۰۸/۲۵', '۰۸:۳۰'), '2026-11-16T05:00:00.000Z');
+  assert.equal(workflow.tehranDateTime('2020-07-01', '08:00'), '2020-07-01T03:30:00.000Z');
+  for (const time of ['', '25:00', '12:80', 'bad']) assert.throws(() => workflow.tehranDateTime('2026-11-16', time));
+});
+
+test('attendance corrections send the actual field/newValue DTO and retain the input on errors', () => {
+  const form = { employeeId: 'synthetic-employee', workDate: '1405/08/25', field: 'firstIn', newValue: '08:00', reason: '  Synthetic correction  ' };
+  const output = workflow.attendanceCorrectionPayload(form);
+  assert.deepEqual(JSON.parse(JSON.stringify(output)), { employeeId: form.employeeId, workDate: '2026-11-16', field: 'firstIn', newValue: '2026-11-16T04:30:00.000Z', reason: 'Synthetic correction' });
+  const before = JSON.stringify(form);
+  assert.throws(() => workflow.attendanceCorrectionPayload({ ...form, newValue: 'invalid' }));
+  assert.equal(JSON.stringify(form), before);
+  assert.ok(!('firstIn' in output) && !('lastOut' in output));
+});
+
+test('mission form sends startAt/endAt and rejects reversed intervals and unsafe costs', () => {
+  const form = { employeeId: 'synthetic-employee', title: 'Synthetic mission', destination: 'Synthetic destination', startDate: '1405/08/25', startTime: '08:00', endDate: '1405/08/25', endTime: '16:00', purpose: '', estimatedCost: 1000 };
+  const payload = workflow.missionPayload(form);
+  assert.equal(payload.startAt, '2026-11-16T04:30:00.000Z');
+  assert.equal(payload.endAt, '2026-11-16T12:30:00.000Z');
+  assert.ok(!('fromAt' in payload) && !('toAt' in payload) && !('startDate' in payload));
+  assert.throws(() => workflow.missionPayload({ ...form, endTime: '07:00' }));
+  assert.throws(() => workflow.missionPayload({ ...form, estimatedCost: -10 }));
+});
+
+test('asset form includes companyId and purchasePrice without the old purchaseValue field', () => {
+  const form = { code: 'AST-TEST', name: 'Synthetic asset', category: 'EQUIPMENT', serialNumber: '', purchasePrice: 1000, note: '' };
+  const payload = workflow.assetPayload(form, 'synthetic-company');
+  assert.equal(payload.companyId, 'synthetic-company');
+  assert.equal(payload.purchasePrice, 1000);
+  assert.ok(!('purchaseValue' in payload));
+  assert.throws(() => workflow.assetPayload(form, null));
+  for (const price of [-1, 1.2, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => workflow.assetPayload({ ...form, purchasePrice: price }, 'synthetic-company'));
+});
+
+test('leave form includes the employee and sends Tehran timestamps without mutating failed input', () => {
+  const form = { employeeId: 'synthetic-employee', leaveTypeId: 'synthetic-type', startDate: '1405/08/25', startTime: '08:00', endDate: '1405/08/25', endTime: '09:00', reason: '  Synthetic leave  ' };
+  const payload = workflow.leavePayload(form);
+  assert.equal(payload.employeeId, form.employeeId);
+  assert.equal(payload.startAt, '2026-11-16T04:30:00.000Z');
+  assert.equal(payload.endAt, '2026-11-16T05:30:00.000Z');
+  assert.equal(payload.reason, 'Synthetic leave');
+  const before = JSON.stringify(form);
+  assert.throws(() => workflow.leavePayload({ ...form, endTime: '07:00' }));
+  assert.throws(() => workflow.leavePayload({ ...form, employeeId: '' }));
+  assert.equal(JSON.stringify(form), before);
+});
+
+test('mission completion requires a report and a safe integer cost', () => {
+  const payload = workflow.missionCompletionPayload('  Synthetic completion  ', 2000);
+  assert.equal(payload.report, 'Synthetic completion');
+  assert.equal(payload.actualCost, 2000);
+  assert.throws(() => workflow.missionCompletionPayload('', 100));
+  for (const amount of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => workflow.missionCompletionPayload('Synthetic report', amount));
+});
+
 test('Persian and Arabic digits normalize correctly', () => {
   assert.equal(format.toEnglishDigits('۱۴۰۵/٠٨/۲۴'), '1405/08/24');
   assert.equal(format.toPersianDigits(12345), '۱۲۳۴۵');
@@ -209,7 +268,9 @@ test('every sidebar destination still has a route', () => {
   const layout=fs.readFileSync(new URL('../src/layout/Layout.tsx',import.meta.url),'utf8');
   const paths=new Set([...app.matchAll(/<Route path="([^"]+)"/g)].map(x=>x[1]));
   for (const [,path] of layout.matchAll(/to: '([^']+)'/g)) assert.ok(paths.has(path),`Missing route ${path}`);
-  assert.equal(paths.size,30);
+  assert.ok(paths.has('/employees'));
+  assert.ok(paths.has('/employees/:employeeId'));
+  assert.equal(paths.size,32);
 });
 test('the employee panel has no self-attendance controls', () => {
   const panel=fs.readFileSync(new URL('../src/pages/EmployeePanel.tsx',import.meta.url),'utf8');

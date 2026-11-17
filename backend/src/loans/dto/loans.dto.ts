@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -35,6 +36,8 @@ export class CreateLoanDto {
 
   @ApiProperty({ description: 'مبلغ وام (ریال)' })
   @Type(() => Number)
+  @IsInt()
+  @Max(Number.MAX_SAFE_INTEGER)
   @Min(1)
   amount: number;
 
@@ -80,9 +83,15 @@ export class DisburseLoanDto {
 }
 
 export class PayInstallmentDto {
+  @ApiProperty({ format: 'uuid', description: 'کلید یکتای درخواست؛ در تلاش مجدد تغییر نکند' })
+  @IsUUID('4')
+  idempotencyKey: string;
+
   @ApiProperty({ description: 'مبلغ پرداختی این قسط (ریال)' })
   @Type(() => Number)
-  @Min(0)
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
   amount: number;
 
   @ApiProperty({ format: 'uuid', description: 'دوره حقوق و دستمبرد مرتبط' })

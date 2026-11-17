@@ -38,7 +38,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { api } from '../lib/api';
+import { api, createAbortController } from '../lib/api';
 import { toPersianDigits } from '../lib/format';
 import ChangePassword from '../components/ChangePassword';
 import DailyAttendance from '../components/DailyAttendance';
@@ -200,13 +200,24 @@ export default function Layout() {
     if (activeGroup) setClosedGroups(groups => groups.filter(group => group !== activeGroup.group));
     if (profile.current) profile.current.open = false;
     document.title = `${PAGE_TITLES[location.pathname] ?? 'کارهای تیم'} | سنا`;
+    const controller = createAbortController();
     let active = true;
-    if (hasPermission('notifications.view')) api.get('/notifications/unread-count').then(r => { if (active) setUnread(r?.data?.data?.unreadCount ?? 0); }).catch(() => {});
-    if (hasPermission('approvals.view')) api.get('/approvals/inbox').then(r => {
-      const rows = r?.data?.data ?? [];
-      if (active) setPendingApprovals(Array.isArray(rows) ? rows.length : (rows?.items?.length ?? 0));
-    }).catch(() => {});
-    return () => { active = false; };
+    if (hasPermission('notifications.view')) {
+      api.get('/notifications/unread-count', { signal: controller.signal })
+        .then(r => { if (active) setUnread(r?.data?.data?.unreadCount ?? 0); })
+        .catch(() => {});
+    }
+    if (hasPermission('approvals.view')) {
+      api.get('/approvals/inbox', { signal: controller.signal })
+        .then(r => {
+          const rows = r?.data?.data ?? [];
+          if (active) setPendingApprovals(Array.isArray(rows) ? rows.length : (rows?.items?.length ?? 0));
+        }).catch(() => {});
+    }
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [location.pathname, location.search, hasPermission]);
 
   const visibleMenu = useMemo(() => MENU.map(g => ({

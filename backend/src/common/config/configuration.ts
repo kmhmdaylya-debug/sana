@@ -46,6 +46,7 @@ export default registerAs('app', () => ({
   host: process.env.HOST ?? '127.0.0.1',
   apiPrefix: process.env.API_PREFIX ?? 'api',
   swaggerEnabled: (process.env.SWAGGER_ENABLED ?? 'false') === 'true',
+  swaggerAllowedIps: (process.env.SWAGGER_ALLOWED_IPS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
 
   database: {
     url: requiredEnv('DATABASE_URL'),
@@ -64,7 +65,7 @@ export default registerAs('app', () => ({
     refreshExpiresDays: parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS ?? '7', 10),
     rememberMeExpiresDays: parseInt(process.env.JWT_REMEMBER_ME_EXPIRES_DAYS ?? '30', 10),
     /** بازهٔ ارفاق چرخش توکن refresh (برای درخواست‌های هم‌زمان/چند تب) — ثانیه */
-    refreshGraceSeconds: parseInt(process.env.JWT_REFRESH_GRACE_SECONDS ?? '60', 10),
+    refreshGraceSeconds: parseInt(process.env.JWT_REFRESH_GRACE_SECONDS ?? '15', 10),
     issuer: process.env.JWT_ISSUER ?? 'sana-hrms',
   },
 
@@ -74,11 +75,15 @@ export default registerAs('app', () => ({
     passwordMinLength: parseInt(process.env.PASSWORD_MIN_LENGTH ?? '10', 10),
     rateLimitTtlMs: parseInt(process.env.RATE_LIMIT_TTL_MS ?? '60000', 10),
     rateLimitLimit: parseInt(process.env.RATE_LIMIT_LIMIT ?? '300', 10),
-    authRateLimitLimit: parseInt(process.env.AUTH_RATE_LIMIT_LIMIT ?? '10', 10),
+    authRateLimitLimit: parseInt(process.env.AUTH_RATE_LIMIT_LIMIT ?? '5', 10),
     /** حد مجاز انحراف ساعت دستگاه حضور و غیاب (ثانیه) */
     deviceClockSkewSeconds: parseInt(process.env.DEVICE_CLOCK_SKEW_SECONDS ?? '120', 10),
     /** منبع معتبر پیش‌فرض زمان در حضور و غیاب */
     attendanceTimeSource: process.env.ATTENDANCE_TIME_SOURCE ?? 'SERVER',
+    /** فعال‌سازی اسکن آنتی‌ویروس برای فایل‌های آپلودی (اختیاری) */
+    antivirusEnabled: (process.env.ANTIVIRUS_ENABLED ?? 'false') === 'true',
+    antivirusCommand: process.env.ANTIVIRUS_COMMAND ?? 'clamscan',
+    antivirusTimeoutMs: parseInt(process.env.ANTIVIRUS_TIMEOUT_MS ?? '30000', 10),
   },
 
   payroll: {

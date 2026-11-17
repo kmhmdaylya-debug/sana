@@ -53,19 +53,19 @@ export class AttendanceController {
   @RequirePermissions(PERMISSIONS.ATTENDANCE_CREATE)
   @ApiOperation({ summary: 'ثبت دستگاه حضور' })
   createDevice(@Body() dto: CreateDeviceDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.createDevice(dto, user.id);
+    return this.service.createDevice(dto, user);
   }
   @Patch('devices/:id')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_UPDATE)
   @ApiOperation({ summary: 'ویرایش دستگاه' })
-  updateDevice(@Param('id') id: string, @Body() dto: UpdateDeviceDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.updateDevice(id, dto, user.id);
+  updateDevice(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDeviceDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.updateDevice(id, dto, user);
   }
   @Delete('devices/:id')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_UPDATE)
   @ApiOperation({ summary: 'غیرفعال‌سازی دستگاه' })
-  deleteDevice(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.deleteDevice(id, user.id);
+  deleteDevice(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.deleteDevice(id, user);
   }
   @Post('events')
   @Public()
@@ -122,13 +122,13 @@ export class AttendanceController {
   @Post('corrections/:id/decide')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_APPROVE)
   @ApiOperation({ summary: 'بررسی اصلاحیه (تأیید/رد)' })
-  decideCorrection(@Param('id') id: string, @Body() dto: DecideCorrectionDto, @CurrentUser() user: AuthenticatedUser) {
+  decideCorrection(@Param('id', ParseUUIDPipe) id: string, @Body() dto: DecideCorrectionDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.decideCorrection(id, dto, user);
   }
   @Get('devices/:id')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_VIEW)
   @ApiOperation({ summary: 'جزئیات دستگاه' })
-  getDevice(@Param('id') id: string) {
-    return this.service.getDevice(id);
+  getDevice(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getDevice(id, user);
   }
 }

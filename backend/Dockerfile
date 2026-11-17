@@ -29,15 +29,17 @@ RUN npm ci --omit=dev
 
 COPY prisma ./prisma
 COPY tsconfig.json ./
+COPY src/common/constants ./src/common/constants
+COPY src/common/utils/password.util.ts ./src/common/utils/password.util.ts
 RUN npx prisma generate
 
 COPY --from=build /app/dist ./dist
 
-# ابزار pg_dump برای ماژول پشتیبان‌گیری (اختیاری)
-RUN apk add --no-cache postgresql-client
+# Match the database major version so archives can be restored on PostgreSQL 16.
+RUN apk add --no-cache postgresql16-client
 
 # پوشهٔ پشتیبان و اجرا با کاربر غیرریشه
-RUN mkdir -p /app/backups && chown -R node:node /app/backups
+RUN mkdir -p /app/backups /app/uploads/documents && chown -R node:node /app/backups /app/uploads
 USER node
 
 EXPOSE 4114

@@ -127,6 +127,23 @@ describe('Authentication security', () => {
     await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken }).expect(401);
   });
 
+  it('revokes a Bearer-only logout without a refresh cookie and leaves other devices active', async () => {
+    const first = await login().expect(200);
+    const other = await login().expect(200);
+    await request(app.getHttpServer()).post('/auth/logout').auth(first.body.accessToken, { type: 'bearer' }).expect(200);
+    await request(app.getHttpServer()).get('/auth/me').auth(first.body.accessToken, { type: 'bearer' }).expect(401);
+    await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken: cookieToken(first) }).expect(401);
+    await request(app.getHttpServer()).get('/auth/me').auth(other.body.accessToken, { type: 'bearer' }).expect(200);
+  });
+  it('does not revoke a session through forged signatures or wrong-type logout tokens', async () => {
+    const initial = await login().expect(200);
+    const options = { secret: configValues['app.jwt.accessSecret'] as string, issuer: configValues['app.jwt.issuer'] as string };
+    const claims = { sub: user.id, sid: sessions[0].id, type: 'access' };
+    const invalid = [jwt.sign(claims, { ...options, secret: randomBytes(48).toString('hex') }), jwt.sign({ ...claims, type: 'refresh' }, options), jwt.sign(claims, { ...options, issuer: 'untrusted-issuer' })];
+    for (const token of invalid) await request(app.getHttpServer()).post('/auth/logout').auth(token, { type: 'bearer' }).expect(200);
+    expect(sessions[0].revokedAt).toBeNull();
+    await request(app.getHttpServer()).get('/auth/me').auth(initial.body.accessToken, { type: 'bearer' }).expect(200);
+  });
   it('rotates once and handles concurrent old-cookie refresh without forking or extending expiry', async () => {
     const initial = await login().expect(200);
     const refreshToken = cookieToken(initial);

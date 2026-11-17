@@ -485,6 +485,7 @@ export class PayrollService {
       await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${periodId}::uuid FOR UPDATE`;
     const period = await this.getPeriodEntity(periodId, db);
     await this.assertCompanyAccess(user, period.companyId);
+    await db.$queryRaw`SELECT id FROM "Company" WHERE id = ${period.companyId}::uuid FOR UPDATE`;
 
     if (period.status === PayrollStatus.LOCKED) {
       throw new BadRequestException(PAYROLL_LOCKED_MESSAGE);
@@ -858,8 +859,8 @@ export class PayrollService {
     }, { maxWait: 10000, timeout: 300000 });
   }
 
-  async lock(periodId: string, actorId: string, user: AuthenticatedUser) {
-    return this.prisma.$transaction(async db => {
+  async lock(periodId: string, actorId: string, user: AuthenticatedUser, transaction?: Prisma.TransactionClient) {
+    const run = async (db: Prisma.TransactionClient) => {
       await db.$queryRaw`SELECT id FROM "PayrollPeriod" WHERE id = ${periodId}::uuid FOR UPDATE`;
     const period = await this.getPeriodEntity(periodId, db);
     await this.assertCompanyAccess(user, period.companyId);
@@ -886,7 +887,8 @@ export class PayrollService {
 
     return this.periodToPublic(updated);
   
-    }, { maxWait: 10000, timeout: 300000 });
+    };
+    return transaction ? run(transaction) : this.prisma.$transaction(run, { maxWait: 10000, timeout: 300000 });
   }
 
   async publish(periodId: string, actorId: string, user: AuthenticatedUser) {
@@ -1058,12 +1060,20 @@ export class PayrollService {
     }
     await this.assertCompanyAccess(user, amendment.period.companyId);
 
+    await this.access.assertEmployeeAccess(user, amendment.employeeId);
+    if (!user.isSuperAdmin && (amendment.createdById === actorId || amendment.employeeId === user.employeeId)) throw new ForbiddenException('تأیید اصلاحیه خودتان مجاز نیست.');
+
     const items: AmendmentItemDto[] = amendment.itemsJson
       ? this.safeParseJson(amendment.itemsJson)
       : [];
     if (!Array.isArray(items) || items.length === 0) {
       throw new BadRequestException('اقلام اصلاحیه نامعتبر است.');
     }
+    if (items.some(item => !item || typeof item.componentId !== 'string' || !Number.isSafeInteger(item.amount))) throw new BadRequestException('اقلام اصلاحیه نامعتبر است.');
+    const componentIds = [...new Set(items.map(item => item.componentId))];
+    const count = await db.payComponent.count({ where: { id: { in: componentIds }, companyId: amendment.period.companyId } });
+    const employee = await db.employee.findFirst({ where: { id: amendment.employeeId, companyId: amendment.period.companyId, deletedAt: null }, select: { id: true } });
+    if (count !== componentIds.length || !employee) throw new BadRequestException('اقلام و کارمند اصلاحیه باید به شرکت دوره تعلق داشته باشند.');
 
     const range = this.periodRange(amendment.period.year, amendment.period.month);
 
@@ -1535,7 +1545,8 @@ export class PayrollService {
 
   /** شناسه شرکت‌هایی که کاربر به آن‌ها دسترسی دارد (null یعنی دسترسی کامل) */
   private async allowedCompanyIds(user: AuthenticatedUser): Promise<string[] | null> {
-    return this.access.allowedCompanyIds(user);
+    // Whole-company periods and totals require an explicit company-wide grant.
+    return user.isSuperAdmin || user.scope.unrestricted ? null : user.scope.companyIds;
   }
 
   private async assertCompanyAccess(user: AuthenticatedUser, companyId?: string): Promise<void> {

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayMaxSize,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -188,6 +189,7 @@ export class IngestEventsDto {
   @ApiPropertyOptional({ type: [AttendanceEventDto], description: 'فهرست رویدادها برای ثبت گروهی' })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(1000)
   @ValidateNested({ each: true })
   @Type(() => AttendanceEventDto)
   events?: AttendanceEventDto[];

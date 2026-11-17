@@ -16,7 +16,7 @@ import { DatePicker,
   useToast,
   type Column,
 } from '../components/ui';
-import { formatJalali, statusLabel, badgeKind, toPersianDigits } from '../lib/format';
+import { formatJalali, statusLabel, badgeKind, toEnglishDigits, toPersianDigits } from '../lib/format';
 
 interface Definition {
   code: string;
@@ -33,7 +33,7 @@ interface Run {
   format: string;
   status: string;
   rowCount?: number;
-  createdAt: string;
+  startedAt: string;
 }
 
 /** دانلود خروجی گزارش با POST (سرور فایل را مستقیم برمی‌گرداند) */
@@ -72,7 +72,7 @@ export default function Reports() {
         const items: Definition[] = Array.isArray(r?.data?.data) ? r.data.data : r?.data?.data?.items ?? [];
         if (active) setDefs(items);
       })
-      .catch(() => {});
+      .catch(error => { if (active) toast('error', apiErrorMessage(error)); });
     return () => {
       active = false;
     };
@@ -81,6 +81,7 @@ export default function Reports() {
   const def = defs.find((d) => d.code === selected);
 
   const run = async () => {
+    if (running) return;
     if (!def) {
       toast('warning', 'ابتدا یک گزارش انتخاب کنید.');
       return;
@@ -93,8 +94,11 @@ export default function Reports() {
         if (to) body.to = to;
       }
       if (def.needsMonth) {
-        if (year) body.year = Number(year);
-        if (month) body.month = Number(month);
+        const jy = Number(toEnglishDigits(year));
+        const jm = Number(toEnglishDigits(month));
+        if (!Number.isInteger(jy) || jy < 1300 || jy > 1600 || !Number.isInteger(jm) || jm < 1 || jm > 12) throw new Error('سال و ماه جلالی معتبر را وارد کنید.');
+        body.year = jy;
+        body.month = jm;
       }
       if (def.needsCompanyId) {
         const cid = await getDefaultCompanyId();
@@ -122,8 +126,8 @@ export default function Reports() {
     { key: 'reportCode', header: 'گزارش', render: (r) => defs.find((d) => d.code === r.reportCode)?.title ?? r.reportCode },
     { key: 'format', header: 'فرمت', render: (r) => r.format.toUpperCase() },
     { key: 'rows', header: 'تعداد سطر', render: (r) => (r.rowCount != null ? toPersianDigits(r.rowCount) : '—') },
-    { key: 'createdAt', header: 'زمان اجرا', render: (r) => formatJalali(r.createdAt) },
-    { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status === 'SUCCEEDED' ? 'COMPLETED' : r.status === 'FAILED' ? 'REJECTED' : 'PENDING')}>{statusLabel(r.status === 'SUCCEEDED' ? 'COMPLETED' : r.status === 'FAILED' ? 'REJECTED' : 'PENDING')}</Badge> },
+    { key: 'startedAt', header: 'زمان اجرا', render: (r) => formatJalali(r.startedAt) },
+    { key: 'status', header: 'وضعیت', render: (r) => <Badge kind={badgeKind(r.status === 'DONE' ? 'COMPLETED' : r.status === 'FAILED' ? 'REJECTED' : 'PENDING')}>{statusLabel(r.status === 'DONE' ? 'COMPLETED' : r.status === 'FAILED' ? 'REJECTED' : 'PENDING')}</Badge> },
   ];
 
   return (
@@ -155,8 +159,8 @@ export default function Reports() {
             <div className="form-grid">
               {def.needsDateRange && (
                 <>
-                  <Field label="از تاریخ (میلادی)"><DatePicker output="iso" className="ltr" value={from} onValueChange={(value) => setFrom(value)} placeholder="2026-01-01" /></Field>
-                  <Field label="تا تاریخ (میلادی)"><DatePicker output="iso" className="ltr" value={to} onValueChange={(value) => setTo(value)} placeholder="2026-12-31" /></Field>
+                  <Field label="از تاریخ"><DatePicker output="iso" className="ltr" value={from} onValueChange={(value) => setFrom(value)} /></Field>
+                  <Field label="تا تاریخ"><DatePicker output="iso" className="ltr" value={to} onValueChange={(value) => setTo(value)} /></Field>
                 </>
               )}
               {def.needsMonth && (

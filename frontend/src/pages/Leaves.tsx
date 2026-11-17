@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useList } from '../lib/useList';
 import { useAuth } from '../lib/auth';
-import { EntityPicker, Tabs,
+import { leavePayload } from '../lib/workflowPayloads';
+import { EntityPicker, DatePicker, Tabs,
   Badge,
   Button,
   Card,
@@ -18,7 +19,7 @@ import { EntityPicker, Tabs,
   useToast,
   type Column,
 } from '../components/ui';
-import { formatJalali, statusLabel, badgeKind, toPersianDigits } from '../lib/format';
+import { formatJalali, statusLabel, badgeKind, toPersianDigits, toEnglishDigits } from '../lib/format';
 
 interface LeaveReq {
   id: string;
@@ -33,20 +34,22 @@ interface LeaveReq {
 
 export default function Leaves() {
   const toast = useToast();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [tab, setTab] = useState<'requests' | 'balance'>('requests');
   const requests = useList<LeaveReq>('/leaves/requests');
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ leaveTypeId: '', startAt: '', endAt: '', reason: '' });
+  const [form, setForm] = useState({ employeeId: user?.employee?.id ?? '', leaveTypeId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '16:00', reason: '' });
   const [saving, setSaving] = useState(false);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
 
   const canCreate = hasPermission('leaves.create');
   const canApprove = hasPermission('leaves.approve');
 
   const submit = async () => {
+    if (saving) return;
     setSaving(true);
     try {
-      await api.post('/leaves/requests', form);
+      await api.post('/leaves/requests', leavePayload(form));
       toast('success', 'درخواست مرخصی ثبت شد.');
       setCreateOpen(false);
       requests.reload();
@@ -58,12 +61,16 @@ export default function Leaves() {
   };
 
   const decide = async (id: string, decision: 'APPROVE' | 'REJECT') => {
+    if (decidingId) return;
+    setDecidingId(id);
     try {
       await api.post(`/leaves/requests/${id}/decide`, { decision });
       toast('success', decision === 'APPROVE' ? 'مرخصی تأیید شد.' : 'مرخصی رد شد.');
       requests.reload();
     } catch (e) {
       toast('error', apiErrorMessage(e));
+    } finally {
+      setDecidingId(null);
     }
   };
 
@@ -113,8 +120,8 @@ export default function Leaves() {
               rowActions={(r) =>
                 canApprove && (r.status === 'SUBMITTED' || r.status.startsWith('PENDING')) ? (
                   <>
-                    <Button size="sm" variant="success" onClick={() => decide(r.id, 'APPROVE')}>تأیید</Button>
-                    <Button size="sm" variant="danger" onClick={() => decide(r.id, 'REJECT')}>رد</Button>
+                    <Button size="sm" variant="success" disabled={!!decidingId} loading={decidingId === r.id} onClick={() => decide(r.id, 'APPROVE')}>تأیید</Button>
+                    <Button size="sm" variant="danger" disabled={!!decidingId} onClick={() => decide(r.id, 'REJECT')}>رد</Button>
                   </>
                 ) : null
               }
@@ -140,12 +147,15 @@ export default function Leaves() {
         }
       >
         <div className="col" style={{ gap: 14 }}>
+          <Field label="کارمند" required><EntityPicker endpoint="/employees" value={form.employeeId} onValueChange={value => setForm(f => ({ ...f, employeeId: value, leaveTypeId: '' }))} title="انتخاب کارمند" /></Field>
           <Field label="نوع مرخصی" hint="از تنظیمات انواع مرخصی">
-            <EntityPicker value={form.leaveTypeId} onValueChange={(value) => setForm((f) => ({ ...f, leaveTypeId: value }))} endpoint="/leaves/types" title="انتخاب نوع مرخصی" />
+            {form.employeeId && <EntityPicker key={form.employeeId} value={form.leaveTypeId} onValueChange={(value) => setForm((f) => ({ ...f, leaveTypeId: value }))} endpoint={`/leaves/types?employeeId=${encodeURIComponent(form.employeeId)}`} title="انتخاب نوع مرخصی" />}
           </Field>
           <div className="form-grid">
-            <Field label="از (میلادی ISO)" required><Input className="input ltr" value={form.startAt} onChange={(e) => setForm((f) => ({ ...f, startAt: e.target.value }))} placeholder="2026-05-01T08:00" /></Field>
-            <Field label="تا (میلادی ISO)" required><Input className="input ltr" value={form.endAt} onChange={(e) => setForm((f) => ({ ...f, endAt: e.target.value }))} placeholder="2026-05-02T17:00" /></Field>
+            <Field label="تاریخ شروع" required><DatePicker output="iso" value={form.startDate} onValueChange={value => setForm(f => ({ ...f, startDate: value }))} /></Field>
+            <Field label="ساعت شروع تهران" required><Input type="time" className="ltr" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} /></Field>
+            <Field label="تاریخ پایان" required><DatePicker output="iso" value={form.endDate} onValueChange={value => setForm(f => ({ ...f, endDate: value }))} /></Field>
+            <Field label="ساعت پایان تهران" required><Input type="time" className="ltr" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} /></Field>
           </div>
           <Field label="دلیل" required><Textarea value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} /></Field>
         </div>
@@ -155,17 +165,21 @@ export default function Leaves() {
 }
 
 function BalanceTab() {
-  const [employeeId, setEmployeeId] = useState('');
-  const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [balances, setBalances] = useState<any[]>([]);
+  const { user } = useAuth();
+  const [employeeId, setEmployeeId] = useState(user?.employee?.id ?? '');
+  const [year, setYear] = useState(new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric', timeZone: 'Asia/Tehran' }).formatToParts(new Date()).find(part => part.type === 'year')!.value);
+  const [balances, setBalances] = useState<{ leaveType: { name: string }; total: number; used: number; remaining: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
 
   const load = async () => {
+    if (loading) return;
     setLoading(true);
     try {
-      const r = await api.get('/leaves/balance', { params: { employeeId, year } });
-      setBalances(Array.isArray(r?.data?.data) ? r.data.data : r?.data?.data ? [r.data.data] : []);
+      const numericYear = Number(toEnglishDigits(year));
+      if (!employeeId || !Number.isInteger(numericYear) || numericYear < 1300 || numericYear > 1600) throw new Error('کارمند و سال شمسی معتبر را انتخاب کنید.');
+      const r = await api.get('/leaves/balance', { params: { employeeId, year: numericYear } });
+      setBalances(r.data.data.balances);
     } catch (e) {
       toast('error', apiErrorMessage(e));
     } finally {
@@ -176,7 +190,7 @@ function BalanceTab() {
   return (
     <>
       <div className="flex mb" style={{ padding: '14px 14px 0' }}>
-        <Input className="input ltr" placeholder="شناسهٔ نیرو (UUID)" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={{ maxWidth: 320 }} />
+        <EntityPicker endpoint="/employees" value={employeeId} onValueChange={value => { setEmployeeId(value); setBalances([]); }} title="انتخاب کارمند" />
         <Input className="input ltr" placeholder="سال" value={year} onChange={(e) => setYear(e.target.value)} style={{ maxWidth: 110 }} />
         <Button onClick={load} loading={loading}>نمایش مانده</Button>
       </div>
@@ -184,10 +198,10 @@ function BalanceTab() {
         loading={loading}
         rows={balances}
         columns={[
-          { key: 'leaveType', header: 'نوع مرخصی', render: (r: any) => r.leaveType?.name ?? r.leaveTypeName ?? '—' },
-          { key: 'entitled', header: 'سهم سالانه', render: (r: any) => toPersianDigits(r.entitled ?? r.annualEntitlement ?? '—') },
-          { key: 'used', header: 'استفاده‌شده', render: (r: any) => toPersianDigits(r.used ?? '—') },
-          { key: 'remaining', header: 'مانده', render: (r: any) => toPersianDigits(r.remaining ?? r.balance ?? '—') },
+          { key: 'leaveType', header: 'نوع مرخصی', render: r => r.leaveType.name },
+          { key: 'total', header: 'سهم (دقیقه)', render: r => toPersianDigits(r.total) },
+          { key: 'used', header: 'مصرف و رزرو (دقیقه)', render: r => toPersianDigits(r.used) },
+          { key: 'remaining', header: 'مانده (دقیقه)', render: r => toPersianDigits(r.remaining) },
         ]}
         emptyMessage="ابتدا شناسهٔ نیرو را وارد و «نمایش مانده» را بزنید."
       />
