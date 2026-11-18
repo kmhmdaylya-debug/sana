@@ -1,0 +1,36 @@
+{
+  "BlockingRules": [
+    {
+      "Name": "{B5237CB4-A05D-466C-8919-D1AE6C7B15B8}",
+      "DisplayName": "codex_sandbox_offline_block_inbound",
+      "Profile": "Any",
+      "Program": "Any",
+      "Protocol": "Any",
+      "LocalPort": "Any",
+      "Source": "Local"
+    }
+  ],
+  "Profiles": [
+    {
+      "Name": "Domain",
+      "Enabled": 1,
+      "DefaultInboundAction": 0,
+      "AllowInboundRules": 2,
+      "AllowLocalFirewallRules": 2
+    },
+    {
+      "Name": "Private",
+      "Enabled": 1,
+      "DefaultInboundAction": 0,
+      "AllowInboundRules": 2,
+      "AllowLocalFirewallRules": 2
+    },
+    {
+      "Name": "Public",
+      "Enabled": 1,
+      "DefaultInboundAction": 0,
+      "AllowInboundRules": 2,
+      "AllowLocalFirewallRules": 2
+    }
+  ]
+}
