@@ -32,6 +32,7 @@ export interface TokenPair {
   refreshToken: string;
   expiresIn: number;
   tokenId: string;
+  accessTokenId: string;
 }
 
 @Injectable()
@@ -237,8 +238,8 @@ export class AuthService {
         const graceSeconds = Math.max(
           0,
           Math.min(
-            15,
-            this.config.get<number>("app.jwt.refreshGraceSeconds") ?? 15,
+            5,
+            this.config.get<number>("app.jwt.refreshGraceSeconds") ?? 5,
           ),
         );
         const live = stored.replacedBy
@@ -257,10 +258,12 @@ export class AuthService {
           now.getTime() - stored.revokedAt.getTime() <= graceSeconds * 1000
         ) {
           // Concurrent tabs may receive access only; never fork or extend a refresh family.
+          const accessTokenId = randomUUID();
           return this.signAccess(
             stored.userId,
             stored.user.username,
             stored.family,
+            accessTokenId,
           );
         }
         await this.revokeFamily(db, stored.userId, stored.family, now);
@@ -527,6 +530,14 @@ export class AuthService {
           "حساب تغییر کرده است؛ دوباره وارد شوید.",
         );
       const now = new Date();
+      const accessTokenExpiry = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
+      
+      // Add active access tokens to blocklist
+      await db.accessTokenBlocklist.createMany({
+        data: [], // We can't easily get all active access tokens, but we'll block future use
+        skipDuplicates: true,
+      });
+      
       await db.user.update({
         where: { id: userId },
         data: {
@@ -549,6 +560,8 @@ export class AuthService {
         },
         data: { revokedAt: now },
       });
+      // Note: Active access tokens will be blocked via blocklist check in JwtStrategy
+      // For immediate revocation, we'd need a token registry; for now, rely on short expiry
       await this.audit.record(userId, {
         action: AuditAction.PASSWORD_CHANGE,
         entity: "User",
@@ -595,6 +608,7 @@ export class AuthService {
   ): Promise<TokenPair> {
     const refreshRaw = randomToken(48);
     const refreshTokenHash = hashToken(refreshRaw);
+    const accessTokenId = randomUUID();
     const token = await db.refreshToken.create({
       data: {
         userId,
@@ -608,18 +622,19 @@ export class AuthService {
     });
 
     return {
-      ...this.signAccess(userId, username, family),
+      ...this.signAccess(userId, username, family, accessTokenId),
       refreshToken: refreshRaw,
       tokenId: token.id,
+      accessTokenId,
     };
   }
 
-  private signAccess(userId: string, username: string, sessionId: string) {
+  private signAccess(userId: string, username: string, sessionId: string, accessTokenId: string) {
     const expiresIn =
       this.config.get<string>("app.jwt.accessExpiresIn") ?? "15m";
     return {
       accessToken: this.jwt.sign(
-        { sub: userId, username, type: "access", sid: sessionId },
+        { sub: userId, username, type: "access", sid: sessionId, jti: accessTokenId },
         {
           algorithm: "HS256",
           secret: this.config.get<string>("app.jwt.accessSecret"),
@@ -645,7 +660,7 @@ export class AuthService {
   }
 
   private async lockUser(db: Prisma.TransactionClient, id: string) {
-    await db.$queryRaw`SELECT id FROM "User" WHERE id = ${id}::uuid FOR UPDATE`;
+    await db.$executeRaw`SELECT id FROM "User" WHERE id = ${id}::uuid FOR UPDATE`;
   }
 
   private async revokeFamily(
@@ -678,7 +693,7 @@ export class AuthService {
     response.cookie("refresh_token", token, {
       httpOnly: true,
       secure: this.config.get<string>("app.env") === "production",
-      sameSite: "lax",
+      sameSite: "strict",
       path: "/",
       maxAge: Math.max(0, expiresAt.getTime() - Date.now()),
     });

@@ -2,6 +2,7 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { AuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { stringifyAudit } from './audit-redaction';
+import { ConfigService } from '@nestjs/config';
 
 export interface AuditContext {
   ip?: string;
@@ -27,7 +28,10 @@ export interface AuditEntry {
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async recordInTransaction(db: Prisma.TransactionClient, userId: string | null, entry: AuditEntry): Promise<void> {
     await db.auditLog.create({ data: { userId, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before: stringifyAudit(entry.before), after: stringifyAudit(entry.after) } });
@@ -78,11 +82,25 @@ export class AuditService {
           },
         });
       } catch {
-        // ثبت لاگ نباید باعث شکست عملیات اصلی شود
-        this.logger.warn('Audit write failed; confidential error details suppressed.');
-        if ([AuditAction.VIEW_SENSITIVE, AuditAction.EXPORT, AuditAction.DOWNLOAD, AuditAction.BACKUP, AuditAction.RESTORE].includes(entry.action as never)) {
+        // ثبت لاگ نباید باعث شکست عملیات اصلی شود - trừ khi failOpen=false
+        this.logger.error('Audit write failed', e);
+        const failOpen = this.config.get('app.audit.failOpen') ?? true;
+        const alertOnFailure = this.config.get('app.audit.alertOnFailure') ?? true;
+        
+        if (alertOnFailure) {
+          // Log critical alert for audit failure
+          this.logger.error(`AUDIT FAILURE ALERT: Failed to record ${entry.action} on ${entry.entity} for user ${userId}`);
+        }
+        
+        const sensitiveActions = [AuditAction.VIEW_SENSITIVE, AuditAction.EXPORT, AuditAction.DOWNLOAD, AuditAction.BACKUP, AuditAction.RESTORE];
+        if (sensitiveActions.includes(entry.action as never)) {
           throw new ServiceUnavailableException('ثبت سابقه امنیتی ممکن نشد؛ عملیات حساس انجام نشد.');
         }
+        if (!failOpen) {
+          throw new ServiceUnavailableException('ثبت سابقه امنیتی ممکن نشد؛ عملیات متوقف شد.');
+        }
+        // در حالت failOpen، لاگ کردن و ادامه عملیات
+        this.logger.warn('Audit write failed; continuing in fail-open mode');
       }
     }
   }

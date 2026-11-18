@@ -15,7 +15,7 @@ export interface Column<T> {
 const collator = new Intl.Collator('fa', { numeric: true, sensitivity: 'base' });
 export function DataTable<T extends Record<string, any>>({ columns, rows, loading, error, onRetry, emptyMessage = 'موردی برای نمایش وجود ندارد.', rowActions, rowClassName }: {
   columns: Column<T>[]; rows: T[]; loading?: boolean; error?: string; onRetry?: () => void;
-  emptyMessage?: string; rowActions?: (row: T) => ReactNode;
+  emptyMessage?: string; rowActions?: (row: T) => ReactNode | undefined;
   rowClassName?: (row: T) => string;
 }) {
   const [sort, setSort] = useState<{ key: string; direction: 1 | -1 } | null>(null);
@@ -44,7 +44,7 @@ export function DataTable<T extends Record<string, any>>({ columns, rows, loadin
           {c.description && <span id={`${c.key}-desc`} className="sr-only">{c.description}</span>}
         </th>;
       })}{rowActions && <th scope="col" className="table-action-heading">عملیات</th>}</tr></thead>
-      <tbody>{ordered.map((row, idx) => <tr key={row.id ?? idx} className={rowClassName?.(row)} role="row">{columns.map(c => <td key={c.key} data-label={c.header}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>)}{rowActions && <td><div className="table-actions">{rowActions(row)}</div></td>}</tr>)}</tbody>
+      <tbody>{ordered.map((row, idx) => <tr key={row['id'] ?? idx} className={rowClassName?.(row)} role="row">{columns.map(c => <td key={c.key} data-label={c.header}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>)}{rowActions && <td><div className="table-actions">{rowActions(row)}</div></td>}</tr>)}</tbody>
     </table>
   </div>;
 }

@@ -2,8 +2,11 @@
 -- Description: Add partial unique indexes for soft-delete models to allow re-creation of deleted records
 -- This migration adds partial unique indexes that only apply to non-deleted records (deletedAt IS NULL)
 
--- User: unique username per company among active users
-CREATE UNIQUE INDEX IF NOT EXISTS "User_companyId_username_active_idx" ON "User" ("companyId", "username") WHERE "deletedAt" IS NULL;
+-- User: unique username per company among active users (User has no companyId, so only username)
+CREATE UNIQUE INDEX IF NOT EXISTS "User_username_active_idx" ON "User" ("username") WHERE "deletedAt" IS NULL;
+
+-- User: unique email among active users
+CREATE UNIQUE INDEX IF NOT EXISTS "User_email_active_idx" ON "User" ("email") WHERE "deletedAt" IS NULL;
 
 -- Employee: unique code per company among active employees
 CREATE UNIQUE INDEX IF NOT EXISTS "Employee_companyId_code_active_idx" ON "Employee" ("companyId", "code") WHERE "deletedAt" IS NULL;
@@ -65,9 +68,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS "EvaluationForm_companyId_name_active_idx" ON 
 -- EvaluationCycle: unique name per company among active evaluation cycles
 CREATE UNIQUE INDEX IF NOT EXISTS "EvaluationCycle_companyId_name_active_idx" ON "EvaluationCycle" ("companyId", "name") WHERE "deletedAt" IS NULL;
 
--- TrainingCourse: unique code per company among active training courses
-CREATE UNIQUE INDEX IF NOT EXISTS "TrainingCourse_companyId_code_active_idx" ON "TrainingCourse" ("companyId", "code") WHERE "deletedAt" IS NULL;
-
 -- Certificate: unique name per employee among active certificates
 CREATE UNIQUE INDEX IF NOT EXISTS "Certificate_employeeId_name_active_idx" ON "Certificate" ("employeeId", "name") WHERE "deletedAt" IS NULL;
 
@@ -89,13 +89,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Meeting_companyId_title_active_idx" ON "Meeti
 -- Survey: unique title per company among active surveys
 CREATE UNIQUE INDEX IF NOT EXISTS "Survey_companyId_title_active_idx" ON "Survey" ("companyId", "title") WHERE "deletedAt" IS NULL;
 
--- Role: unique code among active roles
+-- Role: unique code among active roles (no companyId)
 CREATE UNIQUE INDEX IF NOT EXISTS "Role_code_active_idx" ON "Role" ("code") WHERE "deletedAt" IS NULL;
 
--- Permission: unique code among active permissions
+-- Permission: unique code among active permissions (no companyId)
 CREATE UNIQUE INDEX IF NOT EXISTS "Permission_code_active_idx" ON "Permission" ("code") WHERE "deletedAt" IS NULL;
 
--- User: unique email among active users
+-- User: unique email among active users (no companyId)
 CREATE UNIQUE INDEX IF NOT EXISTS "User_email_active_idx" ON "User" ("email") WHERE "deletedAt" IS NULL;
 
 -- Drop old unique constraints that don't have the WHERE clause

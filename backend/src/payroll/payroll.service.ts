@@ -96,6 +96,12 @@ export class PayrollService {
 
   async listComponents(query: PayComponentQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const allowed = await this.allowedCompanyIds(user);
+    
+    // Validate query.companyId if provided
+    if (query.companyId && allowed !== null && !allowed.includes(query.companyId)) {
+      throw new ForbiddenException('به این شرکت دسترسی ندارید.');
+    }
+    
     const where: Prisma.PayComponentWhereInput = {
       AND: [allowed === null ? {} : { companyId: { in: allowed } }],
       ...(query.companyId ? { companyId: query.companyId } : {}),
@@ -401,6 +407,12 @@ export class PayrollService {
 
   async listPeriods(query: PayrollPeriodQueryDto, pagination: PaginationDto, user: AuthenticatedUser) {
     const allowed = await this.allowedCompanyIds(user);
+    
+    // Validate query.companyId if provided
+    if (query.companyId && allowed !== null && !allowed.includes(query.companyId)) {
+      throw new ForbiddenException('به این شرکت دسترسی ندارید.');
+    }
+    
     const where: Prisma.PayrollPeriodWhereInput = {
       AND: [allowed === null ? {} : { companyId: { in: allowed } }],
       ...(query.companyId ? { companyId: query.companyId } : {}),

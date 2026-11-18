@@ -29,7 +29,9 @@ export function Modal({ open, title, onClose, children, footer, width }: {
       if (e.key !== 'Tab') return;
       const items = controls();
       if (!items.length) { e.preventDefault(); dialog.current?.focus(); return; }
-      const start = items[0], end = items[items.length - 1];
+      const start = items[0];
+      const end = items[items.length - 1];
+      if (!start || !end) return;
       if (e.shiftKey && (document.activeElement === start || document.activeElement === dialog.current)) { e.preventDefault(); end.focus(); }
       else if (!e.shiftKey && (document.activeElement === end || document.activeElement === dialog.current)) { e.preventDefault(); start.focus(); }
     };

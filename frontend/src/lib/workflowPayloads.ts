@@ -9,11 +9,11 @@ export function tehranDateTime(date: string, time: string): string {
   let instant = naive;
   for (let i = 0; i < 3; i += 1) {
     const parts = Object.fromEntries(formatter.formatToParts(instant).map(part => [part.type, part.value]));
-    const displayed = Date.parse(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
+    const displayed = Date.parse(`${parts['year']}-${parts['month']}-${parts['day']}T${parts['hour']}:${parts['minute']}:${parts['second']}Z`);
     instant += naive - displayed;
   }
   const parts = Object.fromEntries(formatter.formatToParts(instant).map(part => [part.type, part.value]));
-  if (`${parts.year}-${parts.month}-${parts.day}` !== day || `${parts.hour}:${parts.minute}` !== clock) throw new Error('این ساعت در منطقه زمانی تهران معتبر نیست.');
+  if (`${parts['year']}-${parts['month']}-${parts['day']}` !== day || `${parts['hour']}:${parts['minute']}` !== clock) throw new Error('این ساعت در منطقه زمانی تهران معتبر نیست.');
   return new Date(instant).toISOString();
 }
 

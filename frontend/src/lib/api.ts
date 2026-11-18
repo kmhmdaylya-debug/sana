@@ -114,7 +114,7 @@ function saveReportResponse(res: { data: BlobPart; headers: Record<string, unkno
   let name = fallbackName;
   if (disposition) {
     const match = /filename\*?=(?:UTF-8'')?"?([^;"]+)"?/i.exec(disposition);
-    if (match) {
+    if (match && match[1]) {
       try {
         name = decodeURIComponent(match[1]);
       } catch {

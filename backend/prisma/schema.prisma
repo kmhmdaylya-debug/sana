@@ -2928,3 +2928,11 @@ model WebhookDelivery {
 
   webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 }
+
+model AccessTokenBlocklist {
+  tokenId   String   @id @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

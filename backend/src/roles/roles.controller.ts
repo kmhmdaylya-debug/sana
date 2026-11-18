@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { RolesService } from './roles.service';
 import { CreateRoleDto, UpdateRoleDto } from './dto/roles.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
@@ -8,6 +9,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 import { IdParamDto } from '../common/dto/common.dto';
 
 @ApiTags('roles')
+@Throttle({ default: { limit: 20, ttl: 60000 } })
 @Controller('roles')
 export class RolesController {
   constructor(private readonly service: RolesService) {}

@@ -21,9 +21,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}
       POSTGRES_DB: sana_hrms
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
-    # فقط روی میزبان محلی در دسترس است
-    ports:
-      - "127.0.0.1:5433:5432"
+    # پایگاه داده فقط در شبکه داخلی در دسترس است (پورت روی میزبان باز نمی‌شود)
+    expose:
+      - "5432"
     volumes:
       - sana-pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -31,6 +31,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   backend:
     build: ./backend
@@ -46,13 +54,15 @@ services:
       DATABASE_URL: postgresql://sana:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}@db:5432/sana_hrms?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET را تنظیم کنید}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET را تنظیم کنید}
-      JWT_REFRESH_GRACE_SECONDS: 15
+      JWT_REFRESH_GRACE_SECONDS: 5
       BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY را تنظیم کنید}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD را تنظیم کنید}
       SEED_DEMO_DATA: "false"
-      SWAGGER_ENABLED: "true"
-      CORS_ORIGINS: http://localhost:8080
+      SWAGGER_ENABLED: "false"
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS را تنظیم کنید}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1}
+      TZ: ${TZ:-Asia/Tehran}
     # فقط از طریق nginx (فرانت) در دسترس است؛ پورت API روی میزبان باز نمی‌شود
     expose:
       - "4114"
@@ -60,22 +70,60 @@ services:
       - sana-backups:/app/backups
       - sana-uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4114/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4114/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 30s
     command: sh -c "npx prisma migrate deploy && node dist/main.js"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
   frontend:
     build: ./frontend
     container_name: sana-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_started
     ports:
       - "8080:80"
     # nginx داخل کانتینر، /api را به backend پراکسی می‌کند
+    environment:
+      TZ: ${TZ:-Asia/Tehran}
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Reverse proxy برای TLS termination (اختیاری - در تولید با Nginx/Traefik/Caddy جایگزین شود)
+  # proxy:
+  #   image: nginx:alpine
+  #   container_name: sana-proxy
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - frontend
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./proxy/certs:/etc/nginx/certs:ro
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 128M
 
 volumes:
   sana-pgdata:

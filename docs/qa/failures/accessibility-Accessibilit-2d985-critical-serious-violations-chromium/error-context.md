@@ -1,0 +1,3464 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: accessibility.spec.ts >> Accessibility Audit (axe) >> Tasks (/tasks) - no critical/serious violations
+- Location: tests\e2e\accessibility.spec.ts:53:5
+
+# Error details
+
+```
+Test timeout of 120000ms exceeded.
+```
+
+```
+Error: page.evaluate: Test timeout of 120000ms exceeded.
+ Please check out https://github.com/dequelabs/axe-core-npm/blob/develop/packages/playwright/error-handling.md
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "رفتن به محتوای اصلی" [ref=e4] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary "منوی اصلی" [ref=e5]:
+      - navigation "بخش‌های سامانه" [ref=e7]:
+        - generic [ref=e9]:
+          - link "داشبورد" [ref=e10] [cursor=pointer]:
+            - /url: /
+          - link "صندوق تأییدها" [ref=e17] [cursor=pointer]:
+            - /url: /approvals
+        - generic [ref=e24]:
+          - link "کاربران و پرسنل" [ref=e25] [cursor=pointer]:
+            - /url: /users
+          - link "قراردادها" [ref=e32] [cursor=pointer]:
+            - /url: /contracts
+          - link "مدارک پرسنلی" [ref=e37] [cursor=pointer]:
+            - /url: /documents
+          - link "حضور و غیاب" [ref=e41] [cursor=pointer]:
+            - /url: /attendance
+          - link "شیفت‌ها" [ref=e46] [cursor=pointer]:
+            - /url: /shifts
+          - link "مرخصی‌ها" [ref=e50] [cursor=pointer]:
+            - /url: /leaves
+          - link "مأموریت‌ها" [ref=e54] [cursor=pointer]:
+            - /url: /missions
+          - link "حقوق و دستمزد" [ref=e59] [cursor=pointer]:
+            - /url: /payroll
+          - link "ارزیابی عملکرد" [ref=e64] [cursor=pointer]:
+            - /url: /evaluations
+        - generic [ref=e70]:
+          - link "task" [ref=e71] [cursor=pointer]:
+            - /url: /tasks
+          - link "پروژه‌ها و گانت" [ref=e76] [cursor=pointer]:
+            - /url: /projects
+          - link "دارایی‌ها" [ref=e80] [cursor=pointer]:
+            - /url: /assets
+          - link "آموزش و گواهینامه" [ref=e92] [cursor=pointer]:
+            - /url: /training
+          - link "وام و مزایا" [ref=e97] [cursor=pointer]:
+            - /url: /loans
+        - generic [ref=e106]:
+          - link "استخدام" [ref=e107] [cursor=pointer]:
+            - /url: /recruitment
+          - link "ورود و خروج نیرو" [ref=e112] [cursor=pointer]:
+            - /url: /lifecycle
+        - generic [ref=e119]:
+          - link "مکاتبات و جلسات" [ref=e120] [cursor=pointer]:
+            - /url: /admin
+          - link "اعلامیه‌ها" [ref=e125] [cursor=pointer]:
+            - /url: /announcements
+          - link "اعلان‌های من" [ref=e130] [cursor=pointer]:
+            - /url: /notifications
+        - generic [ref=e136]:
+          - link "گزارش‌ها" [ref=e137] [cursor=pointer]:
+            - /url: /reports
+          - link "نقش‌ها و مجوزها" [ref=e142] [cursor=pointer]:
+            - /url: /roles
+          - link "ساختار سازمانی" [ref=e147] [cursor=pointer]:
+            - /url: /org
+          - link "لاگ ممیزی" [ref=e153] [cursor=pointer]:
+            - /url: /audit
+          - link "تنظیمات" [ref=e158] [cursor=pointer]:
+            - /url: /settings
+          - link "پشتیبان‌گیری" [ref=e163] [cursor=pointer]:
+            - /url: /backup
+      - generic [ref=e167]:
+        - button "باز کردن منو" [ref=e168] [cursor=pointer]
+        - generic [ref=e172]: مس
+    - generic [ref=e174]:
+      - banner [ref=e175]:
+        - button "جست‌وجوی سراسری" [ref=e176] [cursor=pointer]:
+          - generic [ref=e180]: جست‌وجو در سنا
+        - generic [ref=e181]:
+          - generic [ref=e182]: ۱۴۰۵ آبان ۲۷, چهارشنبه
+          - time [ref=e185]:
+            - generic [ref=e189]: ۰۳:۲۹:۳۳
+        - generic [ref=e190]:
+          - button "تغییر گذرواژهٔ من" [ref=e191] [cursor=pointer]
+          - button "اعلان‌ها" [ref=e195] [cursor=pointer]:
+            - generic [ref=e199]: ۱۹
+          - button "فعال کردن تم روشن" [ref=e200] [cursor=pointer]
+          - group [ref=e207]:
+            - generic "حساب کاربری" [ref=e208] [cursor=pointer]:
+              - generic [ref=e209]: مس
+              - generic [ref=e210]:
+                - strong [ref=e211]: مدیر سیستم
+                - generic [ref=e212]: مدیر سیستم
+      - main [ref=e215]:
+        - generic [ref=e216]:
+          - heading "کارهای تیم" [level=1] [ref=e218]
+          - button "واگذاری کار" [ref=e220] [cursor=pointer]
+        - group "خلاصه کارهای تیم" [ref=e222]:
+          - button "۳۴۹ کارهای باز" [pressed] [ref=e223] [cursor=pointer]:
+            - generic [ref=e227]:
+              - strong [ref=e228]: ۳۴۹
+              - generic [ref=e229]: کارهای باز
+          - button "۱۲۴ در حال انجام" [ref=e230] [cursor=pointer]:
+            - generic [ref=e234]:
+              - strong [ref=e235]: ۱۲۴
+              - generic [ref=e236]: در حال انجام
+          - button "۰ دارای مشکل" [ref=e237] [cursor=pointer]:
+            - generic [ref=e240]:
+              - strong [ref=e241]: ۰
+              - generic [ref=e242]: دارای مشکل
+          - button "۱۳۷ انجام‌شده" [ref=e243] [cursor=pointer]:
+            - generic [ref=e247]:
+              - strong [ref=e248]: ۱۳۷
+              - generic [ref=e249]: انجام‌شده
+        - generic [ref=e250]:
+          - combobox "وضعیت کارها" [ref=e251]:
+            - option "کارهای باز" [selected]
+            - option "همه کارها"
+            - option "شروع نشده (۱۲۸)"
+            - option "در حال انجام (۱۲۴)"
+            - option "انجام نشد (۰)"
+            - option "انجام‌شده (۱۳۷)"
+            - option "لغوشده (۱۲۸)"
+          - combobox "دسته‌بندی کارها" [ref=e252]:
+            - option "همهٔ دسته‌ها" [selected]
+            - option "طراحی"
+            - option "توسعه"
+            - option "محتوا"
+            - option "پشتیبانی"
+            - option "عملیات"
+            - option "عمومی"
+          - generic [ref=e253]: ۳۴۹ کار
+          - button "تازه‌سازی کارها" [ref=e254] [cursor=pointer]
+          - link "ویرایش task" [ref=e260] [cursor=pointer]:
+            - /url: /tasks
+        - generic [ref=e261]:
+          - article [ref=e262]:
+            - generic [ref=e263]:
+              - heading "Artificiose truculenter dolore blandior vigor explicabo ait amor." [level=3] [ref=e270]
+              - generic [ref=e271]: در حال انجام
+            - generic [ref=e272]:
+              - generic [ref=e273]: Cassidy Heathcote
+              - generic [ref=e277]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e278]:
+              - generic "جزئیات و تاریخچه" [ref=e279] [cursor=pointer]
+          - article [ref=e282]:
+            - generic [ref=e283]:
+              - heading "Voluptatum tenetur tenus temeritas conculco aetas stips." [level=3] [ref=e286]
+              - generic [ref=e287]: شروع نشده
+            - generic [ref=e288]:
+              - generic [ref=e289]: Baron Lindgren
+              - generic [ref=e293]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e294]:
+              - generic "جزئیات و تاریخچه" [ref=e295] [cursor=pointer]
+          - article [ref=e298]:
+            - generic [ref=e299]:
+              - heading "Depopulo demum toties quae." [level=3] [ref=e302]
+              - generic [ref=e303]: IN_REVIEW
+            - generic [ref=e304]:
+              - generic [ref=e305]: Pattie Dietrich
+              - generic [ref=e309]: "مهلت: ۱۴۰۵/۰۹/۰۲"
+            - group [ref=e310]:
+              - generic "جزئیات و تاریخچه" [ref=e311] [cursor=pointer]
+          - article [ref=e314]:
+            - generic [ref=e315]:
+              - heading "Itaque beatus ex complectus deleniti urbanus artificiose." [level=3] [ref=e318]
+              - generic [ref=e319]: شروع نشده
+            - generic [ref=e320]:
+              - generic [ref=e321]: Broderick Kirlin
+              - generic [ref=e325]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e326]:
+              - generic "جزئیات و تاریخچه" [ref=e327] [cursor=pointer]
+          - article [ref=e330]:
+            - generic [ref=e331]:
+              - heading "Ante veritatis caries possimus." [level=3] [ref=e338]
+              - generic [ref=e339]: در حال انجام
+            - generic [ref=e340]:
+              - generic [ref=e341]: Chanel Haag
+              - generic [ref=e345]: "مهلت: ۱۴۰۵/۱۰/۲۱"
+            - group [ref=e346]:
+              - generic "جزئیات و تاریخچه" [ref=e347] [cursor=pointer]
+          - article [ref=e350]:
+            - generic [ref=e351]:
+              - heading "Beatae terminatio culpa cruciamentum sed tumultus quaerat." [level=3] [ref=e354]
+              - generic [ref=e355]: IN_REVIEW
+            - generic [ref=e356]:
+              - generic [ref=e357]: Joe McDermott
+              - generic [ref=e361]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e362]:
+              - generic "جزئیات و تاریخچه" [ref=e363] [cursor=pointer]
+          - article [ref=e366]:
+            - generic [ref=e367]:
+              - heading "Comparo cultellus sufficio defungo alius adeptio." [level=3] [ref=e370]
+              - generic [ref=e371]: IN_REVIEW
+            - generic [ref=e372]:
+              - generic [ref=e373]: Esteban Langworth
+              - generic [ref=e377]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e378]:
+              - generic "جزئیات و تاریخچه" [ref=e379] [cursor=pointer]
+          - article [ref=e382]:
+            - generic [ref=e383]:
+              - heading "Amet amo truculenter aspicio sponte timidus." [level=3] [ref=e386]
+              - generic [ref=e387]: IN_REVIEW
+            - generic [ref=e388]:
+              - generic [ref=e389]: Toney Fadel
+              - generic [ref=e393]: "مهلت: ۱۴۰۵/۱۰/۱۹"
+            - group [ref=e394]:
+              - generic "جزئیات و تاریخچه" [ref=e395] [cursor=pointer]
+          - article [ref=e398]:
+            - generic [ref=e399]:
+              - heading "Calamitas tertius aegrus statim ascit accusantium sopor." [level=3] [ref=e402]
+              - generic [ref=e403]: شروع نشده
+            - generic [ref=e404]:
+              - generic [ref=e405]: Rachelle Crooks
+              - generic [ref=e409]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e410]:
+              - generic "جزئیات و تاریخچه" [ref=e411] [cursor=pointer]
+          - article [ref=e414]:
+            - generic [ref=e415]:
+              - heading "Vilitas colo cupressus sollicito." [level=3] [ref=e418]
+              - generic [ref=e419]: شروع نشده
+            - generic [ref=e420]:
+              - generic [ref=e421]: Michale King
+              - generic [ref=e425]: "مهلت: ۱۴۰۵/۰۹/۰۶"
+            - group [ref=e426]:
+              - generic "جزئیات و تاریخچه" [ref=e427] [cursor=pointer]
+          - article [ref=e430]:
+            - generic [ref=e431]:
+              - heading "Auctor decet alias porro absque." [level=3] [ref=e438]
+              - generic [ref=e439]: در حال انجام
+            - generic [ref=e440]:
+              - generic [ref=e441]: Tessie Emard
+              - generic [ref=e445]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e446]:
+              - generic "جزئیات و تاریخچه" [ref=e447] [cursor=pointer]
+          - article [ref=e450]:
+            - generic [ref=e451]:
+              - heading "Fugiat adaugeo constans auctus aqua abduco angulus magni." [level=3] [ref=e454]
+              - generic [ref=e455]: شروع نشده
+            - generic [ref=e456]:
+              - generic [ref=e457]: Jennyfer Crist
+              - generic [ref=e461]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e462]:
+              - generic "جزئیات و تاریخچه" [ref=e463] [cursor=pointer]
+          - article [ref=e466]:
+            - generic [ref=e467]:
+              - heading "Aggero adiuvo summopere vulnus teres tum." [level=3] [ref=e470]
+              - generic [ref=e471]: IN_REVIEW
+            - generic [ref=e472]:
+              - generic [ref=e473]: Imogene Nitzsche
+              - generic [ref=e477]: "مهلت: ۱۴۰۵/۰۹/۲۷"
+            - group [ref=e478]:
+              - generic "جزئیات و تاریخچه" [ref=e479] [cursor=pointer]
+          - article [ref=e482]:
+            - generic [ref=e483]:
+              - heading "Assentator vita pecus causa catena caritas considero." [level=3] [ref=e486]
+              - generic [ref=e487]: شروع نشده
+            - generic [ref=e488]:
+              - generic [ref=e489]: Yasmine Cummerata
+              - generic [ref=e493]: "مهلت: ۱۴۰۵/۰۹/۲۹"
+            - group [ref=e494]:
+              - generic "جزئیات و تاریخچه" [ref=e495] [cursor=pointer]
+          - article [ref=e498]:
+            - generic [ref=e499]:
+              - heading "Dicta chirographum votum ullam timidus." [level=3] [ref=e502]
+              - generic [ref=e503]: شروع نشده
+            - generic [ref=e504]:
+              - generic [ref=e505]: Javier Watsica
+              - generic [ref=e509]: "مهلت: ۱۴۰۵/۱۰/۱۶"
+            - group [ref=e510]:
+              - generic "جزئیات و تاریخچه" [ref=e511] [cursor=pointer]
+          - article [ref=e514]:
+            - generic [ref=e515]:
+              - heading "Pecus corrigo circumvenio tandem patruus." [level=3] [ref=e518]
+              - generic [ref=e519]: IN_REVIEW
+            - generic [ref=e520]:
+              - generic [ref=e521]: Loy Greenfelder
+              - generic [ref=e525]: "مهلت: ۱۴۰۵/۰۸/۲۷"
+              - generic [ref=e526]: مهلت تمام شد
+            - group [ref=e532]:
+              - generic "جزئیات و تاریخچه" [ref=e533] [cursor=pointer]
+          - article [ref=e536]:
+            - generic [ref=e537]:
+              - heading "Perspiciatis sub beatus pectus angulus thalassinus torqueo ascisco." [level=3] [ref=e540]
+              - generic [ref=e541]: شروع نشده
+            - generic [ref=e542]:
+              - generic [ref=e543]: Jerrod Macejkovic
+              - generic [ref=e547]: "مهلت: ۱۴۰۵/۰۹/۱۸"
+            - group [ref=e548]:
+              - generic "جزئیات و تاریخچه" [ref=e549] [cursor=pointer]
+          - article [ref=e552]:
+            - generic [ref=e553]:
+              - heading "Aptus universe creator numquam utilis vox adsidue." [level=3] [ref=e560]
+              - generic [ref=e561]: در حال انجام
+            - generic [ref=e562]:
+              - generic [ref=e563]: Janelle Bahringer
+              - generic [ref=e567]: "مهلت: ۱۴۰۵/۰۹/۲۱"
+            - group [ref=e568]:
+              - generic "جزئیات و تاریخچه" [ref=e569] [cursor=pointer]
+          - article [ref=e572]:
+            - generic [ref=e573]:
+              - heading "Tonsor curiositas sint tepidus complectus collum strues vita." [level=3] [ref=e576]
+              - generic [ref=e577]: IN_REVIEW
+            - generic [ref=e578]:
+              - generic [ref=e579]: Gavin Weimann
+              - generic [ref=e583]: "مهلت: ۱۴۰۵/۱۰/۰۹"
+            - group [ref=e584]:
+              - generic "جزئیات و تاریخچه" [ref=e585] [cursor=pointer]
+          - article [ref=e588]:
+            - generic [ref=e589]:
+              - heading "Cunctatio nobis vulticulus titulus carpo bellum." [level=3] [ref=e592]
+              - generic [ref=e593]: IN_REVIEW
+            - generic [ref=e594]:
+              - generic [ref=e595]: Dimitri Gibson
+              - generic [ref=e599]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e600]:
+              - generic "جزئیات و تاریخچه" [ref=e601] [cursor=pointer]
+          - article [ref=e604]:
+            - generic [ref=e605]:
+              - heading "Amplexus depromo certus universe." [level=3] [ref=e608]
+              - generic [ref=e609]: شروع نشده
+            - generic [ref=e610]:
+              - generic [ref=e611]: Jillian Prosacco
+              - generic [ref=e615]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e616]:
+              - generic "جزئیات و تاریخچه" [ref=e617] [cursor=pointer]
+          - article [ref=e620]:
+            - generic [ref=e621]:
+              - heading "Aperiam temeritas cribro clamo." [level=3] [ref=e628]
+              - generic [ref=e629]: در حال انجام
+            - generic [ref=e630]:
+              - generic [ref=e631]: Hiram Conn-Lueilwitz
+              - generic [ref=e635]: "مهلت: ۱۴۰۵/۰۹/۱۸"
+            - group [ref=e636]:
+              - generic "جزئیات و تاریخچه" [ref=e637] [cursor=pointer]
+          - article [ref=e640]:
+            - generic [ref=e641]:
+              - heading "Aut stipes decumbo sophismata tener adficio cur adsuesco." [level=3] [ref=e644]
+              - generic [ref=e645]: شروع نشده
+            - generic [ref=e646]:
+              - generic [ref=e647]: Brody Veum
+              - generic [ref=e651]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e652]:
+              - generic "جزئیات و تاریخچه" [ref=e653] [cursor=pointer]
+          - article [ref=e656]:
+            - generic [ref=e657]:
+              - heading "Tepidus ullus asper sapiente adimpleo vivo consequatur." [level=3] [ref=e660]
+              - generic [ref=e661]: شروع نشده
+            - generic [ref=e662]:
+              - generic [ref=e663]: Mazie Kemmer
+              - generic [ref=e667]: "مهلت: ۱۴۰۵/۰۹/۰۸"
+            - group [ref=e668]:
+              - generic "جزئیات و تاریخچه" [ref=e669] [cursor=pointer]
+          - article [ref=e672]:
+            - generic [ref=e673]:
+              - heading "Corpus terreo ancilla animadverto dedecor." [level=3] [ref=e676]
+              - generic [ref=e677]: IN_REVIEW
+            - generic [ref=e678]:
+              - generic [ref=e679]: Josiah Schowalter
+              - generic [ref=e683]: "مهلت: ۱۴۰۵/۰۸/۲۸"
+              - generic [ref=e684]:
+                - timer "۲۰ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e688]: ۲۰:۳۰:۲۷
+                - generic [aria-hidden] [ref=e689]: باقی‌مانده
+            - group [ref=e690]:
+              - generic "جزئیات و تاریخچه" [ref=e691] [cursor=pointer]
+          - article [ref=e694]:
+            - generic [ref=e695]:
+              - heading "Collum adstringo volutabrum claustrum derelinquo stabilis adhuc." [level=3] [ref=e698]
+              - generic [ref=e699]: شروع نشده
+            - generic [ref=e700]:
+              - generic [ref=e701]: Austin Gorczany
+              - generic [ref=e705]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e706]:
+              - generic "جزئیات و تاریخچه" [ref=e707] [cursor=pointer]
+          - article [ref=e710]:
+            - generic [ref=e711]:
+              - heading "Arguo canto arma repudiandae ventosus." [level=3] [ref=e714]
+              - generic [ref=e715]: شروع نشده
+            - generic [ref=e716]:
+              - generic [ref=e717]: Keenan Schuppe
+              - generic [ref=e721]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e722]:
+              - generic "جزئیات و تاریخچه" [ref=e723] [cursor=pointer]
+          - article [ref=e726]:
+            - generic [ref=e727]:
+              - heading "Atqui creber eos beatae molestias deinde comis." [level=3] [ref=e734]
+              - generic [ref=e735]: در حال انجام
+            - generic [ref=e736]:
+              - generic [ref=e737]: Rowland Lakin
+              - generic [ref=e741]: "مهلت: ۱۴۰۵/۰۹/۲۵"
+            - group [ref=e742]:
+              - generic "جزئیات و تاریخچه" [ref=e743] [cursor=pointer]
+          - article [ref=e746]:
+            - generic [ref=e747]:
+              - heading "Magni surculus urbanus crinis capitulus vitiosus virtus cur." [level=3] [ref=e754]
+              - generic [ref=e755]: در حال انجام
+            - generic [ref=e756]:
+              - generic [ref=e757]: Colleen Blanda
+              - generic [ref=e761]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e762]:
+              - generic "جزئیات و تاریخچه" [ref=e763] [cursor=pointer]
+          - article [ref=e766]:
+            - generic [ref=e767]:
+              - heading "Aufero ultra tero suppellex bos harum caute." [level=3] [ref=e774]
+              - generic [ref=e775]: در حال انجام
+            - generic [ref=e776]:
+              - generic [ref=e777]: Dayana Ondricka
+              - generic [ref=e781]: "مهلت: ۱۴۰۵/۰۹/۰۸"
+            - group [ref=e782]:
+              - generic "جزئیات و تاریخچه" [ref=e783] [cursor=pointer]
+          - article [ref=e786]:
+            - generic [ref=e787]:
+              - heading "Astrum explicabo conscendo amicitia alienus ascisco curvo." [level=3] [ref=e790]
+              - generic [ref=e791]: شروع نشده
+            - generic [ref=e792]:
+              - generic [ref=e793]: Tomasa Beier
+              - generic [ref=e797]: "مهلت: ۱۴۰۵/۱۰/۱۶"
+            - group [ref=e798]:
+              - generic "جزئیات و تاریخچه" [ref=e799] [cursor=pointer]
+          - article [ref=e802]:
+            - generic [ref=e803]:
+              - heading "Tenetur antea copiose bis venio." [level=3] [ref=e806]
+              - generic [ref=e807]: شروع نشده
+            - generic [ref=e808]:
+              - generic [ref=e809]: Orion Miller
+              - generic [ref=e813]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e814]:
+              - generic "جزئیات و تاریخچه" [ref=e815] [cursor=pointer]
+          - article [ref=e818]:
+            - generic [ref=e819]:
+              - heading "Clamo blanditiis delego custodia bellicus argumentum summisse." [level=3] [ref=e822]
+              - generic [ref=e823]: IN_REVIEW
+            - generic [ref=e824]:
+              - generic [ref=e825]: Declan Kuphal
+              - generic [ref=e829]: "مهلت: ۱۴۰۵/۰۹/۰۶"
+            - group [ref=e830]:
+              - generic "جزئیات و تاریخچه" [ref=e831] [cursor=pointer]
+          - article [ref=e834]:
+            - generic [ref=e835]:
+              - heading "Somnus depereo amita angustus conservo utrimque officia." [level=3] [ref=e842]
+              - generic [ref=e843]: در حال انجام
+            - generic [ref=e844]:
+              - generic [ref=e845]: Edgardo Funk
+              - generic [ref=e849]: "مهلت: ۱۴۰۵/۰۹/۱۱"
+            - group [ref=e850]:
+              - generic "جزئیات و تاریخچه" [ref=e851] [cursor=pointer]
+          - article [ref=e854]:
+            - generic [ref=e855]:
+              - heading "Demitto texo terminatio damnatio tam antiquus ipsum ocer." [level=3] [ref=e858]
+              - generic [ref=e859]: شروع نشده
+            - generic [ref=e860]:
+              - generic [ref=e861]: Eli Wuckert
+              - generic [ref=e865]: "مهلت: ۱۴۰۵/۰۹/۲۴"
+            - group [ref=e866]:
+              - generic "جزئیات و تاریخچه" [ref=e867] [cursor=pointer]
+          - article [ref=e870]:
+            - generic [ref=e871]:
+              - heading "Audentia succurro celo utroque cornu tego desparatus." [level=3] [ref=e878]
+              - generic [ref=e879]: در حال انجام
+            - generic [ref=e880]:
+              - generic [ref=e881]: Dusty Moen
+              - generic [ref=e885]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e886]:
+              - generic "جزئیات و تاریخچه" [ref=e887] [cursor=pointer]
+          - article [ref=e890]:
+            - generic [ref=e891]:
+              - heading "Velut adinventitias rerum perspiciatis vel textor utrimque cavus." [level=3] [ref=e894]
+              - generic [ref=e895]: IN_REVIEW
+            - generic [ref=e896]:
+              - generic [ref=e897]: Urban Cole
+              - generic [ref=e901]: "مهلت: ۱۴۰۵/۰۹/۱۴"
+            - group [ref=e902]:
+              - generic "جزئیات و تاریخچه" [ref=e903] [cursor=pointer]
+          - article [ref=e906]:
+            - generic [ref=e907]:
+              - heading "Terebro sulum vinco amplitudo acceptus averto abstergo beneficium." [level=3] [ref=e910]
+              - generic [ref=e911]: IN_REVIEW
+            - generic [ref=e912]:
+              - generic [ref=e913]: Rosalie Nienow
+              - generic [ref=e917]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e918]:
+              - generic "جزئیات و تاریخچه" [ref=e919] [cursor=pointer]
+          - article [ref=e922]:
+            - generic [ref=e923]:
+              - heading "Inflammatio teneo auctor suppellex adhaero." [level=3] [ref=e926]
+              - generic [ref=e927]: IN_REVIEW
+            - generic [ref=e928]:
+              - generic [ref=e929]: Rex Lubowitz
+              - generic [ref=e933]: "مهلت: ۱۴۰۵/۰۹/۱۱"
+            - group [ref=e934]:
+              - generic "جزئیات و تاریخچه" [ref=e935] [cursor=pointer]
+          - article [ref=e938]:
+            - generic [ref=e939]:
+              - heading "Aliquid baiulus possimus quibusdam." [level=3] [ref=e942]
+              - generic [ref=e943]: IN_REVIEW
+            - generic [ref=e944]:
+              - generic [ref=e945]: Jackeline Wilkinson
+              - generic [ref=e949]: "مهلت: ۱۴۰۵/۱۰/۰۵"
+            - group [ref=e950]:
+              - generic "جزئیات و تاریخچه" [ref=e951] [cursor=pointer]
+          - article [ref=e954]:
+            - generic [ref=e955]:
+              - heading "Eius tergo placeat victoria ab vulticulus peior." [level=3] [ref=e958]
+              - generic [ref=e959]: شروع نشده
+            - generic [ref=e960]:
+              - generic [ref=e961]: Jo Anderson
+              - generic [ref=e965]: "مهلت: ۱۴۰۵/۱۰/۱۸"
+            - group [ref=e966]:
+              - generic "جزئیات و تاریخچه" [ref=e967] [cursor=pointer]
+          - article [ref=e970]:
+            - generic [ref=e971]:
+              - heading "Theatrum incidunt quibusdam degusto." [level=3] [ref=e974]
+              - generic [ref=e975]: IN_REVIEW
+            - generic [ref=e976]:
+              - generic [ref=e977]: Samara Gutmann
+              - generic [ref=e981]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e982]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e986]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e987]: باقی‌مانده
+            - group [ref=e988]:
+              - generic "جزئیات و تاریخچه" [ref=e989] [cursor=pointer]
+          - article [ref=e992]:
+            - generic [ref=e993]:
+              - heading "Velum odio caute tardus soluta omnis adhuc." [level=3] [ref=e996]
+              - generic [ref=e997]: شروع نشده
+            - generic [ref=e998]:
+              - generic [ref=e999]: Theodora Labadie
+              - generic [ref=e1003]: "مهلت: ۱۴۰۵/۰۹/۰۶"
+            - group [ref=e1004]:
+              - generic "جزئیات و تاریخچه" [ref=e1005] [cursor=pointer]
+          - article [ref=e1008]:
+            - generic [ref=e1009]:
+              - heading "Theologus civis modi laboriosam via facilis." [level=3] [ref=e1012]
+              - generic [ref=e1013]: شروع نشده
+            - generic [ref=e1014]:
+              - generic [ref=e1015]: Devante Bergnaum
+              - generic [ref=e1019]: "مهلت: ۱۴۰۵/۱۰/۲۴"
+            - group [ref=e1020]:
+              - generic "جزئیات و تاریخچه" [ref=e1021] [cursor=pointer]
+          - article [ref=e1024]:
+            - generic [ref=e1025]:
+              - heading "Vilicus molestiae a arca vespillo minus." [level=3] [ref=e1032]
+              - generic [ref=e1033]: در حال انجام
+            - generic [ref=e1034]:
+              - generic [ref=e1035]: Nels Greenholt
+              - generic [ref=e1039]: "مهلت: ۱۴۰۵/۰۹/۲۱"
+            - group [ref=e1040]:
+              - generic "جزئیات و تاریخچه" [ref=e1041] [cursor=pointer]
+          - article [ref=e1044]:
+            - generic [ref=e1045]:
+              - heading "Comedo deludo sopor aptus." [level=3] [ref=e1048]
+              - generic [ref=e1049]: شروع نشده
+            - generic [ref=e1050]:
+              - generic [ref=e1051]: Edythe Legros
+              - generic [ref=e1055]: "مهلت: ۱۴۰۵/۰۹/۲۲"
+            - group [ref=e1056]:
+              - generic "جزئیات و تاریخچه" [ref=e1057] [cursor=pointer]
+          - article [ref=e1060]:
+            - generic [ref=e1061]:
+              - heading "Suscipit creator utor demens statim arbor amita." [level=3] [ref=e1068]
+              - generic [ref=e1069]: در حال انجام
+            - generic [ref=e1070]:
+              - generic [ref=e1071]: Payton Reichert
+              - generic [ref=e1075]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e1076]:
+              - generic "جزئیات و تاریخچه" [ref=e1077] [cursor=pointer]
+          - article [ref=e1080]:
+            - generic [ref=e1081]:
+              - heading "Terga nobis qui adfero pariatur speciosus alienus." [level=3] [ref=e1084]
+              - generic [ref=e1085]: شروع نشده
+            - generic [ref=e1086]:
+              - generic [ref=e1087]: Alton Romaguera
+              - generic [ref=e1091]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e1092]:
+              - generic "جزئیات و تاریخچه" [ref=e1093] [cursor=pointer]
+          - article [ref=e1096]:
+            - generic [ref=e1097]:
+              - heading "Demoror tener canis decet tantum aperiam." [level=3] [ref=e1100]
+              - generic [ref=e1101]: IN_REVIEW
+            - generic [ref=e1102]:
+              - generic [ref=e1103]: Jerrold Labadie
+              - generic [ref=e1107]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e1108]:
+              - generic "جزئیات و تاریخچه" [ref=e1109] [cursor=pointer]
+          - article [ref=e1112]:
+            - generic [ref=e1113]:
+              - heading "Ocer corrumpo viduo minima alienus arcus damnatio deinde." [level=3] [ref=e1120]
+              - generic [ref=e1121]: در حال انجام
+            - generic [ref=e1122]:
+              - generic [ref=e1123]: Casper Dare
+              - generic [ref=e1127]: "مهلت: ۱۴۰۵/۱۰/۲۴"
+            - group [ref=e1128]:
+              - generic "جزئیات و تاریخچه" [ref=e1129] [cursor=pointer]
+          - article [ref=e1132]:
+            - generic [ref=e1133]:
+              - heading "Adicio coepi comes possimus cognatus consectetur derideo talus." [level=3] [ref=e1136]
+              - generic [ref=e1137]: شروع نشده
+            - generic [ref=e1138]:
+              - generic [ref=e1139]: Zena Lowe
+              - generic [ref=e1143]: "مهلت: ۱۴۰۵/۰۹/۲۷"
+            - group [ref=e1144]:
+              - generic "جزئیات و تاریخچه" [ref=e1145] [cursor=pointer]
+          - article [ref=e1148]:
+            - generic [ref=e1149]:
+              - heading "Canonicus voluptates amor caelum." [level=3] [ref=e1156]
+              - generic [ref=e1157]: در حال انجام
+            - generic [ref=e1158]:
+              - generic [ref=e1159]: Ford Hayes
+              - generic [ref=e1163]: "مهلت: ۱۴۰۵/۱۰/۱۳"
+            - group [ref=e1164]:
+              - generic "جزئیات و تاریخچه" [ref=e1165] [cursor=pointer]
+          - article [ref=e1168]:
+            - generic [ref=e1169]:
+              - heading "Facilis vesper thema degero virga." [level=3] [ref=e1176]
+              - generic [ref=e1177]: در حال انجام
+            - generic [ref=e1178]:
+              - generic [ref=e1179]: Skylar Schaden
+              - generic [ref=e1183]: "مهلت: ۱۴۰۵/۰۹/۲۳"
+            - group [ref=e1184]:
+              - generic "جزئیات و تاریخچه" [ref=e1185] [cursor=pointer]
+          - article [ref=e1188]:
+            - generic [ref=e1189]:
+              - heading "Defaeco turba utique sophismata ago fugiat." [level=3] [ref=e1192]
+              - generic [ref=e1193]: شروع نشده
+            - generic [ref=e1194]:
+              - generic [ref=e1195]: Rosalyn Casper
+              - generic [ref=e1199]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e1200]:
+              - generic "جزئیات و تاریخچه" [ref=e1201] [cursor=pointer]
+          - article [ref=e1204]:
+            - generic [ref=e1205]:
+              - heading "Magni arcus vilis abscido beatus dolore cenaculum." [level=3] [ref=e1208]
+              - generic [ref=e1209]: شروع نشده
+            - generic [ref=e1210]:
+              - generic [ref=e1211]: Boris Howell
+              - generic [ref=e1215]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e1216]:
+              - generic "جزئیات و تاریخچه" [ref=e1217] [cursor=pointer]
+          - article [ref=e1220]:
+            - generic [ref=e1221]:
+              - heading "Aer velum cenaculum nisi." [level=3] [ref=e1224]
+              - generic [ref=e1225]: شروع نشده
+            - generic [ref=e1226]:
+              - generic [ref=e1227]: Gregoria Williamson
+              - generic [ref=e1231]: "مهلت: ۱۴۰۵/۱۰/۰۷"
+            - group [ref=e1232]:
+              - generic "جزئیات و تاریخچه" [ref=e1233] [cursor=pointer]
+          - article [ref=e1236]:
+            - generic [ref=e1237]:
+              - heading "Congregatio sonitus ago demoror." [level=3] [ref=e1240]
+              - generic [ref=e1241]: IN_REVIEW
+            - generic [ref=e1242]:
+              - generic [ref=e1243]: Lacy Corkery
+              - generic [ref=e1247]: "مهلت: ۱۴۰۵/۰۹/۰۸"
+            - group [ref=e1248]:
+              - generic "جزئیات و تاریخچه" [ref=e1249] [cursor=pointer]
+          - article [ref=e1252]:
+            - generic [ref=e1253]:
+              - heading "Coaegresco corrupti cunae aiunt universe." [level=3] [ref=e1260]
+              - generic [ref=e1261]: در حال انجام
+            - generic [ref=e1262]:
+              - generic [ref=e1263]: Jasmin King
+              - generic [ref=e1267]: "مهلت: ۱۴۰۵/۱۰/۲۱"
+            - group [ref=e1268]:
+              - generic "جزئیات و تاریخچه" [ref=e1269] [cursor=pointer]
+          - article [ref=e1272]:
+            - generic [ref=e1273]:
+              - heading "Candidus barba cetera appositus arguo studio cometes cinis." [level=3] [ref=e1276]
+              - generic [ref=e1277]: شروع نشده
+            - generic [ref=e1278]:
+              - generic [ref=e1279]: Joany Jacobi
+              - generic [ref=e1283]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e1284]:
+              - generic "جزئیات و تاریخچه" [ref=e1285] [cursor=pointer]
+          - article [ref=e1288]:
+            - generic [ref=e1289]:
+              - heading "Bardus laudantium vulgaris caput tergeo sollicito via." [level=3] [ref=e1292]
+              - generic [ref=e1293]: IN_REVIEW
+            - generic [ref=e1294]:
+              - generic [ref=e1295]: Sergio Wuckert
+              - generic [ref=e1299]: "مهلت: ۱۴۰۵/۰۹/۲۷"
+            - group [ref=e1300]:
+              - generic "جزئیات و تاریخچه" [ref=e1301] [cursor=pointer]
+          - article [ref=e1304]:
+            - generic [ref=e1305]:
+              - heading "Vulnus spargo ventus curia accendo alter tribuo dedecor." [level=3] [ref=e1308]
+              - generic [ref=e1309]: IN_REVIEW
+            - generic [ref=e1310]:
+              - generic [ref=e1311]: Monte Rosenbaum
+              - generic [ref=e1315]: "مهلت: ۱۴۰۵/۱۰/۰۷"
+            - group [ref=e1316]:
+              - generic "جزئیات و تاریخچه" [ref=e1317] [cursor=pointer]
+          - article [ref=e1320]:
+            - generic [ref=e1321]:
+              - heading "Canonicus repudiandae sustineo una barba voveo." [level=3] [ref=e1324]
+              - generic [ref=e1325]: شروع نشده
+            - generic [ref=e1326]:
+              - generic [ref=e1327]: Hugo Upton
+              - generic [ref=e1331]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e1332]:
+              - generic "جزئیات و تاریخچه" [ref=e1333] [cursor=pointer]
+          - article [ref=e1336]:
+            - generic [ref=e1337]:
+              - heading "Conservo quas averto degenero animadverto abduco varietas dolore." [level=3] [ref=e1340]
+              - generic [ref=e1341]: IN_REVIEW
+            - generic [ref=e1342]:
+              - generic [ref=e1343]: Gaetano Paucek
+              - generic [ref=e1347]: "مهلت: ۱۴۰۵/۰۸/۳۰"
+              - generic [ref=e1348]:
+                - timer "۶۸ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e1352]: ۶۸:۳۰:۲۷
+                - generic [aria-hidden] [ref=e1353]: باقی‌مانده
+            - group [ref=e1354]:
+              - generic "جزئیات و تاریخچه" [ref=e1355] [cursor=pointer]
+          - article [ref=e1358]:
+            - generic [ref=e1359]:
+              - heading "Stips acerbitas capillus auctus." [level=3] [ref=e1362]
+              - generic [ref=e1363]: شروع نشده
+            - generic [ref=e1364]:
+              - generic [ref=e1365]: Sally Ritchie
+              - generic [ref=e1369]: "مهلت: ۱۴۰۵/۰۸/۲۸"
+              - generic [ref=e1370]:
+                - timer "۲۰ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e1374]: ۲۰:۳۰:۲۷
+                - generic [aria-hidden] [ref=e1375]: باقی‌مانده
+            - group [ref=e1376]:
+              - generic "جزئیات و تاریخچه" [ref=e1377] [cursor=pointer]
+          - article [ref=e1380]:
+            - generic [ref=e1381]:
+              - heading "Canto versus tenus sol." [level=3] [ref=e1388]
+              - generic [ref=e1389]: در حال انجام
+            - generic [ref=e1390]:
+              - generic [ref=e1391]: Tillman Wyman
+              - generic [ref=e1395]: "مهلت: ۱۴۰۵/۰۹/۰۵"
+            - group [ref=e1396]:
+              - generic "جزئیات و تاریخچه" [ref=e1397] [cursor=pointer]
+          - article [ref=e1400]:
+            - generic [ref=e1401]:
+              - heading "Traho tot textilis utilis nobis clarus carpo." [level=3] [ref=e1404]
+              - generic [ref=e1405]: شروع نشده
+            - generic [ref=e1406]:
+              - generic [ref=e1407]: Addison Schultz
+              - generic [ref=e1411]: "مهلت: ۱۴۰۵/۱۰/۱۳"
+            - group [ref=e1412]:
+              - generic "جزئیات و تاریخچه" [ref=e1413] [cursor=pointer]
+          - article [ref=e1416]:
+            - generic [ref=e1417]:
+              - heading "Apud acsi derelinquo conscendo curo." [level=3] [ref=e1424]
+              - generic [ref=e1425]: در حال انجام
+            - generic [ref=e1426]:
+              - generic [ref=e1427]: Braulio Brown
+              - generic [ref=e1431]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e1432]:
+              - generic "جزئیات و تاریخچه" [ref=e1433] [cursor=pointer]
+          - article [ref=e1436]:
+            - generic [ref=e1437]:
+              - heading "Caecus voluptatem quo neque synagoga spes." [level=3] [ref=e1444]
+              - generic [ref=e1445]: در حال انجام
+            - generic [ref=e1446]:
+              - generic [ref=e1447]: Erik Lebsack
+              - generic [ref=e1451]: "مهلت: ۱۴۰۵/۰۹/۰۵"
+            - group [ref=e1452]:
+              - generic "جزئیات و تاریخچه" [ref=e1453] [cursor=pointer]
+          - article [ref=e1456]:
+            - generic [ref=e1457]:
+              - heading "Corrigo vesica causa vulpes administratio nobis inventore." [level=3] [ref=e1460]
+              - generic [ref=e1461]: شروع نشده
+            - generic [ref=e1462]:
+              - generic [ref=e1463]: Hardy Nienow
+              - generic [ref=e1467]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e1468]:
+              - generic "جزئیات و تاریخچه" [ref=e1469] [cursor=pointer]
+          - article [ref=e1472]:
+            - generic [ref=e1473]:
+              - heading "Tibi voluntarius vulnus confugo ancilla error vinculum." [level=3] [ref=e1480]
+              - generic [ref=e1481]: در حال انجام
+            - generic [ref=e1482]:
+              - generic [ref=e1483]: Kennedy Mante
+              - generic [ref=e1487]: "مهلت: ۱۴۰۵/۰۸/۳۰"
+              - generic [ref=e1488]:
+                - timer "۶۸ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e1492]: ۶۸:۳۰:۲۷
+                - generic [aria-hidden] [ref=e1493]: باقی‌مانده
+            - group [ref=e1494]:
+              - generic "جزئیات و تاریخچه" [ref=e1495] [cursor=pointer]
+          - article [ref=e1498]:
+            - generic [ref=e1499]:
+              - heading "Venustas arbor totidem deripio quas cedo temeritas." [level=3] [ref=e1502]
+              - generic [ref=e1503]: IN_REVIEW
+            - generic [ref=e1504]:
+              - generic [ref=e1505]: Lawson Cremin-Kuhn
+              - generic [ref=e1509]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e1510]:
+              - generic "جزئیات و تاریخچه" [ref=e1511] [cursor=pointer]
+          - article [ref=e1514]:
+            - generic [ref=e1515]:
+              - heading "Beneficium clarus decumbo trucido occaecati deprimo." [level=3] [ref=e1518]
+              - generic [ref=e1519]: شروع نشده
+            - generic [ref=e1520]:
+              - generic [ref=e1521]: Aurelio Huel
+              - generic [ref=e1525]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e1526]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e1530]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e1531]: باقی‌مانده
+            - group [ref=e1532]:
+              - generic "جزئیات و تاریخچه" [ref=e1533] [cursor=pointer]
+          - article [ref=e1536]:
+            - generic [ref=e1537]:
+              - heading "Omnis validus depopulo collum." [level=3] [ref=e1540]
+              - generic [ref=e1541]: شروع نشده
+            - generic [ref=e1542]:
+              - generic [ref=e1543]: Viviane Bradtke
+              - generic [ref=e1547]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e1548]:
+              - generic "جزئیات و تاریخچه" [ref=e1549] [cursor=pointer]
+          - article [ref=e1552]:
+            - generic [ref=e1553]:
+              - heading "Crustulum constans crux textilis voro." [level=3] [ref=e1556]
+              - generic [ref=e1557]: شروع نشده
+            - generic [ref=e1558]:
+              - generic [ref=e1559]: Orland Stiedemann
+              - generic [ref=e1563]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e1564]:
+              - generic "جزئیات و تاریخچه" [ref=e1565] [cursor=pointer]
+          - article [ref=e1568]:
+            - generic [ref=e1569]:
+              - heading "Traho at dolorum concido utilis tutamen amor arguo." [level=3] [ref=e1572]
+              - generic [ref=e1573]: IN_REVIEW
+            - generic [ref=e1574]:
+              - generic [ref=e1575]: Hanna Deckow
+              - generic [ref=e1579]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e1580]:
+              - generic "جزئیات و تاریخچه" [ref=e1581] [cursor=pointer]
+          - article [ref=e1584]:
+            - generic [ref=e1585]:
+              - heading "Candidus ancilla utor in summisse dolores confero." [level=3] [ref=e1592]
+              - generic [ref=e1593]: در حال انجام
+            - generic [ref=e1594]:
+              - generic [ref=e1595]: Royal Spinka
+              - generic [ref=e1599]: "مهلت: ۱۴۰۵/۱۰/۰۵"
+            - group [ref=e1600]:
+              - generic "جزئیات و تاریخچه" [ref=e1601] [cursor=pointer]
+          - article [ref=e1604]:
+            - generic [ref=e1605]:
+              - heading "Tantillus tabula trado comprehendo urbs creator capio." [level=3] [ref=e1612]
+              - generic [ref=e1613]: در حال انجام
+            - generic [ref=e1614]:
+              - generic [ref=e1615]: Hugh West
+              - generic [ref=e1619]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e1620]:
+              - generic "جزئیات و تاریخچه" [ref=e1621] [cursor=pointer]
+          - article [ref=e1624]:
+            - generic [ref=e1625]:
+              - heading "Titulus volutabrum adipisci adsuesco." [level=3] [ref=e1628]
+              - generic [ref=e1629]: شروع نشده
+            - generic [ref=e1630]:
+              - generic [ref=e1631]: Ethyl Leannon-Hagenes
+              - generic [ref=e1635]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e1636]:
+              - generic "جزئیات و تاریخچه" [ref=e1637] [cursor=pointer]
+          - article [ref=e1640]:
+            - generic [ref=e1641]:
+              - heading "Celo vomer auctor spiritus theatrum." [level=3] [ref=e1648]
+              - generic [ref=e1649]: در حال انجام
+            - generic [ref=e1650]:
+              - generic [ref=e1651]: Margarette Wehner
+              - generic [ref=e1655]: "مهلت: ۱۴۰۵/۰۸/۳۰"
+              - generic [ref=e1656]:
+                - timer "۶۸ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e1660]: ۶۸:۳۰:۲۷
+                - generic [aria-hidden] [ref=e1661]: باقی‌مانده
+            - group [ref=e1662]:
+              - generic "جزئیات و تاریخچه" [ref=e1663] [cursor=pointer]
+          - article [ref=e1666]:
+            - generic [ref=e1667]:
+              - heading "Una molestiae voluptates aegrus." [level=3] [ref=e1674]
+              - generic [ref=e1675]: در حال انجام
+            - generic [ref=e1676]:
+              - generic [ref=e1677]: Alejandrin Hermiston
+              - generic [ref=e1681]: "مهلت: ۱۴۰۵/۱۰/۲۱"
+            - group [ref=e1682]:
+              - generic "جزئیات و تاریخچه" [ref=e1683] [cursor=pointer]
+          - article [ref=e1686]:
+            - generic [ref=e1687]:
+              - heading "Admoneo vinco aer cursim antiquus admitto aer tempore." [level=3] [ref=e1690]
+              - generic [ref=e1691]: شروع نشده
+            - generic [ref=e1692]:
+              - generic [ref=e1693]: Tasha Walter
+              - generic [ref=e1697]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e1698]:
+              - generic "جزئیات و تاریخچه" [ref=e1699] [cursor=pointer]
+          - article [ref=e1702]:
+            - generic [ref=e1703]:
+              - heading "Crastinus crux peccatus animus dolore." [level=3] [ref=e1706]
+              - generic [ref=e1707]: IN_REVIEW
+            - generic [ref=e1708]:
+              - generic [ref=e1709]: Matt Anderson
+              - generic [ref=e1713]: "مهلت: ۱۴۰۵/۰۹/۰۹"
+            - group [ref=e1714]:
+              - generic "جزئیات و تاریخچه" [ref=e1715] [cursor=pointer]
+          - article [ref=e1718]:
+            - generic [ref=e1719]:
+              - heading "Beatae inventore somnus bonus." [level=3] [ref=e1722]
+              - generic [ref=e1723]: IN_REVIEW
+            - generic [ref=e1724]:
+              - generic [ref=e1725]: Barry Murphy
+              - generic [ref=e1729]: "مهلت: ۱۴۰۵/۰۹/۰۷"
+            - group [ref=e1730]:
+              - generic "جزئیات و تاریخچه" [ref=e1731] [cursor=pointer]
+          - article [ref=e1734]:
+            - generic [ref=e1735]:
+              - heading "Ducimus vilicus versus umerus uxor confugo aspicio." [level=3] [ref=e1742]
+              - generic [ref=e1743]: در حال انجام
+            - generic [ref=e1744]:
+              - generic [ref=e1745]: London Yundt
+              - generic [ref=e1749]: "مهلت: ۱۴۰۵/۰۹/۲۸"
+            - group [ref=e1750]:
+              - generic "جزئیات و تاریخچه" [ref=e1751] [cursor=pointer]
+          - article [ref=e1754]:
+            - generic [ref=e1755]:
+              - heading "Praesentium adinventitias solvo solum vobis velociter degusto aequitas." [level=3] [ref=e1758]
+              - generic [ref=e1759]: شروع نشده
+            - generic [ref=e1760]:
+              - generic [ref=e1761]: Jeanette Rohan
+              - generic [ref=e1765]: "مهلت: ۱۴۰۵/۱۰/۰۹"
+            - group [ref=e1766]:
+              - generic "جزئیات و تاریخچه" [ref=e1767] [cursor=pointer]
+          - article [ref=e1770]:
+            - generic [ref=e1771]:
+              - heading "Cruentus veniam antea tendo contigo caute callide." [level=3] [ref=e1778]
+              - generic [ref=e1779]: در حال انجام
+            - generic [ref=e1780]:
+              - generic [ref=e1781]: Nicholas Graham
+              - generic [ref=e1785]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e1786]:
+              - generic "جزئیات و تاریخچه" [ref=e1787] [cursor=pointer]
+          - article [ref=e1790]:
+            - generic [ref=e1791]:
+              - heading "Subiungo aspernatur beatus cunabula tamquam appello adduco spoliatio." [level=3] [ref=e1794]
+              - generic [ref=e1795]: IN_REVIEW
+            - generic [ref=e1796]:
+              - generic [ref=e1797]: Milton Altenwerth
+              - generic [ref=e1801]: "مهلت: ۱۴۰۵/۰۹/۲۵"
+            - group [ref=e1802]:
+              - generic "جزئیات و تاریخچه" [ref=e1803] [cursor=pointer]
+          - article [ref=e1806]:
+            - generic [ref=e1807]:
+              - heading "Asperiores omnis odio tantum clibanus debeo vesco angustus." [level=3] [ref=e1810]
+              - generic [ref=e1811]: IN_REVIEW
+            - generic [ref=e1812]:
+              - generic [ref=e1813]: Isom Satterfield
+              - generic [ref=e1817]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e1818]:
+              - generic "جزئیات و تاریخچه" [ref=e1819] [cursor=pointer]
+          - article [ref=e1822]:
+            - generic [ref=e1823]:
+              - heading "Corrigo utique anser depulso velut." [level=3] [ref=e1830]
+              - generic [ref=e1831]: در حال انجام
+            - generic [ref=e1832]:
+              - generic [ref=e1833]: Nicolette Hoppe
+              - generic [ref=e1837]: "مهلت: ۱۴۰۵/۰۹/۲۱"
+            - group [ref=e1838]:
+              - generic "جزئیات و تاریخچه" [ref=e1839] [cursor=pointer]
+          - article [ref=e1842]:
+            - generic [ref=e1843]:
+              - heading "Sub vorago volva architecto itaque tricesimus armarium." [level=3] [ref=e1846]
+              - generic [ref=e1847]: شروع نشده
+            - generic [ref=e1848]:
+              - generic [ref=e1849]: Nasir O'Hara
+              - generic [ref=e1853]: "مهلت: ۱۴۰۵/۱۰/۰۷"
+            - group [ref=e1854]:
+              - generic "جزئیات و تاریخچه" [ref=e1855] [cursor=pointer]
+          - article [ref=e1858]:
+            - generic [ref=e1859]:
+              - heading "Vereor dens creptio auxilium virgo apud unde." [level=3] [ref=e1862]
+              - generic [ref=e1863]: شروع نشده
+            - generic [ref=e1864]:
+              - generic [ref=e1865]: Woodrow Barton
+              - generic [ref=e1869]: "مهلت: ۱۴۰۵/۰۹/۱۴"
+            - group [ref=e1870]:
+              - generic "جزئیات و تاریخچه" [ref=e1871] [cursor=pointer]
+          - article [ref=e1874]:
+            - generic [ref=e1875]:
+              - heading "Voluptates vinitor aestus demoror distinctio sit comitatus." [level=3] [ref=e1878]
+              - generic [ref=e1879]: شروع نشده
+            - generic [ref=e1880]:
+              - generic [ref=e1881]: Elyse Wunsch
+              - generic [ref=e1885]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e1886]:
+              - generic "جزئیات و تاریخچه" [ref=e1887] [cursor=pointer]
+          - article [ref=e1890]:
+            - generic [ref=e1891]:
+              - heading "Ultio tondeo terra accedo audio testimonium terreo accusamus." [level=3] [ref=e1894]
+              - generic [ref=e1895]: IN_REVIEW
+            - generic [ref=e1896]:
+              - generic [ref=e1897]: Whitney Becker
+              - generic [ref=e1901]: "مهلت: ۱۴۰۵/۱۰/۱۲"
+            - group [ref=e1902]:
+              - generic "جزئیات و تاریخچه" [ref=e1903] [cursor=pointer]
+          - article [ref=e1906]:
+            - generic [ref=e1907]:
+              - heading "Altus venio absque adipiscor culpa similique credo." [level=3] [ref=e1910]
+              - generic [ref=e1911]: IN_REVIEW
+            - generic [ref=e1912]:
+              - generic [ref=e1913]: Trudie Pfeffer-Barrows
+              - generic [ref=e1917]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e1918]:
+              - generic "جزئیات و تاریخچه" [ref=e1919] [cursor=pointer]
+          - article [ref=e1922]:
+            - generic [ref=e1923]:
+              - heading "Vos confero omnis tutamen." [level=3] [ref=e1926]
+              - generic [ref=e1927]: شروع نشده
+            - generic [ref=e1928]:
+              - generic [ref=e1929]: Chaim Morissette
+              - generic [ref=e1933]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e1934]:
+              - generic "جزئیات و تاریخچه" [ref=e1935] [cursor=pointer]
+          - article [ref=e1938]:
+            - generic [ref=e1939]:
+              - heading "Addo vis curiositas vinculum accusamus." [level=3] [ref=e1942]
+              - generic [ref=e1943]: IN_REVIEW
+            - generic [ref=e1944]:
+              - generic [ref=e1945]: Drake Willms
+              - generic [ref=e1949]: "مهلت: ۱۴۰۵/۱۰/۰۳"
+            - group [ref=e1950]:
+              - generic "جزئیات و تاریخچه" [ref=e1951] [cursor=pointer]
+          - article [ref=e1954]:
+            - generic [ref=e1955]:
+              - heading "Aurum ambulo amita bene curvo." [level=3] [ref=e1958]
+              - generic [ref=e1959]: IN_REVIEW
+            - generic [ref=e1960]:
+              - generic [ref=e1961]: Sherry Cassin
+              - generic [ref=e1965]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e1966]:
+              - generic "جزئیات و تاریخچه" [ref=e1967] [cursor=pointer]
+          - article [ref=e1970]:
+            - generic [ref=e1971]:
+              - heading "Consequuntur tenus cauda contigo crastinus thermae thesis." [level=3] [ref=e1974]
+              - generic [ref=e1975]: شروع نشده
+            - generic [ref=e1976]:
+              - generic [ref=e1977]: Coy Breitenberg
+              - generic [ref=e1981]: "مهلت: ۱۴۰۵/۰۹/۲۲"
+            - group [ref=e1982]:
+              - generic "جزئیات و تاریخچه" [ref=e1983] [cursor=pointer]
+          - article [ref=e1986]:
+            - generic [ref=e1987]:
+              - heading "Capto facilis vestrum condico." [level=3] [ref=e1990]
+              - generic [ref=e1991]: IN_REVIEW
+            - generic [ref=e1992]:
+              - generic [ref=e1993]: Antonia Howell
+              - generic [ref=e1997]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e1998]:
+              - generic "جزئیات و تاریخچه" [ref=e1999] [cursor=pointer]
+          - article [ref=e2002]:
+            - generic [ref=e2003]:
+              - heading "Aegre tondeo adipiscor pauci adstringo." [level=3] [ref=e2010]
+              - generic [ref=e2011]: در حال انجام
+            - generic [ref=e2012]:
+              - generic [ref=e2013]: Arlo Leffler
+              - generic [ref=e2017]: "مهلت: ۱۴۰۵/۱۰/۱۳"
+            - group [ref=e2018]:
+              - generic "جزئیات و تاریخچه" [ref=e2019] [cursor=pointer]
+          - article [ref=e2022]:
+            - generic [ref=e2023]:
+              - heading "Aegrus cunae arbustum spero dicta antepono vito." [level=3] [ref=e2030]
+              - generic [ref=e2031]: در حال انجام
+            - generic [ref=e2032]:
+              - generic [ref=e2033]: Antoinette Goodwin
+              - generic [ref=e2037]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e2038]:
+              - generic "جزئیات و تاریخچه" [ref=e2039] [cursor=pointer]
+          - article [ref=e2042]:
+            - generic [ref=e2043]:
+              - heading "Cumque asperiores talis bonus doloremque." [level=3] [ref=e2046]
+              - generic [ref=e2047]: IN_REVIEW
+            - generic [ref=e2048]:
+              - generic [ref=e2049]: Dallin Kessler
+              - generic [ref=e2053]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e2054]:
+              - generic "جزئیات و تاریخچه" [ref=e2055] [cursor=pointer]
+          - article [ref=e2058]:
+            - generic [ref=e2059]:
+              - heading "Aureus truculenter conforto nobis sono necessitatibus." [level=3] [ref=e2066]
+              - generic [ref=e2067]: در حال انجام
+            - generic [ref=e2068]:
+              - generic [ref=e2069]: Eldon Simonis-Renner
+              - generic [ref=e2073]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e2074]:
+              - generic "جزئیات و تاریخچه" [ref=e2075] [cursor=pointer]
+          - article [ref=e2078]:
+            - generic [ref=e2079]:
+              - heading "Cursus colo terreo verus." [level=3] [ref=e2086]
+              - generic [ref=e2087]: در حال انجام
+            - generic [ref=e2088]:
+              - generic [ref=e2089]: Dolores Gorczany
+              - generic [ref=e2093]: "مهلت: ۱۴۰۵/۰۹/۱۲"
+            - group [ref=e2094]:
+              - generic "جزئیات و تاریخچه" [ref=e2095] [cursor=pointer]
+          - article [ref=e2098]:
+            - generic [ref=e2099]:
+              - heading "Admiratio succedo abduco vito." [level=3] [ref=e2102]
+              - generic [ref=e2103]: شروع نشده
+            - generic [ref=e2104]:
+              - generic [ref=e2105]: Nash Cremin
+              - generic [ref=e2109]: "مهلت: ۱۴۰۵/۱۰/۱۹"
+            - group [ref=e2110]:
+              - generic "جزئیات و تاریخچه" [ref=e2111] [cursor=pointer]
+          - article [ref=e2114]:
+            - generic [ref=e2115]:
+              - heading "Defetiscor tersus velociter studio cursim sophismata repudiandae." [level=3] [ref=e2118]
+              - generic [ref=e2119]: شروع نشده
+            - generic [ref=e2120]:
+              - generic [ref=e2121]: Franklin Franecki-Dickinson
+              - generic [ref=e2125]: "مهلت: ۱۴۰۵/۰۹/۱۲"
+            - group [ref=e2126]:
+              - generic "جزئیات و تاریخچه" [ref=e2127] [cursor=pointer]
+          - article [ref=e2130]:
+            - generic [ref=e2131]:
+              - heading "Defendo compono strues coepi adsidue caput acervus." [level=3] [ref=e2134]
+              - generic [ref=e2135]: IN_REVIEW
+            - generic [ref=e2136]:
+              - generic [ref=e2137]: Matt Anderson
+              - generic [ref=e2141]: "مهلت: ۱۴۰۵/۰۹/۲۸"
+            - group [ref=e2142]:
+              - generic "جزئیات و تاریخچه" [ref=e2143] [cursor=pointer]
+          - article [ref=e2146]:
+            - generic [ref=e2147]:
+              - heading "Crinis amita crudelis arbustum cervus bene animadverto amissio." [level=3] [ref=e2150]
+              - generic [ref=e2151]: IN_REVIEW
+            - generic [ref=e2152]:
+              - generic [ref=e2153]: Myra Buckridge
+              - generic [ref=e2157]: "مهلت: ۱۴۰۵/۰۹/۲۸"
+            - group [ref=e2158]:
+              - generic "جزئیات و تاریخچه" [ref=e2159] [cursor=pointer]
+          - article [ref=e2162]:
+            - generic [ref=e2163]:
+              - heading "Vito substantia acer sursum summopere aegre." [level=3] [ref=e2166]
+              - generic [ref=e2167]: شروع نشده
+            - generic [ref=e2168]:
+              - generic [ref=e2169]: Clay Schoen
+              - generic [ref=e2173]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e2174]:
+              - generic "جزئیات و تاریخچه" [ref=e2175] [cursor=pointer]
+          - article [ref=e2178]:
+            - generic [ref=e2179]:
+              - heading "Apparatus beatae creator balbus ad cognomen animadverto." [level=3] [ref=e2186]
+              - generic [ref=e2187]: در حال انجام
+            - generic [ref=e2188]:
+              - generic [ref=e2189]: Keara Dicki
+              - generic [ref=e2193]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e2194]:
+              - generic "جزئیات و تاریخچه" [ref=e2195] [cursor=pointer]
+          - article [ref=e2198]:
+            - generic [ref=e2199]:
+              - heading "Claudeo eaque speciosus tabella hic." [level=3] [ref=e2202]
+              - generic [ref=e2203]: IN_REVIEW
+            - generic [ref=e2204]:
+              - generic [ref=e2205]: Evans Lesch
+              - generic [ref=e2209]: "مهلت: ۱۴۰۵/۱۰/۱۷"
+            - group [ref=e2210]:
+              - generic "جزئیات و تاریخچه" [ref=e2211] [cursor=pointer]
+          - article [ref=e2214]:
+            - generic [ref=e2215]:
+              - heading "Torrens ventus valens delibero adiuvo varius dicta." [level=3] [ref=e2218]
+              - generic [ref=e2219]: شروع نشده
+            - generic [ref=e2220]:
+              - generic [ref=e2221]: Otto Hammes
+              - generic [ref=e2225]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e2226]:
+              - generic "جزئیات و تاریخچه" [ref=e2227] [cursor=pointer]
+          - article [ref=e2230]:
+            - generic [ref=e2231]:
+              - heading "Acidus demens provident amitto conduco videlicet." [level=3] [ref=e2238]
+              - generic [ref=e2239]: در حال انجام
+            - generic [ref=e2240]:
+              - generic [ref=e2241]: Ryder Strosin
+              - generic [ref=e2245]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e2246]:
+              - generic "جزئیات و تاریخچه" [ref=e2247] [cursor=pointer]
+          - article [ref=e2250]:
+            - generic [ref=e2251]:
+              - heading "Capio placeat arcus balbus caput error." [level=3] [ref=e2254]
+              - generic [ref=e2255]: شروع نشده
+            - generic [ref=e2256]:
+              - generic [ref=e2257]: Daija Grady
+              - generic [ref=e2261]: "مهلت: ۱۴۰۵/۱۰/۱۷"
+            - group [ref=e2262]:
+              - generic "جزئیات و تاریخچه" [ref=e2263] [cursor=pointer]
+          - article [ref=e2266]:
+            - generic [ref=e2267]:
+              - heading "Sollers trepide demonstro caste approbo." [level=3] [ref=e2270]
+              - generic [ref=e2271]: شروع نشده
+            - generic [ref=e2272]:
+              - generic [ref=e2273]: Francis Bogan
+              - generic [ref=e2277]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e2278]:
+              - generic "جزئیات و تاریخچه" [ref=e2279] [cursor=pointer]
+          - article [ref=e2282]:
+            - generic [ref=e2283]:
+              - heading "Curiositas amissio acer patria." [level=3] [ref=e2286]
+              - generic [ref=e2287]: IN_REVIEW
+            - generic [ref=e2288]:
+              - generic [ref=e2289]: Heber Franecki
+              - generic [ref=e2293]: "مهلت: ۱۴۰۵/۰۹/۲۲"
+            - group [ref=e2294]:
+              - generic "جزئیات و تاریخچه" [ref=e2295] [cursor=pointer]
+          - article [ref=e2298]:
+            - generic [ref=e2299]:
+              - heading "Explicabo quos terga terra sopor culpo decimus tutis." [level=3] [ref=e2302]
+              - generic [ref=e2303]: شروع نشده
+            - generic [ref=e2304]:
+              - generic [ref=e2305]: Thurman Beier
+              - generic [ref=e2309]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e2310]:
+              - generic "جزئیات و تاریخچه" [ref=e2311] [cursor=pointer]
+          - article [ref=e2314]:
+            - generic [ref=e2315]:
+              - heading "Explicabo cavus torqueo nesciunt abundans universe nam." [level=3] [ref=e2322]
+              - generic [ref=e2323]: در حال انجام
+            - generic [ref=e2324]:
+              - generic [ref=e2325]: Eriberto Cormier
+              - generic [ref=e2329]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e2330]:
+              - generic "جزئیات و تاریخچه" [ref=e2331] [cursor=pointer]
+          - article [ref=e2334]:
+            - generic [ref=e2335]:
+              - heading "Molestiae caelestis trucido voluptatem comitatus autem." [level=3] [ref=e2338]
+              - generic [ref=e2339]: IN_REVIEW
+            - generic [ref=e2340]:
+              - generic [ref=e2341]: Joelle Gerhold
+              - generic [ref=e2345]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e2346]:
+              - generic "جزئیات و تاریخچه" [ref=e2347] [cursor=pointer]
+          - article [ref=e2350]:
+            - generic [ref=e2351]:
+              - heading "Pax tam supplanto degusto vereor reprehenderit coadunatio itaque." [level=3] [ref=e2354]
+              - generic [ref=e2355]: IN_REVIEW
+            - generic [ref=e2356]:
+              - generic [ref=e2357]: Leopold Kiehn
+              - generic [ref=e2361]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e2362]:
+              - generic "جزئیات و تاریخچه" [ref=e2363] [cursor=pointer]
+          - article [ref=e2366]:
+            - generic [ref=e2367]:
+              - heading "Vulnero super sono utor." [level=3] [ref=e2374]
+              - generic [ref=e2375]: در حال انجام
+            - generic [ref=e2376]:
+              - generic [ref=e2377]: Preston Dooley
+              - generic [ref=e2381]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e2382]:
+              - generic "جزئیات و تاریخچه" [ref=e2383] [cursor=pointer]
+          - article [ref=e2386]:
+            - generic [ref=e2387]:
+              - heading "Dignissimos adopto sustineo desolo comis decretum." [level=3] [ref=e2390]
+              - generic [ref=e2391]: IN_REVIEW
+            - generic [ref=e2392]:
+              - generic [ref=e2393]: Terrill Yost
+              - generic [ref=e2397]: "مهلت: ۱۴۰۵/۰۹/۲۹"
+            - group [ref=e2398]:
+              - generic "جزئیات و تاریخچه" [ref=e2399] [cursor=pointer]
+          - article [ref=e2402]:
+            - generic [ref=e2403]:
+              - heading "Vulgus administratio deleo amissio succurro ultio adeptio." [level=3] [ref=e2406]
+              - generic [ref=e2407]: شروع نشده
+            - generic [ref=e2408]:
+              - generic [ref=e2409]: Zakary Murazik
+              - generic [ref=e2413]: "مهلت: ۱۴۰۵/۰۹/۰۳"
+            - group [ref=e2414]:
+              - generic "جزئیات و تاریخچه" [ref=e2415] [cursor=pointer]
+          - article [ref=e2418]:
+            - generic [ref=e2419]:
+              - heading "Amita vereor defessus at acerbitas apparatus." [level=3] [ref=e2422]
+              - generic [ref=e2423]: شروع نشده
+            - generic [ref=e2424]:
+              - generic [ref=e2425]: Hank Deckow
+              - generic [ref=e2429]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e2430]:
+              - generic "جزئیات و تاریخچه" [ref=e2431] [cursor=pointer]
+          - article [ref=e2434]:
+            - generic [ref=e2435]:
+              - heading "Creptio cognatus animi vivo animi." [level=3] [ref=e2438]
+              - generic [ref=e2439]: IN_REVIEW
+            - generic [ref=e2440]:
+              - generic [ref=e2441]: Dustin Smitham
+              - generic [ref=e2445]: "مهلت: ۱۴۰۵/۱۰/۲۱"
+            - group [ref=e2446]:
+              - generic "جزئیات و تاریخچه" [ref=e2447] [cursor=pointer]
+          - article [ref=e2450]:
+            - generic [ref=e2451]:
+              - heading "Vesica dens iure nulla capto surgo." [level=3] [ref=e2454]
+              - generic [ref=e2455]: IN_REVIEW
+            - generic [ref=e2456]:
+              - generic [ref=e2457]: Kattie Treutel
+              - generic [ref=e2461]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e2462]:
+              - generic "جزئیات و تاریخچه" [ref=e2463] [cursor=pointer]
+          - article [ref=e2466]:
+            - generic [ref=e2467]:
+              - heading "Esse truculenter cunctatio suffoco." [level=3] [ref=e2474]
+              - generic [ref=e2475]: در حال انجام
+            - generic [ref=e2476]:
+              - generic [ref=e2477]: Amari McLaughlin
+              - generic [ref=e2481]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e2482]:
+              - generic "جزئیات و تاریخچه" [ref=e2483] [cursor=pointer]
+          - article [ref=e2486]:
+            - generic [ref=e2487]:
+              - heading "Collum cimentarius aedificium voro celer spes." [level=3] [ref=e2490]
+              - generic [ref=e2491]: IN_REVIEW
+            - generic [ref=e2492]:
+              - generic [ref=e2493]: Jeremie Konopelski
+              - generic [ref=e2497]: "مهلت: ۱۴۰۵/۱۰/۱۴"
+            - group [ref=e2498]:
+              - generic "جزئیات و تاریخچه" [ref=e2499] [cursor=pointer]
+          - article [ref=e2502]:
+            - generic [ref=e2503]:
+              - heading "Arcus varietas volutabrum vita." [level=3] [ref=e2510]
+              - generic [ref=e2511]: در حال انجام
+            - generic [ref=e2512]:
+              - generic [ref=e2513]: Tomas Hodkiewicz
+              - generic [ref=e2517]: "مهلت: ۱۴۰۵/۰۹/۲۲"
+            - group [ref=e2518]:
+              - generic "جزئیات و تاریخچه" [ref=e2519] [cursor=pointer]
+          - article [ref=e2522]:
+            - generic [ref=e2523]:
+              - heading "Tutamen succedo spargo vix iusto acceptus." [level=3] [ref=e2526]
+              - generic [ref=e2527]: شروع نشده
+            - generic [ref=e2528]:
+              - generic [ref=e2529]: Delia Schmeler
+              - generic [ref=e2533]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e2534]:
+              - generic "جزئیات و تاریخچه" [ref=e2535] [cursor=pointer]
+          - article [ref=e2538]:
+            - generic [ref=e2539]:
+              - heading "Sapiente anser carpo audax denique circumvenio contego tergum." [level=3] [ref=e2542]
+              - generic [ref=e2543]: شروع نشده
+            - generic [ref=e2544]:
+              - generic [ref=e2545]: Jose Miller
+              - generic [ref=e2549]: "مهلت: ۱۴۰۵/۱۰/۲۵"
+            - group [ref=e2550]:
+              - generic "جزئیات و تاریخچه" [ref=e2551] [cursor=pointer]
+          - article [ref=e2554]:
+            - generic [ref=e2555]:
+              - heading "Abundans totidem adsidue angelus admoneo." [level=3] [ref=e2562]
+              - generic [ref=e2563]: در حال انجام
+            - generic [ref=e2564]:
+              - generic [ref=e2565]: Elouise Koelpin
+              - generic [ref=e2569]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e2570]:
+              - generic "جزئیات و تاریخچه" [ref=e2571] [cursor=pointer]
+          - article [ref=e2574]:
+            - generic [ref=e2575]:
+              - heading "Repellat cognatus vita deprimo eveniet crapula." [level=3] [ref=e2582]
+              - generic [ref=e2583]: در حال انجام
+            - generic [ref=e2584]:
+              - generic [ref=e2585]: Tony Morissette
+              - generic [ref=e2589]: "مهلت: ۱۴۰۵/۰۹/۱۲"
+            - group [ref=e2590]:
+              - generic "جزئیات و تاریخچه" [ref=e2591] [cursor=pointer]
+          - article [ref=e2594]:
+            - generic [ref=e2595]:
+              - heading "Sollicito abundans carmen cribro tener tandem minus." [level=3] [ref=e2598]
+              - generic [ref=e2599]: شروع نشده
+            - generic [ref=e2600]:
+              - generic [ref=e2601]: Katheryn Corwin
+              - generic [ref=e2605]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e2606]:
+              - generic "جزئیات و تاریخچه" [ref=e2607] [cursor=pointer]
+          - article [ref=e2610]:
+            - generic [ref=e2611]:
+              - heading "Bardus suadeo censura creator carmen commodi conduco adduco." [level=3] [ref=e2614]
+              - generic [ref=e2615]: شروع نشده
+            - generic [ref=e2616]:
+              - generic [ref=e2617]: Elliot Weber
+              - generic [ref=e2621]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e2622]:
+              - generic "جزئیات و تاریخچه" [ref=e2623] [cursor=pointer]
+          - article [ref=e2626]:
+            - generic [ref=e2627]:
+              - heading "Conturbo ullam amiculum casus illo taedium." [level=3] [ref=e2630]
+              - generic [ref=e2631]: شروع نشده
+            - generic [ref=e2632]:
+              - generic [ref=e2633]: Jaylan Goodwin
+              - generic [ref=e2637]: "مهلت: ۱۴۰۵/۱۰/۱۴"
+            - group [ref=e2638]:
+              - generic "جزئیات و تاریخچه" [ref=e2639] [cursor=pointer]
+          - article [ref=e2642]:
+            - generic [ref=e2643]:
+              - heading "Patria canis valetudo ventito deduco spargo curo." [level=3] [ref=e2650]
+              - generic [ref=e2651]: در حال انجام
+            - generic [ref=e2652]:
+              - generic [ref=e2653]: Esteban Donnelly
+              - generic [ref=e2657]: "مهلت: ۱۴۰۵/۱۰/۲۵"
+            - group [ref=e2658]:
+              - generic "جزئیات و تاریخچه" [ref=e2659] [cursor=pointer]
+          - article [ref=e2662]:
+            - generic [ref=e2663]:
+              - heading "Aspernatur facere studio sollicito." [level=3] [ref=e2666]
+              - generic [ref=e2667]: IN_REVIEW
+            - generic [ref=e2668]:
+              - generic [ref=e2669]: Tristin Quitzon
+              - generic [ref=e2673]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e2674]:
+              - generic "جزئیات و تاریخچه" [ref=e2675] [cursor=pointer]
+          - article [ref=e2678]:
+            - generic [ref=e2679]:
+              - heading "Adinventitias defluo patruus curia." [level=3] [ref=e2682]
+              - generic [ref=e2683]: شروع نشده
+            - generic [ref=e2684]:
+              - generic [ref=e2685]: Eleanore Kris
+              - generic [ref=e2689]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e2690]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e2694]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e2695]: باقی‌مانده
+            - group [ref=e2696]:
+              - generic "جزئیات و تاریخچه" [ref=e2697] [cursor=pointer]
+          - article [ref=e2700]:
+            - generic [ref=e2701]:
+              - heading "Conculco solium chirographum tepesco tutamen sed." [level=3] [ref=e2704]
+              - generic [ref=e2705]: IN_REVIEW
+            - generic [ref=e2706]:
+              - generic [ref=e2707]: Devonte Reynolds
+              - generic [ref=e2711]: "مهلت: ۱۴۰۵/۱۰/۱۴"
+            - group [ref=e2712]:
+              - generic "جزئیات و تاریخچه" [ref=e2713] [cursor=pointer]
+          - article [ref=e2716]:
+            - generic [ref=e2717]:
+              - heading "Bardus at aranea triumphus aliquid tego iste." [level=3] [ref=e2724]
+              - generic [ref=e2725]: در حال انجام
+            - generic [ref=e2726]:
+              - generic [ref=e2727]: Juston Stark
+              - generic [ref=e2731]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e2732]:
+              - generic "جزئیات و تاریخچه" [ref=e2733] [cursor=pointer]
+          - article [ref=e2736]:
+            - generic [ref=e2737]:
+              - heading "Solio soleo voluptatibus cito xiphias volutabrum cometes cupio." [level=3] [ref=e2744]
+              - generic [ref=e2745]: در حال انجام
+            - generic [ref=e2746]:
+              - generic [ref=e2747]: Candelario Parker
+              - generic [ref=e2751]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e2752]:
+              - generic "جزئیات و تاریخچه" [ref=e2753] [cursor=pointer]
+          - article [ref=e2756]:
+            - generic [ref=e2757]:
+              - heading "Atque ducimus vobis exercitationem." [level=3] [ref=e2760]
+              - generic [ref=e2761]: شروع نشده
+            - generic [ref=e2762]:
+              - generic [ref=e2763]: Kenya Miller
+              - generic [ref=e2767]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e2768]:
+              - generic "جزئیات و تاریخچه" [ref=e2769] [cursor=pointer]
+          - article [ref=e2772]:
+            - generic [ref=e2773]:
+              - heading "Callide casus arceo talis." [level=3] [ref=e2776]
+              - generic [ref=e2777]: شروع نشده
+            - generic [ref=e2778]:
+              - generic [ref=e2779]: Ephraim Ebert
+              - generic [ref=e2783]: "مهلت: ۱۴۰۵/۱۰/۲۲"
+            - group [ref=e2784]:
+              - generic "جزئیات و تاریخچه" [ref=e2785] [cursor=pointer]
+          - article [ref=e2788]:
+            - generic [ref=e2789]:
+              - heading "Denuo sollicito aestas demoror venio cicuta distinctio quaerat." [level=3] [ref=e2796]
+              - generic [ref=e2797]: در حال انجام
+            - generic [ref=e2798]:
+              - generic [ref=e2799]: Brandt Mosciski
+              - generic [ref=e2803]: "مهلت: ۱۴۰۵/۰۹/۰۳"
+            - group [ref=e2804]:
+              - generic "جزئیات و تاریخچه" [ref=e2805] [cursor=pointer]
+          - article [ref=e2808]:
+            - generic [ref=e2809]:
+              - heading "Comedo vinitor canonicus dignissimos velociter expedita absconditus." [level=3] [ref=e2816]
+              - generic [ref=e2817]: در حال انجام
+            - generic [ref=e2818]:
+              - generic [ref=e2819]: Leo O'Conner
+              - generic [ref=e2823]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e2824]:
+              - generic "جزئیات و تاریخچه" [ref=e2825] [cursor=pointer]
+          - article [ref=e2828]:
+            - generic [ref=e2829]:
+              - heading "Amor denuo quidem fugit cattus aeger." [level=3] [ref=e2836]
+              - generic [ref=e2837]: در حال انجام
+            - generic [ref=e2838]:
+              - generic [ref=e2839]: Creola Lakin
+              - generic [ref=e2843]: "مهلت: ۱۴۰۵/۰۹/۱۷"
+            - group [ref=e2844]:
+              - generic "جزئیات و تاریخچه" [ref=e2845] [cursor=pointer]
+          - article [ref=e2848]:
+            - generic [ref=e2849]:
+              - heading "Iste compono accedo appositus ubi vulnero adipisci." [level=3] [ref=e2852]
+              - generic [ref=e2853]: IN_REVIEW
+            - generic [ref=e2854]:
+              - generic [ref=e2855]: Bell Hartmann
+              - generic [ref=e2859]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e2860]:
+              - generic "جزئیات و تاریخچه" [ref=e2861] [cursor=pointer]
+          - article [ref=e2864]:
+            - generic [ref=e2865]:
+              - heading "Tactus conduco virtus valde tollo subseco attonbitus." [level=3] [ref=e2868]
+              - generic [ref=e2869]: IN_REVIEW
+            - generic [ref=e2870]:
+              - generic [ref=e2871]: Raymond Walker
+              - generic [ref=e2875]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e2876]:
+              - generic "جزئیات و تاریخچه" [ref=e2877] [cursor=pointer]
+          - article [ref=e2880]:
+            - generic [ref=e2881]:
+              - heading "Tero volutabrum considero natus demergo." [level=3] [ref=e2888]
+              - generic [ref=e2889]: در حال انجام
+            - generic [ref=e2890]:
+              - generic [ref=e2891]: Audie Hartmann-Harber
+              - generic [ref=e2895]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e2896]:
+              - generic "جزئیات و تاریخچه" [ref=e2897] [cursor=pointer]
+          - article [ref=e2900]:
+            - generic [ref=e2901]:
+              - heading "Substantia benevolentia numquam cohaero fuga paens." [level=3] [ref=e2904]
+              - generic [ref=e2905]: IN_REVIEW
+            - generic [ref=e2906]:
+              - generic [ref=e2907]: Carlee Kreiger
+              - generic [ref=e2911]: "مهلت: ۱۴۰۵/۰۸/۳۰"
+              - generic [ref=e2912]:
+                - timer "۶۸ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e2916]: ۶۸:۳۰:۲۷
+                - generic [aria-hidden] [ref=e2917]: باقی‌مانده
+            - group [ref=e2918]:
+              - generic "جزئیات و تاریخچه" [ref=e2919] [cursor=pointer]
+          - article [ref=e2922]:
+            - generic [ref=e2923]:
+              - heading "Auctus sono admiratio auxilium credo strenuus." [level=3] [ref=e2926]
+              - generic [ref=e2927]: IN_REVIEW
+            - generic [ref=e2928]:
+              - generic [ref=e2929]: Trevion Schimmel
+              - generic [ref=e2933]: "مهلت: ۱۴۰۵/۱۰/۲۷"
+            - group [ref=e2934]:
+              - generic "جزئیات و تاریخچه" [ref=e2935] [cursor=pointer]
+          - article [ref=e2938]:
+            - generic [ref=e2939]:
+              - heading "Subiungo venio voluptates ascisco deripio aufero utpote recusandae." [level=3] [ref=e2942]
+              - generic [ref=e2943]: IN_REVIEW
+            - generic [ref=e2944]:
+              - generic [ref=e2945]: Gerhard Lehner
+              - generic [ref=e2949]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e2950]:
+              - generic "جزئیات و تاریخچه" [ref=e2951] [cursor=pointer]
+          - article [ref=e2954]:
+            - generic [ref=e2955]:
+              - heading "Derideo magnam derideo aestas." [level=3] [ref=e2958]
+              - generic [ref=e2959]: IN_REVIEW
+            - generic [ref=e2960]:
+              - generic [ref=e2961]: Wilbur Brakus
+              - generic [ref=e2965]: "مهلت: ۱۴۰۵/۰۸/۳۰"
+              - generic [ref=e2966]:
+                - timer "۶۸ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e2970]: ۶۸:۳۰:۲۷
+                - generic [aria-hidden] [ref=e2971]: باقی‌مانده
+            - group [ref=e2972]:
+              - generic "جزئیات و تاریخچه" [ref=e2973] [cursor=pointer]
+          - article [ref=e2976]:
+            - generic [ref=e2977]:
+              - heading "Aut utilis caput deludo." [level=3] [ref=e2980]
+              - generic [ref=e2981]: شروع نشده
+            - generic [ref=e2982]:
+              - generic [ref=e2983]: Jovanny McLaughlin
+              - generic [ref=e2987]: "مهلت: ۱۴۰۵/۰۹/۱۲"
+            - group [ref=e2988]:
+              - generic "جزئیات و تاریخچه" [ref=e2989] [cursor=pointer]
+          - article [ref=e2992]:
+            - generic [ref=e2993]:
+              - heading "Calculus necessitatibus umerus vociferor quidem amicitia voluptas." [level=3] [ref=e3000]
+              - generic [ref=e3001]: در حال انجام
+            - generic [ref=e3002]:
+              - generic [ref=e3003]: Lucienne Grady
+              - generic [ref=e3007]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e3008]:
+              - generic "جزئیات و تاریخچه" [ref=e3009] [cursor=pointer]
+          - article [ref=e3012]:
+            - generic [ref=e3013]:
+              - heading "Ut bene debitis cupressus suscipio." [level=3] [ref=e3016]
+              - generic [ref=e3017]: IN_REVIEW
+            - generic [ref=e3018]:
+              - generic [ref=e3019]: Nigel Rodriguez
+              - generic [ref=e3023]: "مهلت: ۱۴۰۵/۱۰/۱۲"
+            - group [ref=e3024]:
+              - generic "جزئیات و تاریخچه" [ref=e3025] [cursor=pointer]
+          - article [ref=e3028]:
+            - generic [ref=e3029]:
+              - heading "Uberrime spoliatio avarus abstergo absque quaerat clamo." [level=3] [ref=e3032]
+              - generic [ref=e3033]: شروع نشده
+            - generic [ref=e3034]:
+              - generic [ref=e3035]: Hosea Stroman-Bruen
+              - generic [ref=e3039]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e3040]:
+              - generic "جزئیات و تاریخچه" [ref=e3041] [cursor=pointer]
+          - article [ref=e3044]:
+            - generic [ref=e3045]:
+              - heading "Solutio thermae arca sophismata celebrer." [level=3] [ref=e3048]
+              - generic [ref=e3049]: شروع نشده
+            - generic [ref=e3050]:
+              - generic [ref=e3051]: Justice Schultz
+              - generic [ref=e3055]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e3056]:
+              - generic "جزئیات و تاریخچه" [ref=e3057] [cursor=pointer]
+          - article [ref=e3060]:
+            - generic [ref=e3061]:
+              - heading "Tum carbo aperiam cogito." [level=3] [ref=e3068]
+              - generic [ref=e3069]: در حال انجام
+            - generic [ref=e3070]:
+              - generic [ref=e3071]: Mekhi O'Connell
+              - generic [ref=e3075]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e3076]:
+              - generic "جزئیات و تاریخچه" [ref=e3077] [cursor=pointer]
+          - article [ref=e3080]:
+            - generic [ref=e3081]:
+              - heading "Vulpes delicate illum porro sit provident." [level=3] [ref=e3084]
+              - generic [ref=e3085]: شروع نشده
+            - generic [ref=e3086]:
+              - generic [ref=e3087]: Fatima Turcotte-Kemmer
+              - generic [ref=e3091]: "مهلت: ۱۴۰۵/۰۹/۱۷"
+            - group [ref=e3092]:
+              - generic "جزئیات و تاریخچه" [ref=e3093] [cursor=pointer]
+          - article [ref=e3096]:
+            - generic [ref=e3097]:
+              - heading "Aer bellicus quidem temeritas vobis uterque." [level=3] [ref=e3104]
+              - generic [ref=e3105]: در حال انجام
+            - generic [ref=e3106]:
+              - generic [ref=e3107]: Kale Tillman
+              - generic [ref=e3111]: "مهلت: ۱۴۰۵/۰۹/۲۹"
+            - group [ref=e3112]:
+              - generic "جزئیات و تاریخچه" [ref=e3113] [cursor=pointer]
+          - article [ref=e3116]:
+            - generic [ref=e3117]:
+              - heading "Tabula repudiandae compello contigo officia verto." [level=3] [ref=e3120]
+              - generic [ref=e3121]: IN_REVIEW
+            - generic [ref=e3122]:
+              - generic [ref=e3123]: Kristofer Kerluke
+              - generic [ref=e3127]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e3128]:
+              - generic "جزئیات و تاریخچه" [ref=e3129] [cursor=pointer]
+          - article [ref=e3132]:
+            - generic [ref=e3133]:
+              - heading "Caste crustulum similique adhaero conitor texo." [level=3] [ref=e3136]
+              - generic [ref=e3137]: شروع نشده
+            - generic [ref=e3138]:
+              - generic [ref=e3139]: August Mann
+              - generic [ref=e3143]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e3144]:
+              - generic "جزئیات و تاریخچه" [ref=e3145] [cursor=pointer]
+          - article [ref=e3148]:
+            - generic [ref=e3149]:
+              - heading "Cuius arbitro ait deficio aperio officiis alioqui." [level=3] [ref=e3156]
+              - generic [ref=e3157]: در حال انجام
+            - generic [ref=e3158]:
+              - generic [ref=e3159]: Sherman Keebler
+              - generic [ref=e3163]: "مهلت: ۱۴۰۵/۰۹/۰۹"
+            - group [ref=e3164]:
+              - generic "جزئیات و تاریخچه" [ref=e3165] [cursor=pointer]
+          - article [ref=e3168]:
+            - generic [ref=e3169]:
+              - heading "Constans ars summopere vulgaris ver apud." [level=3] [ref=e3176]
+              - generic [ref=e3177]: در حال انجام
+            - generic [ref=e3178]:
+              - generic [ref=e3179]: Deonte Schowalter
+              - generic [ref=e3183]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e3184]:
+              - generic "جزئیات و تاریخچه" [ref=e3185] [cursor=pointer]
+          - article [ref=e3188]:
+            - generic [ref=e3189]:
+              - heading "Temporibus condico calcar creptio aestivus texo." [level=3] [ref=e3192]
+              - generic [ref=e3193]: شروع نشده
+            - generic [ref=e3194]:
+              - generic [ref=e3195]: Rowland Leffler
+              - generic [ref=e3199]: "مهلت: ۱۴۰۵/۰۹/۰۷"
+            - group [ref=e3200]:
+              - generic "جزئیات و تاریخچه" [ref=e3201] [cursor=pointer]
+          - article [ref=e3204]:
+            - generic [ref=e3205]:
+              - heading "Canis comptus velum denique arbustum valde cuius administratio." [level=3] [ref=e3208]
+              - generic [ref=e3209]: شروع نشده
+            - generic [ref=e3210]:
+              - generic [ref=e3211]: Edison Wisoky
+              - generic [ref=e3215]: "مهلت: ۱۴۰۵/۰۹/۰۴"
+            - group [ref=e3216]:
+              - generic "جزئیات و تاریخچه" [ref=e3217] [cursor=pointer]
+          - article [ref=e3220]:
+            - generic [ref=e3221]:
+              - heading "Cur apparatus sumo delicate arbor correptius." [level=3] [ref=e3224]
+              - generic [ref=e3225]: شروع نشده
+            - generic [ref=e3226]:
+              - generic [ref=e3227]: Scottie Sipes
+              - generic [ref=e3231]: "مهلت: ۱۴۰۵/۰۹/۲۷"
+            - group [ref=e3232]:
+              - generic "جزئیات و تاریخچه" [ref=e3233] [cursor=pointer]
+          - article [ref=e3236]:
+            - generic [ref=e3237]:
+              - heading "Victus solium cursus absens." [level=3] [ref=e3240]
+              - generic [ref=e3241]: شروع نشده
+            - generic [ref=e3242]:
+              - generic [ref=e3243]: Jeanette Rohan
+              - generic [ref=e3247]: "مهلت: ۱۴۰۵/۱۰/۲۶"
+            - group [ref=e3248]:
+              - generic "جزئیات و تاریخچه" [ref=e3249] [cursor=pointer]
+          - article [ref=e3252]:
+            - generic [ref=e3253]:
+              - heading "Autus virtus repellat textilis stella verbera spiritus." [level=3] [ref=e3256]
+              - generic [ref=e3257]: IN_REVIEW
+            - generic [ref=e3258]:
+              - generic [ref=e3259]: Brittany Crist
+              - generic [ref=e3263]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e3264]:
+              - generic "جزئیات و تاریخچه" [ref=e3265] [cursor=pointer]
+          - article [ref=e3268]:
+            - generic [ref=e3269]:
+              - heading "Dicta sophismata porro usque comedo." [level=3] [ref=e3272]
+              - generic [ref=e3273]: IN_REVIEW
+            - generic [ref=e3274]:
+              - generic [ref=e3275]: Addison Schultz
+              - generic [ref=e3279]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e3280]:
+              - generic "جزئیات و تاریخچه" [ref=e3281] [cursor=pointer]
+          - article [ref=e3284]:
+            - generic [ref=e3285]:
+              - heading "Suggero annus vigilo ad crastinus ultra uredo." [level=3] [ref=e3292]
+              - generic [ref=e3293]: در حال انجام
+            - generic [ref=e3294]:
+              - generic [ref=e3295]: Nikolas Mraz
+              - generic [ref=e3299]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e3300]:
+              - generic "جزئیات و تاریخچه" [ref=e3301] [cursor=pointer]
+          - article [ref=e3304]:
+            - generic [ref=e3305]:
+              - heading "Depono bellum brevis acidus tempus." [level=3] [ref=e3312]
+              - generic [ref=e3313]: در حال انجام
+            - generic [ref=e3314]:
+              - generic [ref=e3315]: Bryan Murray
+              - generic [ref=e3319]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e3320]:
+              - generic "جزئیات و تاریخچه" [ref=e3321] [cursor=pointer]
+          - article [ref=e3324]:
+            - generic [ref=e3325]:
+              - heading "Tripudio cohaero suffragium ex vinculum." [level=3] [ref=e3328]
+              - generic [ref=e3329]: IN_REVIEW
+            - generic [ref=e3330]:
+              - generic [ref=e3331]: Fleta Harber
+              - generic [ref=e3335]: "مهلت: ۱۴۰۵/۱۰/۰۳"
+            - group [ref=e3336]:
+              - generic "جزئیات و تاریخچه" [ref=e3337] [cursor=pointer]
+          - article [ref=e3340]:
+            - generic [ref=e3341]:
+              - heading "Cultellus tumultus acceptus neque depraedor." [level=3] [ref=e3344]
+              - generic [ref=e3345]: شروع نشده
+            - generic [ref=e3346]:
+              - generic [ref=e3347]: Simeon Gleichner
+              - generic [ref=e3351]: "مهلت: ۱۴۰۵/۰۹/۲۹"
+            - group [ref=e3352]:
+              - generic "جزئیات و تاریخچه" [ref=e3353] [cursor=pointer]
+          - article [ref=e3356]:
+            - generic [ref=e3357]:
+              - heading "Tepidus deprecator conservo decerno sed ullam voco vinco." [level=3] [ref=e3364]
+              - generic [ref=e3365]: در حال انجام
+            - generic [ref=e3366]:
+              - generic [ref=e3367]: Asha Hettinger
+              - generic [ref=e3371]: "مهلت: ۱۴۰۵/۰۸/۲۷"
+              - generic [ref=e3372]: مهلت تمام شد
+            - group [ref=e3378]:
+              - generic "جزئیات و تاریخچه" [ref=e3379] [cursor=pointer]
+          - article [ref=e3382]:
+            - generic [ref=e3383]:
+              - heading "Vos culpo vir ratione quaerat tamdiu." [level=3] [ref=e3386]
+              - generic [ref=e3387]: شروع نشده
+            - generic [ref=e3388]:
+              - generic [ref=e3389]: Antonia Howell
+              - generic [ref=e3393]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e3394]:
+              - generic "جزئیات و تاریخچه" [ref=e3395] [cursor=pointer]
+          - article [ref=e3398]:
+            - generic [ref=e3399]:
+              - heading "Vix alius caecus solitudo candidus acidus tutis saepe." [level=3] [ref=e3406]
+              - generic [ref=e3407]: در حال انجام
+            - generic [ref=e3408]:
+              - generic [ref=e3409]: Isabell Carter-Becker
+              - generic [ref=e3413]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e3414]:
+              - generic "جزئیات و تاریخچه" [ref=e3415] [cursor=pointer]
+          - article [ref=e3418]:
+            - generic [ref=e3419]:
+              - heading "Cetera uter pel voluptates condico terga benigne." [level=3] [ref=e3422]
+              - generic [ref=e3423]: شروع نشده
+            - generic [ref=e3424]:
+              - generic [ref=e3425]: Marley Corwin
+              - generic [ref=e3429]: "مهلت: ۱۴۰۵/۰۹/۰۳"
+            - group [ref=e3430]:
+              - generic "جزئیات و تاریخچه" [ref=e3431] [cursor=pointer]
+          - article [ref=e3434]:
+            - generic [ref=e3435]:
+              - heading "Vito colligo nobis totam abutor depromo." [level=3] [ref=e3438]
+              - generic [ref=e3439]: شروع نشده
+            - generic [ref=e3440]:
+              - generic [ref=e3441]: Kasey Toy
+              - generic [ref=e3445]: "مهلت: ۱۴۰۵/۰۸/۲۷"
+              - generic [ref=e3446]: مهلت تمام شد
+            - group [ref=e3452]:
+              - generic "جزئیات و تاریخچه" [ref=e3453] [cursor=pointer]
+          - article [ref=e3456]:
+            - generic [ref=e3457]:
+              - heading "Defetiscor cotidie confero conscendo sono audio coaegresco." [level=3] [ref=e3460]
+              - generic [ref=e3461]: شروع نشده
+            - generic [ref=e3462]:
+              - generic [ref=e3463]: Carla Cummerata
+              - generic [ref=e3467]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e3468]:
+              - generic "جزئیات و تاریخچه" [ref=e3469] [cursor=pointer]
+          - article [ref=e3472]:
+            - generic [ref=e3473]:
+              - heading "Vel similique somniculosus ter vulnus." [level=3] [ref=e3476]
+              - generic [ref=e3477]: IN_REVIEW
+            - generic [ref=e3478]:
+              - generic [ref=e3479]: Harley Greenfelder
+              - generic [ref=e3483]: "مهلت: ۱۴۰۵/۱۰/۰۹"
+            - group [ref=e3484]:
+              - generic "جزئیات و تاریخچه" [ref=e3485] [cursor=pointer]
+          - article [ref=e3488]:
+            - generic [ref=e3489]:
+              - heading "Tenuis talis calcar pauci summopere animadverto provident sortitus." [level=3] [ref=e3492]
+              - generic [ref=e3493]: IN_REVIEW
+            - generic [ref=e3494]:
+              - generic [ref=e3495]: Brando Johns
+              - generic [ref=e3499]: "مهلت: ۱۴۰۵/۱۰/۲۵"
+            - group [ref=e3500]:
+              - generic "جزئیات و تاریخچه" [ref=e3501] [cursor=pointer]
+          - article [ref=e3504]:
+            - generic [ref=e3505]:
+              - heading "Nam textor at validus dedecor." [level=3] [ref=e3512]
+              - generic [ref=e3513]: در حال انجام
+            - generic [ref=e3514]:
+              - generic [ref=e3515]: Giovani Littel
+              - generic [ref=e3519]: "مهلت: ۱۴۰۵/۰۹/۱۸"
+            - group [ref=e3520]:
+              - generic "جزئیات و تاریخچه" [ref=e3521] [cursor=pointer]
+          - article [ref=e3524]:
+            - generic [ref=e3525]:
+              - heading "Volaticus arceo comis voro terreo centum." [level=3] [ref=e3528]
+              - generic [ref=e3529]: IN_REVIEW
+            - generic [ref=e3530]:
+              - generic [ref=e3531]: Briana Kiehn
+              - generic [ref=e3535]: "مهلت: ۱۴۰۵/۰۸/۳۰"
+              - generic [ref=e3536]:
+                - timer "۶۸ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e3540]: ۶۸:۳۰:۲۷
+                - generic [aria-hidden] [ref=e3541]: باقی‌مانده
+            - group [ref=e3542]:
+              - generic "جزئیات و تاریخچه" [ref=e3543] [cursor=pointer]
+          - article [ref=e3546]:
+            - generic [ref=e3547]:
+              - heading "Depulso adnuo adnuo volubilis clementia earum." [level=3] [ref=e3550]
+              - generic [ref=e3551]: شروع نشده
+            - generic [ref=e3552]:
+              - generic [ref=e3553]: Unique Ledner
+              - generic [ref=e3557]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e3558]:
+              - generic "جزئیات و تاریخچه" [ref=e3559] [cursor=pointer]
+          - article [ref=e3562]:
+            - generic [ref=e3563]:
+              - heading "Benevolentia atrox aiunt cultura certe magnam hic cruentus." [level=3] [ref=e3570]
+              - generic [ref=e3571]: در حال انجام
+            - generic [ref=e3572]:
+              - generic [ref=e3573]: Brian Nader
+              - generic [ref=e3577]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e3578]:
+              - generic "جزئیات و تاریخچه" [ref=e3579] [cursor=pointer]
+          - article [ref=e3582]:
+            - generic [ref=e3583]:
+              - heading "Vulnus termes tenus a tamquam ustilo." [level=3] [ref=e3586]
+              - generic [ref=e3587]: شروع نشده
+            - generic [ref=e3588]:
+              - generic [ref=e3589]: Bradley Beier
+              - generic [ref=e3593]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e3594]:
+              - generic "جزئیات و تاریخچه" [ref=e3595] [cursor=pointer]
+          - article [ref=e3598]:
+            - generic [ref=e3599]:
+              - heading "Xiphias conitor cunctatio sunt." [level=3] [ref=e3606]
+              - generic [ref=e3607]: در حال انجام
+            - generic [ref=e3608]:
+              - generic [ref=e3609]: Flavio Schamberger
+              - generic [ref=e3613]: "مهلت: ۱۴۰۵/۰۹/۰۴"
+            - group [ref=e3614]:
+              - generic "جزئیات و تاریخچه" [ref=e3615] [cursor=pointer]
+          - article [ref=e3618]:
+            - generic [ref=e3619]:
+              - heading "Atrocitas curriculum eveniet textus." [level=3] [ref=e3622]
+              - generic [ref=e3623]: IN_REVIEW
+            - generic [ref=e3624]:
+              - generic [ref=e3625]: Cordie Lindgren
+              - generic [ref=e3629]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e3630]:
+              - generic "جزئیات و تاریخچه" [ref=e3631] [cursor=pointer]
+          - article [ref=e3634]:
+            - generic [ref=e3635]:
+              - heading "Sunt virga terga delego caute coniuratio cupiditate." [level=3] [ref=e3642]
+              - generic [ref=e3643]: در حال انجام
+            - generic [ref=e3644]:
+              - generic [ref=e3645]: Kayleigh Simonis
+              - generic [ref=e3649]: "مهلت: ۱۴۰۵/۰۹/۱۷"
+            - group [ref=e3650]:
+              - generic "جزئیات و تاریخچه" [ref=e3651] [cursor=pointer]
+          - article [ref=e3654]:
+            - generic [ref=e3655]:
+              - heading "Tempore cibo venia deprecator avarus." [level=3] [ref=e3658]
+              - generic [ref=e3659]: IN_REVIEW
+            - generic [ref=e3660]:
+              - generic [ref=e3661]: Lolita Schuppe
+              - generic [ref=e3665]: "مهلت: ۱۴۰۵/۱۰/۱۴"
+            - group [ref=e3666]:
+              - generic "جزئیات و تاریخچه" [ref=e3667] [cursor=pointer]
+          - article [ref=e3670]:
+            - generic [ref=e3671]:
+              - heading "Amplexus speculum tergiversatio thesaurus subiungo una clamo." [level=3] [ref=e3678]
+              - generic [ref=e3679]: در حال انجام
+            - generic [ref=e3680]:
+              - generic [ref=e3681]: Cory Bayer
+              - generic [ref=e3685]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e3686]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e3690]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e3691]: باقی‌مانده
+            - group [ref=e3692]:
+              - generic "جزئیات و تاریخچه" [ref=e3693] [cursor=pointer]
+          - article [ref=e3696]:
+            - generic [ref=e3697]:
+              - heading "Amiculum armarium callide aegrus." [level=3] [ref=e3700]
+              - generic [ref=e3701]: IN_REVIEW
+            - generic [ref=e3702]:
+              - generic [ref=e3703]: Johan Roob
+              - generic [ref=e3707]: "مهلت: ۱۴۰۵/۱۰/۱۳"
+            - group [ref=e3708]:
+              - generic "جزئیات و تاریخچه" [ref=e3709] [cursor=pointer]
+          - article [ref=e3712]:
+            - generic [ref=e3713]:
+              - heading "Vallum vestigium trans vulariter." [level=3] [ref=e3720]
+              - generic [ref=e3721]: در حال انجام
+            - generic [ref=e3722]:
+              - generic [ref=e3723]: Melisa Orn
+              - generic [ref=e3727]: "مهلت: ۱۴۰۵/۰۹/۱۲"
+            - group [ref=e3728]:
+              - generic "جزئیات و تاریخچه" [ref=e3729] [cursor=pointer]
+          - article [ref=e3732]:
+            - generic [ref=e3733]:
+              - heading "Vulgivagus facere caelum surculus demulceo." [level=3] [ref=e3740]
+              - generic [ref=e3741]: در حال انجام
+            - generic [ref=e3742]:
+              - generic [ref=e3743]: Spencer Hahn
+              - generic [ref=e3747]: "مهلت: ۱۴۰۵/۰۹/۰۲"
+            - group [ref=e3748]:
+              - generic "جزئیات و تاریخچه" [ref=e3749] [cursor=pointer]
+          - article [ref=e3752]:
+            - generic [ref=e3753]:
+              - heading "Conventus laudantium animus argentum uberrime degenero atque numquam." [level=3] [ref=e3760]
+              - generic [ref=e3761]: در حال انجام
+            - generic [ref=e3762]:
+              - generic [ref=e3763]: Lonie Green-Rogahn
+              - generic [ref=e3767]: "مهلت: ۱۴۰۵/۰۹/۲۸"
+            - group [ref=e3768]:
+              - generic "جزئیات و تاریخچه" [ref=e3769] [cursor=pointer]
+          - article [ref=e3772]:
+            - generic [ref=e3773]:
+              - heading "Dapifer alienus tergo caecus ustulo." [level=3] [ref=e3780]
+              - generic [ref=e3781]: در حال انجام
+            - generic [ref=e3782]:
+              - generic [ref=e3783]: Barry Lebsack
+              - generic [ref=e3787]: "مهلت: ۱۴۰۵/۰۹/۰۲"
+            - group [ref=e3788]:
+              - generic "جزئیات و تاریخچه" [ref=e3789] [cursor=pointer]
+          - article [ref=e3792]:
+            - generic [ref=e3793]:
+              - heading "Denique correptius tenuis aureus arbustum cavus acquiro." [level=3] [ref=e3796]
+              - generic [ref=e3797]: شروع نشده
+            - generic [ref=e3798]:
+              - generic [ref=e3799]: Tiffany Ledner
+              - generic [ref=e3803]: "مهلت: ۱۴۰۵/۰۹/۱۱"
+            - group [ref=e3804]:
+              - generic "جزئیات و تاریخچه" [ref=e3805] [cursor=pointer]
+          - article [ref=e3808]:
+            - generic [ref=e3809]:
+              - heading "Vereor alius collum cupressus casus beatus celebrer audacia." [level=3] [ref=e3812]
+              - generic [ref=e3813]: شروع نشده
+            - generic [ref=e3814]:
+              - generic [ref=e3815]: Mark Franecki
+              - generic [ref=e3819]: "مهلت: ۱۴۰۵/۱۰/۱۲"
+            - group [ref=e3820]:
+              - generic "جزئیات و تاریخچه" [ref=e3821] [cursor=pointer]
+          - article [ref=e3824]:
+            - generic [ref=e3825]:
+              - heading "Adimpleo cervus nobis terminatio." [level=3] [ref=e3832]
+              - generic [ref=e3833]: در حال انجام
+            - generic [ref=e3834]:
+              - generic [ref=e3835]: London Gerlach
+              - generic [ref=e3839]: "مهلت: ۱۴۰۵/۰۹/۲۶"
+            - group [ref=e3840]:
+              - generic "جزئیات و تاریخچه" [ref=e3841] [cursor=pointer]
+          - article [ref=e3844]:
+            - generic [ref=e3845]:
+              - heading "Apostolus bellicus vomer theca ambitus benevolentia." [level=3] [ref=e3848]
+              - generic [ref=e3849]: IN_REVIEW
+            - generic [ref=e3850]:
+              - generic [ref=e3851]: Evert Smitham
+              - generic [ref=e3855]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e3856]:
+              - generic "جزئیات و تاریخچه" [ref=e3857] [cursor=pointer]
+          - article [ref=e3860]:
+            - generic [ref=e3861]:
+              - heading "Tricesimus dignissimos tristis verus desparatus appono defaeco dedico." [level=3] [ref=e3864]
+              - generic [ref=e3865]: IN_REVIEW
+            - generic [ref=e3866]:
+              - generic [ref=e3867]: Hugh Parker
+              - generic [ref=e3871]: "مهلت: ۱۴۰۵/۰۹/۰۴"
+            - group [ref=e3872]:
+              - generic "جزئیات و تاریخچه" [ref=e3873] [cursor=pointer]
+          - article [ref=e3876]:
+            - generic [ref=e3877]:
+              - heading "Vorago tondeo vinum auditor." [level=3] [ref=e3880]
+              - generic [ref=e3881]: شروع نشده
+            - generic [ref=e3882]:
+              - generic [ref=e3883]: Eleanor Dickinson
+              - generic [ref=e3887]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e3888]:
+              - generic "جزئیات و تاریخچه" [ref=e3889] [cursor=pointer]
+          - article [ref=e3892]:
+            - generic [ref=e3893]:
+              - heading "Crapula vilis tepidus amissio contabesco enim voluntarius." [level=3] [ref=e3900]
+              - generic [ref=e3901]: در حال انجام
+            - generic [ref=e3902]:
+              - generic [ref=e3903]: Trisha Sanford
+              - generic [ref=e3907]: "مهلت: ۱۴۰۵/۰۹/۰۷"
+            - group [ref=e3908]:
+              - generic "جزئیات و تاریخچه" [ref=e3909] [cursor=pointer]
+          - article [ref=e3912]:
+            - generic [ref=e3913]:
+              - heading "Studio aro sperno crinis subnecto quibusdam asperiores sub." [level=3] [ref=e3920]
+              - generic [ref=e3921]: در حال انجام
+            - generic [ref=e3922]:
+              - generic [ref=e3923]: Ashtyn Wisoky
+              - generic [ref=e3927]: "مهلت: ۱۴۰۵/۰۹/۰۷"
+            - group [ref=e3928]:
+              - generic "جزئیات و تاریخچه" [ref=e3929] [cursor=pointer]
+          - article [ref=e3932]:
+            - generic [ref=e3933]:
+              - heading "Vulgo turbo qui callide dolores appello placeat vinitor." [level=3] [ref=e3936]
+              - generic [ref=e3937]: IN_REVIEW
+            - generic [ref=e3938]:
+              - generic [ref=e3939]: Felicita Medhurst
+              - generic [ref=e3943]: "مهلت: ۱۴۰۵/۰۹/۲۹"
+            - group [ref=e3944]:
+              - generic "جزئیات و تاریخچه" [ref=e3945] [cursor=pointer]
+          - article [ref=e3948]:
+            - generic [ref=e3949]:
+              - heading "Admoneo laborum excepturi repellendus aduro denuo vulnero." [level=3] [ref=e3952]
+              - generic [ref=e3953]: شروع نشده
+            - generic [ref=e3954]:
+              - generic [ref=e3955]: Jazlyn Welch
+              - generic [ref=e3959]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e3960]:
+              - generic "جزئیات و تاریخچه" [ref=e3961] [cursor=pointer]
+          - article [ref=e3964]:
+            - generic [ref=e3965]:
+              - heading "Clamo claustrum umquam asper succedo adflicto tamisium anser." [level=3] [ref=e3972]
+              - generic [ref=e3973]: در حال انجام
+            - generic [ref=e3974]:
+              - generic [ref=e3975]: Orrin Wyman
+              - generic [ref=e3979]: "مهلت: ۱۴۰۵/۰۹/۱۷"
+            - group [ref=e3980]:
+              - generic "جزئیات و تاریخچه" [ref=e3981] [cursor=pointer]
+          - article [ref=e3984]:
+            - generic [ref=e3985]:
+              - heading "Vix amaritudo caste statim vester vero celebrer." [level=3] [ref=e3988]
+              - generic [ref=e3989]: IN_REVIEW
+            - generic [ref=e3990]:
+              - generic [ref=e3991]: Imelda Krajcik
+              - generic [ref=e3995]: "مهلت: ۱۴۰۵/۰۹/۲۴"
+            - group [ref=e3996]:
+              - generic "جزئیات و تاریخچه" [ref=e3997] [cursor=pointer]
+          - article [ref=e4000]:
+            - generic [ref=e4001]:
+              - heading "Valens cura aestivus asperiores coniecto." [level=3] [ref=e4004]
+              - generic [ref=e4005]: IN_REVIEW
+            - generic [ref=e4006]:
+              - generic [ref=e4007]: Jacinto Walsh
+              - generic [ref=e4011]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e4012]:
+              - generic "جزئیات و تاریخچه" [ref=e4013] [cursor=pointer]
+          - article [ref=e4016]:
+            - generic [ref=e4017]:
+              - heading "Acidus versus aduro unus tamisium." [level=3] [ref=e4020]
+              - generic [ref=e4021]: شروع نشده
+            - generic [ref=e4022]:
+              - generic [ref=e4023]: Edwin Johnson
+              - generic [ref=e4027]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e4028]:
+              - generic "جزئیات و تاریخچه" [ref=e4029] [cursor=pointer]
+          - article [ref=e4032]:
+            - generic [ref=e4033]:
+              - heading "Cervus arx ceno demum ambulo." [level=3] [ref=e4036]
+              - generic [ref=e4037]: IN_REVIEW
+            - generic [ref=e4038]:
+              - generic [ref=e4039]: Britney Hansen
+              - generic [ref=e4043]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e4044]:
+              - generic "جزئیات و تاریخچه" [ref=e4045] [cursor=pointer]
+          - article [ref=e4048]:
+            - generic [ref=e4049]:
+              - heading "Cauda absens crur allatus." [level=3] [ref=e4052]
+              - generic [ref=e4053]: شروع نشده
+            - generic [ref=e4054]:
+              - generic [ref=e4055]: Brook Keeling
+              - generic [ref=e4059]: "مهلت: ۱۴۰۵/۱۰/۱۳"
+            - group [ref=e4060]:
+              - generic "جزئیات و تاریخچه" [ref=e4061] [cursor=pointer]
+          - article [ref=e4064]:
+            - generic [ref=e4065]:
+              - heading "Apostolus torqueo vomito unde." [level=3] [ref=e4068]
+              - generic [ref=e4069]: IN_REVIEW
+            - generic [ref=e4070]:
+              - generic [ref=e4071]: Isom Lind
+              - generic [ref=e4075]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e4076]:
+              - generic "جزئیات و تاریخچه" [ref=e4077] [cursor=pointer]
+          - article [ref=e4080]:
+            - generic [ref=e4081]:
+              - heading "Ceno veritatis decretum ventus apparatus appello vaco caelestis." [level=3] [ref=e4084]
+              - generic [ref=e4085]: IN_REVIEW
+            - generic [ref=e4086]:
+              - generic [ref=e4087]: Lilla Upton
+              - generic [ref=e4091]: "مهلت: ۱۴۰۵/۰۹/۲۱"
+            - group [ref=e4092]:
+              - generic "جزئیات و تاریخچه" [ref=e4093] [cursor=pointer]
+          - article [ref=e4096]:
+            - generic [ref=e4097]:
+              - heading "Vapulus molestiae conduco censura viscus caput." [level=3] [ref=e4100]
+              - generic [ref=e4101]: شروع نشده
+            - generic [ref=e4102]:
+              - generic [ref=e4103]: Tanya Hamill
+              - generic [ref=e4107]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e4108]:
+              - generic "جزئیات و تاریخچه" [ref=e4109] [cursor=pointer]
+          - article [ref=e4112]:
+            - generic [ref=e4113]:
+              - heading "Vita compono censura adipisci tollo derelinquo." [level=3] [ref=e4120]
+              - generic [ref=e4121]: در حال انجام
+            - generic [ref=e4122]:
+              - generic [ref=e4123]: Max Pagac
+              - generic [ref=e4127]: "مهلت: ۱۴۰۵/۱۰/۲۶"
+            - group [ref=e4128]:
+              - generic "جزئیات و تاریخچه" [ref=e4129] [cursor=pointer]
+          - article [ref=e4132]:
+            - generic [ref=e4133]:
+              - heading "Dicta totus viscus delicate velum arx." [level=3] [ref=e4136]
+              - generic [ref=e4137]: شروع نشده
+            - generic [ref=e4138]:
+              - generic [ref=e4139]: Randolph Hermann
+              - generic [ref=e4143]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e4144]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e4148]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e4149]: باقی‌مانده
+            - group [ref=e4150]:
+              - generic "جزئیات و تاریخچه" [ref=e4151] [cursor=pointer]
+          - article [ref=e4154]:
+            - generic [ref=e4155]:
+              - heading "Derideo cogito aetas defetiscor." [level=3] [ref=e4162]
+              - generic [ref=e4163]: در حال انجام
+            - generic [ref=e4164]:
+              - generic [ref=e4165]: Lula Barton
+              - generic [ref=e4169]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e4170]:
+              - generic "جزئیات و تاریخچه" [ref=e4171] [cursor=pointer]
+          - article [ref=e4174]:
+            - generic [ref=e4175]:
+              - heading "Advoco tempora demoror benevolentia venio audacia exercitationem." [level=3] [ref=e4182]
+              - generic [ref=e4183]: در حال انجام
+            - generic [ref=e4184]:
+              - generic [ref=e4185]: Nelda Kihn
+              - generic [ref=e4189]: "مهلت: ۱۴۰۵/۰۹/۲۶"
+            - group [ref=e4190]:
+              - generic "جزئیات و تاریخچه" [ref=e4191] [cursor=pointer]
+          - article [ref=e4194]:
+            - generic [ref=e4195]:
+              - heading "Admoneo caritas canis trepide tenuis." [level=3] [ref=e4202]
+              - generic [ref=e4203]: در حال انجام
+            - generic [ref=e4204]:
+              - generic [ref=e4205]: Hanna Deckow
+              - generic [ref=e4209]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e4210]:
+              - generic "جزئیات و تاریخچه" [ref=e4211] [cursor=pointer]
+          - article [ref=e4214]:
+            - generic [ref=e4215]:
+              - heading "Libero virgo combibo contra terra sustineo." [level=3] [ref=e4218]
+              - generic [ref=e4219]: شروع نشده
+            - generic [ref=e4220]:
+              - generic [ref=e4221]: Cali Ernser
+              - generic [ref=e4225]: "مهلت: ۱۴۰۵/۰۸/۲۸"
+              - generic [ref=e4226]:
+                - timer "۲۰ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e4230]: ۲۰:۳۰:۲۷
+                - generic [aria-hidden] [ref=e4231]: باقی‌مانده
+            - group [ref=e4232]:
+              - generic "جزئیات و تاریخچه" [ref=e4233] [cursor=pointer]
+          - article [ref=e4236]:
+            - generic [ref=e4237]:
+              - heading "Suggero dicta nemo auxilium cumque vitium quaerat contabesco." [level=3] [ref=e4240]
+              - generic [ref=e4241]: شروع نشده
+            - generic [ref=e4242]:
+              - generic [ref=e4243]: Kasey Kunde
+              - generic [ref=e4247]: "مهلت: ۱۴۰۵/۰۹/۲۳"
+            - group [ref=e4248]:
+              - generic "جزئیات و تاریخچه" [ref=e4249] [cursor=pointer]
+          - article [ref=e4252]:
+            - generic [ref=e4253]:
+              - heading "Audeo soleo cui colligo." [level=3] [ref=e4256]
+              - generic [ref=e4257]: IN_REVIEW
+            - generic [ref=e4258]:
+              - generic [ref=e4259]: Laurel Lindgren
+              - generic [ref=e4263]: "مهلت: ۱۴۰۵/۱۰/۱۹"
+            - group [ref=e4264]:
+              - generic "جزئیات و تاریخچه" [ref=e4265] [cursor=pointer]
+          - article [ref=e4268]:
+            - generic [ref=e4269]:
+              - heading "Adinventitias ustulo depulso teneo bis autus." [level=3] [ref=e4272]
+              - generic [ref=e4273]: شروع نشده
+            - generic [ref=e4274]:
+              - generic [ref=e4275]: Lavern Goodwin
+              - generic [ref=e4279]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e4280]:
+              - generic "جزئیات و تاریخچه" [ref=e4281] [cursor=pointer]
+          - article [ref=e4284]:
+            - generic [ref=e4285]:
+              - heading "Aeneus curis molestiae concido voluptates id." [level=3] [ref=e4288]
+              - generic [ref=e4289]: شروع نشده
+            - generic [ref=e4290]:
+              - generic [ref=e4291]: Hugh Parker
+              - generic [ref=e4295]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e4296]:
+              - generic "جزئیات و تاریخچه" [ref=e4297] [cursor=pointer]
+          - article [ref=e4300]:
+            - generic [ref=e4301]:
+              - heading "Alveus tonsor uter vitae ab." [level=3] [ref=e4308]
+              - generic [ref=e4309]: در حال انجام
+            - generic [ref=e4310]:
+              - generic [ref=e4311]: Regan Rath
+              - generic [ref=e4315]: "مهلت: ۱۴۰۵/۰۹/۲۳"
+            - group [ref=e4316]:
+              - generic "جزئیات و تاریخچه" [ref=e4317] [cursor=pointer]
+          - article [ref=e4320]:
+            - generic [ref=e4321]:
+              - heading "Amplexus tollo soleo barba umbra." [level=3] [ref=e4324]
+              - generic [ref=e4325]: شروع نشده
+            - generic [ref=e4326]:
+              - generic [ref=e4327]: Destini Dooley
+              - generic [ref=e4331]: "مهلت: ۱۴۰۵/۰۹/۰۶"
+            - group [ref=e4332]:
+              - generic "جزئیات و تاریخچه" [ref=e4333] [cursor=pointer]
+          - article [ref=e4336]:
+            - generic [ref=e4337]:
+              - heading "Tabesco corrupti armarium curriculum tumultus aufero beneficium." [level=3] [ref=e4340]
+              - generic [ref=e4341]: IN_REVIEW
+            - generic [ref=e4342]:
+              - generic [ref=e4343]: Madyson Heaney
+              - generic [ref=e4347]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e4348]:
+              - generic "جزئیات و تاریخچه" [ref=e4349] [cursor=pointer]
+          - article [ref=e4352]:
+            - generic [ref=e4353]:
+              - heading "Tantillus numquam candidus caelum arcus." [level=3] [ref=e4356]
+              - generic [ref=e4357]: IN_REVIEW
+            - generic [ref=e4358]:
+              - generic [ref=e4359]: Harmon Rogahn
+              - generic [ref=e4363]: "مهلت: ۱۴۰۵/۱۰/۰۹"
+            - group [ref=e4364]:
+              - generic "جزئیات و تاریخچه" [ref=e4365] [cursor=pointer]
+          - article [ref=e4368]:
+            - generic [ref=e4369]:
+              - heading "Arbitro decumbo alioqui quisquam ustulo." [level=3] [ref=e4376]
+              - generic [ref=e4377]: در حال انجام
+            - generic [ref=e4378]:
+              - generic [ref=e4379]: Christop Dickens
+              - generic [ref=e4383]: "مهلت: ۱۴۰۵/۰۸/۳۰"
+              - generic [ref=e4384]:
+                - timer "۶۸ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e4388]: ۶۸:۳۰:۲۷
+                - generic [aria-hidden] [ref=e4389]: باقی‌مانده
+            - group [ref=e4390]:
+              - generic "جزئیات و تاریخچه" [ref=e4391] [cursor=pointer]
+          - article [ref=e4394]:
+            - generic [ref=e4395]:
+              - heading "Degenero venustas desolo tactus possimus." [level=3] [ref=e4402]
+              - generic [ref=e4403]: در حال انجام
+            - generic [ref=e4404]:
+              - generic [ref=e4405]: Roel Champlin
+              - generic [ref=e4409]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e4410]:
+              - generic "جزئیات و تاریخچه" [ref=e4411] [cursor=pointer]
+          - article [ref=e4414]:
+            - generic [ref=e4415]:
+              - heading "Claudeo adflicto adstringo aureus." [level=3] [ref=e4418]
+              - generic [ref=e4419]: شروع نشده
+            - generic [ref=e4420]:
+              - generic [ref=e4421]: Garrick Schaefer
+              - generic [ref=e4425]: "مهلت: ۱۴۰۵/۱۰/۰۳"
+            - group [ref=e4426]:
+              - generic "جزئیات و تاریخچه" [ref=e4427] [cursor=pointer]
+          - article [ref=e4430]:
+            - generic [ref=e4431]:
+              - heading "Voluptates odit vigor usus." [level=3] [ref=e4438]
+              - generic [ref=e4439]: در حال انجام
+            - generic [ref=e4440]:
+              - generic [ref=e4441]: Arnulfo Cole
+              - generic [ref=e4445]: "مهلت: ۱۴۰۵/۱۰/۰۵"
+            - group [ref=e4446]:
+              - generic "جزئیات و تاریخچه" [ref=e4447] [cursor=pointer]
+          - article [ref=e4450]:
+            - generic [ref=e4451]:
+              - heading "Turba terror crinis delinquo." [level=3] [ref=e4458]
+              - generic [ref=e4459]: در حال انجام
+            - generic [ref=e4460]:
+              - generic [ref=e4461]: Elyse Wunsch
+              - generic [ref=e4465]: "مهلت: ۱۴۰۵/۰۹/۱۴"
+            - group [ref=e4466]:
+              - generic "جزئیات و تاریخچه" [ref=e4467] [cursor=pointer]
+          - article [ref=e4470]:
+            - generic [ref=e4471]:
+              - heading "Quod beatae delibero unde curatio adimpleo super hic." [level=3] [ref=e4478]
+              - generic [ref=e4479]: در حال انجام
+            - generic [ref=e4480]:
+              - generic [ref=e4481]: Jamie Reinger
+              - generic [ref=e4485]: "مهلت: ۱۴۰۵/۰۹/۰۷"
+            - group [ref=e4486]:
+              - generic "جزئیات و تاریخچه" [ref=e4487] [cursor=pointer]
+          - article [ref=e4490]:
+            - generic [ref=e4491]:
+              - heading "Super astrum cribro tyrannus aeneus angustus eius teneo." [level=3] [ref=e4494]
+              - generic [ref=e4495]: شروع نشده
+            - generic [ref=e4496]:
+              - generic [ref=e4497]: Marielle Sporer
+              - generic [ref=e4501]: "مهلت: ۱۴۰۵/۰۹/۰۳"
+            - group [ref=e4502]:
+              - generic "جزئیات و تاریخچه" [ref=e4503] [cursor=pointer]
+          - article [ref=e4506]:
+            - generic [ref=e4507]:
+              - heading "Compello vereor quae audax." [level=3] [ref=e4514]
+              - generic [ref=e4515]: در حال انجام
+            - generic [ref=e4516]:
+              - generic [ref=e4517]: Sammy Pouros
+              - generic [ref=e4521]: "مهلت: ۱۴۰۵/۰۹/۱۹"
+            - group [ref=e4522]:
+              - generic "جزئیات و تاریخچه" [ref=e4523] [cursor=pointer]
+          - article [ref=e4526]:
+            - generic [ref=e4527]:
+              - heading "Decimus allatus caveo adstringo comminor suppono vinitor aetas." [level=3] [ref=e4534]
+              - generic [ref=e4535]: در حال انجام
+            - generic [ref=e4536]:
+              - generic [ref=e4537]: Leonardo Ernser
+              - generic [ref=e4541]: "مهلت: ۱۴۰۵/۱۰/۲۱"
+            - group [ref=e4542]:
+              - generic "جزئیات و تاریخچه" [ref=e4543] [cursor=pointer]
+          - article [ref=e4546]:
+            - generic [ref=e4547]:
+              - heading "Conculco vestrum cumque bellicus apud auditor ocer alioqui." [level=3] [ref=e4554]
+              - generic [ref=e4555]: در حال انجام
+            - generic [ref=e4556]:
+              - generic [ref=e4557]: Laurel Lindgren
+              - generic [ref=e4561]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e4562]:
+              - generic "جزئیات و تاریخچه" [ref=e4563] [cursor=pointer]
+          - article [ref=e4566]:
+            - generic [ref=e4567]:
+              - heading "Aggredior vulgaris aufero appono crapula eius nulla vester." [level=3] [ref=e4570]
+              - generic [ref=e4571]: IN_REVIEW
+            - generic [ref=e4572]:
+              - generic [ref=e4573]: Raleigh King
+              - generic [ref=e4577]: "مهلت: ۱۴۰۵/۰۹/۰۴"
+            - group [ref=e4578]:
+              - generic "جزئیات و تاریخچه" [ref=e4579] [cursor=pointer]
+          - article [ref=e4582]:
+            - generic [ref=e4583]:
+              - heading "Depraedor ventus ter magnam appositus." [level=3] [ref=e4586]
+              - generic [ref=e4587]: شروع نشده
+            - generic [ref=e4588]:
+              - generic [ref=e4589]: Ryder Strosin
+              - generic [ref=e4593]: "مهلت: ۱۴۰۵/۰۹/۰۵"
+            - group [ref=e4594]:
+              - generic "جزئیات و تاریخچه" [ref=e4595] [cursor=pointer]
+          - article [ref=e4598]:
+            - generic [ref=e4599]:
+              - heading "Apparatus venio aspicio pecus synagoga blanditiis." [level=3] [ref=e4602]
+              - generic [ref=e4603]: شروع نشده
+            - generic [ref=e4604]:
+              - generic [ref=e4605]: Jed Reynolds
+              - generic [ref=e4609]: "مهلت: ۱۴۰۵/۰۹/۱۱"
+            - group [ref=e4610]:
+              - generic "جزئیات و تاریخچه" [ref=e4611] [cursor=pointer]
+          - article [ref=e4614]:
+            - generic [ref=e4615]:
+              - heading "Delinquo tamdiu sopor curo excepturi quisquam debeo." [level=3] [ref=e4618]
+              - generic [ref=e4619]: شروع نشده
+            - generic [ref=e4620]:
+              - generic [ref=e4621]: Nash Cremin
+              - generic [ref=e4625]: "مهلت: ۱۴۰۵/۰۹/۰۴"
+            - group [ref=e4626]:
+              - generic "جزئیات و تاریخچه" [ref=e4627] [cursor=pointer]
+          - article [ref=e4630]:
+            - generic [ref=e4631]:
+              - heading "Consequuntur caput coniuratio vespillo ustulo inflammatio subito umerus." [level=3] [ref=e4634]
+              - generic [ref=e4635]: IN_REVIEW
+            - generic [ref=e4636]:
+              - generic [ref=e4637]: Stuart Breitenberg
+              - generic [ref=e4641]: "مهلت: ۱۴۰۵/۰۹/۱۱"
+            - group [ref=e4642]:
+              - generic "جزئیات و تاریخچه" [ref=e4643] [cursor=pointer]
+          - article [ref=e4646]:
+            - generic [ref=e4647]:
+              - heading "Truculenter suscipit cogo vix uterque clamo curis." [level=3] [ref=e4654]
+              - generic [ref=e4655]: در حال انجام
+            - generic [ref=e4656]:
+              - generic [ref=e4657]: Ivory Towne
+              - generic [ref=e4661]: "مهلت: ۱۴۰۵/۰۸/۲۷"
+              - generic [ref=e4662]: مهلت تمام شد
+            - group [ref=e4668]:
+              - generic "جزئیات و تاریخچه" [ref=e4669] [cursor=pointer]
+          - article [ref=e4672]:
+            - generic [ref=e4673]:
+              - heading "Subito eum acies timor defluo nihil aspicio." [level=3] [ref=e4676]
+              - generic [ref=e4677]: IN_REVIEW
+            - generic [ref=e4678]:
+              - generic [ref=e4679]: Jadyn Quigley
+              - generic [ref=e4683]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e4684]:
+              - generic "جزئیات و تاریخچه" [ref=e4685] [cursor=pointer]
+          - article [ref=e4688]:
+            - generic [ref=e4689]:
+              - heading "Corrumpo aliquid attonbitus suadeo complectus crustulum aliqua acquiro." [level=3] [ref=e4692]
+              - generic [ref=e4693]: شروع نشده
+            - generic [ref=e4694]:
+              - generic [ref=e4695]: Allan Roob
+              - generic [ref=e4699]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e4700]:
+              - generic "جزئیات و تاریخچه" [ref=e4701] [cursor=pointer]
+          - article [ref=e4704]:
+            - generic [ref=e4705]:
+              - heading "Degusto basium universe adduco vero cervus." [level=3] [ref=e4708]
+              - generic [ref=e4709]: شروع نشده
+            - generic [ref=e4710]:
+              - generic [ref=e4711]: Oma Howell
+              - generic [ref=e4715]: "مهلت: ۱۴۰۵/۱۰/۱۲"
+            - group [ref=e4716]:
+              - generic "جزئیات و تاریخچه" [ref=e4717] [cursor=pointer]
+          - article [ref=e4720]:
+            - generic [ref=e4721]:
+              - heading "Stipes cubo conqueror altus amicitia acceptus virgo minima." [level=3] [ref=e4724]
+              - generic [ref=e4725]: شروع نشده
+            - generic [ref=e4726]:
+              - generic [ref=e4727]: Rickie Schuster
+              - generic [ref=e4731]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e4732]:
+              - generic "جزئیات و تاریخچه" [ref=e4733] [cursor=pointer]
+          - article [ref=e4736]:
+            - generic [ref=e4737]:
+              - heading "Ago versus ipsa deprecator charisma torqueo adulatio cilicium." [level=3] [ref=e4740]
+              - generic [ref=e4741]: IN_REVIEW
+            - generic [ref=e4742]:
+              - generic [ref=e4743]: Ashtyn Wisoky
+              - generic [ref=e4747]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e4748]:
+              - generic "جزئیات و تاریخچه" [ref=e4749] [cursor=pointer]
+          - article [ref=e4752]:
+            - generic [ref=e4753]:
+              - heading "Caelum teneo cervus eos delicate benigne attollo." [level=3] [ref=e4760]
+              - generic [ref=e4761]: در حال انجام
+            - generic [ref=e4762]:
+              - generic [ref=e4763]: Jacquelyn Ullrich
+              - generic [ref=e4767]: "مهلت: ۱۴۰۵/۱۰/۱۷"
+            - group [ref=e4768]:
+              - generic "جزئیات و تاریخچه" [ref=e4769] [cursor=pointer]
+          - article [ref=e4772]:
+            - generic [ref=e4773]:
+              - heading "Audax cotidie peccatus ventus spiculum conventus videlicet ustulo." [level=3] [ref=e4780]
+              - generic [ref=e4781]: در حال انجام
+            - generic [ref=e4782]:
+              - generic [ref=e4783]: Davion Haag
+              - generic [ref=e4787]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e4788]:
+              - generic "جزئیات و تاریخچه" [ref=e4789] [cursor=pointer]
+          - article [ref=e4792]:
+            - generic [ref=e4793]:
+              - heading "Creo auxilium dolorem mollitia." [level=3] [ref=e4796]
+              - generic [ref=e4797]: شروع نشده
+            - generic [ref=e4798]:
+              - generic [ref=e4799]: London Gerlach
+              - generic [ref=e4803]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e4804]:
+              - generic "جزئیات و تاریخچه" [ref=e4805] [cursor=pointer]
+          - article [ref=e4808]:
+            - generic [ref=e4809]:
+              - heading "Balbus voluptates denego usitas." [level=3] [ref=e4812]
+              - generic [ref=e4813]: IN_REVIEW
+            - generic [ref=e4814]:
+              - generic [ref=e4815]: Braulio Brown
+              - generic [ref=e4819]: "مهلت: ۱۴۰۵/۱۰/۱۹"
+            - group [ref=e4820]:
+              - generic "جزئیات و تاریخچه" [ref=e4821] [cursor=pointer]
+          - article [ref=e4824]:
+            - generic [ref=e4825]:
+              - heading "Desino confero velut vehemens soluta amicitia." [level=3] [ref=e4832]
+              - generic [ref=e4833]: در حال انجام
+            - generic [ref=e4834]:
+              - generic [ref=e4835]: Beau Wiza
+              - generic [ref=e4839]: "مهلت: ۱۴۰۵/۰۹/۰۶"
+            - group [ref=e4840]:
+              - generic "جزئیات و تاریخچه" [ref=e4841] [cursor=pointer]
+          - article [ref=e4844]:
+            - generic [ref=e4845]:
+              - heading "Stipes coepi verecundia coniuratio claudeo tabella canto adulescens." [level=3] [ref=e4848]
+              - generic [ref=e4849]: شروع نشده
+            - generic [ref=e4850]:
+              - generic [ref=e4851]: Ashtyn Runolfsdottir
+              - generic [ref=e4855]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e4856]:
+              - generic "جزئیات و تاریخچه" [ref=e4857] [cursor=pointer]
+          - article [ref=e4860]:
+            - generic [ref=e4861]:
+              - heading "Apparatus tantum claustrum cibo volaticus atavus suffragium velit." [level=3] [ref=e4868]
+              - generic [ref=e4869]: در حال انجام
+            - generic [ref=e4870]:
+              - generic [ref=e4871]: Bettie Batz
+              - generic [ref=e4875]: "مهلت: ۱۴۰۵/۱۰/۲۴"
+            - group [ref=e4876]:
+              - generic "جزئیات و تاریخچه" [ref=e4877] [cursor=pointer]
+          - article [ref=e4880]:
+            - generic [ref=e4881]:
+              - heading "Decerno voluntarius dens caritas odio patria." [level=3] [ref=e4888]
+              - generic [ref=e4889]: در حال انجام
+            - generic [ref=e4890]:
+              - generic [ref=e4891]: Gino Thiel
+              - generic [ref=e4895]: "مهلت: ۱۴۰۵/۱۰/۰۲"
+            - group [ref=e4896]:
+              - generic "جزئیات و تاریخچه" [ref=e4897] [cursor=pointer]
+          - article [ref=e4900]:
+            - generic [ref=e4901]:
+              - heading "Venia terga advoco thermae vomito acerbitas attollo tepidus." [level=3] [ref=e4904]
+              - generic [ref=e4905]: IN_REVIEW
+            - generic [ref=e4906]:
+              - generic [ref=e4907]: Oceane Bradtke
+              - generic [ref=e4911]: "مهلت: ۱۴۰۵/۱۰/۱۰"
+            - group [ref=e4912]:
+              - generic "جزئیات و تاریخچه" [ref=e4913] [cursor=pointer]
+          - article [ref=e4916]:
+            - generic [ref=e4917]:
+              - heading "Correptius verto asperiores succurro consequuntur suscipio dolorem tutamen." [level=3] [ref=e4920]
+              - generic [ref=e4921]: شروع نشده
+            - generic [ref=e4922]:
+              - generic [ref=e4923]: Jaydon Nader
+              - generic [ref=e4927]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e4928]:
+              - generic "جزئیات و تاریخچه" [ref=e4929] [cursor=pointer]
+          - article [ref=e4932]:
+            - generic [ref=e4933]:
+              - heading "Utor tempore corrupti video." [level=3] [ref=e4940]
+              - generic [ref=e4941]: در حال انجام
+            - generic [ref=e4942]:
+              - generic [ref=e4943]: Destini Klocko-Stiedemann
+              - generic [ref=e4947]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e4948]:
+              - generic "جزئیات و تاریخچه" [ref=e4949] [cursor=pointer]
+          - article [ref=e4952]:
+            - generic [ref=e4953]:
+              - heading "Caste magnam ademptio depono." [level=3] [ref=e4956]
+              - generic [ref=e4957]: شروع نشده
+            - generic [ref=e4958]:
+              - generic [ref=e4959]: Wilhelm Sipes
+              - generic [ref=e4963]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e4964]:
+              - generic "جزئیات و تاریخچه" [ref=e4965] [cursor=pointer]
+          - article [ref=e4968]:
+            - generic [ref=e4969]:
+              - heading "Accedo facere comptus clarus sol attollo substantia." [level=3] [ref=e4976]
+              - generic [ref=e4977]: در حال انجام
+            - generic [ref=e4978]:
+              - generic [ref=e4979]: Jeramy Hoeger
+              - generic [ref=e4983]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e4984]:
+              - generic "جزئیات و تاریخچه" [ref=e4985] [cursor=pointer]
+          - article [ref=e4988]:
+            - generic [ref=e4989]:
+              - heading "Custodia quos texo celebrer." [level=3] [ref=e4992]
+              - generic [ref=e4993]: شروع نشده
+            - generic [ref=e4994]:
+              - generic [ref=e4995]: Jarrod Johnson
+              - generic [ref=e4999]: "مهلت: ۱۴۰۵/۰۹/۰۷"
+            - group [ref=e5000]:
+              - generic "جزئیات و تاریخچه" [ref=e5001] [cursor=pointer]
+          - article [ref=e5004]:
+            - generic [ref=e5005]:
+              - heading "Coruscus quis vetus stipes tyrannus absens." [level=3] [ref=e5012]
+              - generic [ref=e5013]: در حال انجام
+            - generic [ref=e5014]:
+              - generic [ref=e5015]: Ashtyn Runolfsdottir
+              - generic [ref=e5019]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e5020]:
+              - generic "جزئیات و تاریخچه" [ref=e5021] [cursor=pointer]
+          - article [ref=e5024]:
+            - generic [ref=e5025]:
+              - heading "Bibo cohaero aptus valeo deduco atavus certus derelinquo." [level=3] [ref=e5028]
+              - generic [ref=e5029]: شروع نشده
+            - generic [ref=e5030]:
+              - generic [ref=e5031]: Freida Graham
+              - generic [ref=e5035]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e5036]:
+              - generic "جزئیات و تاریخچه" [ref=e5037] [cursor=pointer]
+          - article [ref=e5040]:
+            - generic [ref=e5041]:
+              - heading "Curo talio adflicto talus dolore crebro." [level=3] [ref=e5044]
+              - generic [ref=e5045]: IN_REVIEW
+            - generic [ref=e5046]:
+              - generic [ref=e5047]: Merle Murray
+              - generic [ref=e5051]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e5052]:
+              - generic "جزئیات و تاریخچه" [ref=e5053] [cursor=pointer]
+          - article [ref=e5056]:
+            - generic [ref=e5057]:
+              - heading "Animus complectus voluptates custodia." [level=3] [ref=e5064]
+              - generic [ref=e5065]: در حال انجام
+            - generic [ref=e5066]:
+              - generic [ref=e5067]: Osborne Ondricka
+              - generic [ref=e5071]: "مهلت: ۱۴۰۵/۰۹/۰۸"
+            - group [ref=e5072]:
+              - generic "جزئیات و تاریخچه" [ref=e5073] [cursor=pointer]
+          - article [ref=e5076]:
+            - generic [ref=e5077]:
+              - heading "Vulgaris nemo degusto stips defleo quibusdam." [level=3] [ref=e5080]
+              - generic [ref=e5081]: شروع نشده
+            - generic [ref=e5082]:
+              - generic [ref=e5083]: Gia Ankunding
+              - generic [ref=e5087]: "مهلت: ۱۴۰۵/۱۰/۱۸"
+            - group [ref=e5088]:
+              - generic "جزئیات و تاریخچه" [ref=e5089] [cursor=pointer]
+          - article [ref=e5092]:
+            - generic [ref=e5093]:
+              - heading "Dignissimos combibo solitudo cariosus comptus baiulus aiunt." [level=3] [ref=e5096]
+              - generic [ref=e5097]: شروع نشده
+            - generic [ref=e5098]:
+              - generic [ref=e5099]: Duane Dickens
+              - generic [ref=e5103]: "مهلت: ۱۴۰۵/۰۹/۰۹"
+            - group [ref=e5104]:
+              - generic "جزئیات و تاریخچه" [ref=e5105] [cursor=pointer]
+          - article [ref=e5108]:
+            - generic [ref=e5109]:
+              - heading "Crux considero vacuus desidero eius curiositas solvo acquiro." [level=3] [ref=e5116]
+              - generic [ref=e5117]: در حال انجام
+            - generic [ref=e5118]:
+              - generic [ref=e5119]: Tressa Ritchie
+              - generic [ref=e5123]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e5124]:
+              - generic "جزئیات و تاریخچه" [ref=e5125] [cursor=pointer]
+          - article [ref=e5128]:
+            - generic [ref=e5129]:
+              - heading "Error quaerat acerbitas arca." [level=3] [ref=e5132]
+              - generic [ref=e5133]: IN_REVIEW
+            - generic [ref=e5134]:
+              - generic [ref=e5135]: Laney Schuster
+              - generic [ref=e5139]: "مهلت: ۱۴۰۵/۰۹/۰۳"
+            - group [ref=e5140]:
+              - generic "جزئیات و تاریخچه" [ref=e5141] [cursor=pointer]
+          - article [ref=e5144]:
+            - generic [ref=e5145]:
+              - heading "Aegrotatio coniuratio trucido adopto." [level=3] [ref=e5148]
+              - generic [ref=e5149]: شروع نشده
+            - generic [ref=e5150]:
+              - generic [ref=e5151]: Marianne McDermott
+              - generic [ref=e5155]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e5156]:
+              - generic "جزئیات و تاریخچه" [ref=e5157] [cursor=pointer]
+          - article [ref=e5160]:
+            - generic [ref=e5161]:
+              - heading "Conscendo non totam utor allatus comminor deludo accusator." [level=3] [ref=e5168]
+              - generic [ref=e5169]: در حال انجام
+            - generic [ref=e5170]:
+              - generic [ref=e5171]: Josie Trantow
+              - generic [ref=e5175]: "مهلت: ۱۴۰۵/۰۹/۳۰"
+            - group [ref=e5176]:
+              - generic "جزئیات و تاریخچه" [ref=e5177] [cursor=pointer]
+          - article [ref=e5180]:
+            - generic [ref=e5181]:
+              - heading "Candidus sub amor aequus aufero vulariter." [level=3] [ref=e5184]
+              - generic [ref=e5185]: IN_REVIEW
+            - generic [ref=e5186]:
+              - generic [ref=e5187]: Marge Jast
+              - generic [ref=e5191]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e5192]:
+              - generic "جزئیات و تاریخچه" [ref=e5193] [cursor=pointer]
+          - article [ref=e5196]:
+            - generic [ref=e5197]:
+              - heading "Suscipio suppono angelus denique theologus adeptio." [level=3] [ref=e5200]
+              - generic [ref=e5201]: شروع نشده
+            - generic [ref=e5202]:
+              - generic [ref=e5203]: Karolann Bartell
+              - generic [ref=e5207]: "مهلت: ۱۴۰۵/۱۰/۰۳"
+            - group [ref=e5208]:
+              - generic "جزئیات و تاریخچه" [ref=e5209] [cursor=pointer]
+          - article [ref=e5212]:
+            - generic [ref=e5213]:
+              - heading "Colligo officiis victus pauper collum voluptate." [level=3] [ref=e5216]
+              - generic [ref=e5217]: شروع نشده
+            - generic [ref=e5218]:
+              - generic [ref=e5219]: Dewayne Weimann
+              - generic [ref=e5223]: "مهلت: ۱۴۰۵/۰۹/۰۴"
+            - group [ref=e5224]:
+              - generic "جزئیات و تاریخچه" [ref=e5225] [cursor=pointer]
+          - article [ref=e5228]:
+            - generic [ref=e5229]:
+              - heading "Vulgaris culpo venio congregatio error varietas impedit." [level=3] [ref=e5236]
+              - generic [ref=e5237]: در حال انجام
+            - generic [ref=e5238]:
+              - generic [ref=e5239]: Cordia Spinka
+              - generic [ref=e5243]: "مهلت: ۱۴۰۵/۰۹/۰۴"
+            - group [ref=e5244]:
+              - generic "جزئیات و تاریخچه" [ref=e5245] [cursor=pointer]
+          - article [ref=e5248]:
+            - generic [ref=e5249]:
+              - heading "Abutor cresco debeo cernuus deduco vicinus." [level=3] [ref=e5252]
+              - generic [ref=e5253]: شروع نشده
+            - generic [ref=e5254]:
+              - generic [ref=e5255]: Nedra Jenkins
+              - generic [ref=e5259]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e5260]:
+              - generic "جزئیات و تاریخچه" [ref=e5261] [cursor=pointer]
+          - article [ref=e5264]:
+            - generic [ref=e5265]:
+              - heading "Sum tollo viridis quae voro velut vel." [level=3] [ref=e5268]
+              - generic [ref=e5269]: شروع نشده
+            - generic [ref=e5270]:
+              - generic [ref=e5271]: Guillermo Hudson
+              - generic [ref=e5275]: "مهلت: ۱۴۰۵/۱۰/۰۵"
+            - group [ref=e5276]:
+              - generic "جزئیات و تاریخچه" [ref=e5277] [cursor=pointer]
+          - article [ref=e5280]:
+            - generic [ref=e5281]:
+              - heading "Nihil somniculosus auxilium voluptate." [level=3] [ref=e5288]
+              - generic [ref=e5289]: در حال انجام
+            - generic [ref=e5290]:
+              - generic [ref=e5291]: Mike Bogan-Bednar
+              - generic [ref=e5295]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e5296]:
+              - generic "جزئیات و تاریخچه" [ref=e5297] [cursor=pointer]
+          - article [ref=e5300]:
+            - generic [ref=e5301]:
+              - heading "Incidunt vestrum crepusculum utrimque theatrum absorbeo utroque." [level=3] [ref=e5304]
+              - generic [ref=e5305]: IN_REVIEW
+            - generic [ref=e5306]:
+              - generic [ref=e5307]: Skylar Thompson
+              - generic [ref=e5311]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e5312]:
+              - generic "جزئیات و تاریخچه" [ref=e5313] [cursor=pointer]
+          - article [ref=e5316]:
+            - generic [ref=e5317]:
+              - heading "Perferendis absconditus speculum antea deficio." [level=3] [ref=e5324]
+              - generic [ref=e5325]: در حال انجام
+            - generic [ref=e5326]:
+              - generic [ref=e5327]: Sabryna Mayer
+              - generic [ref=e5331]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e5332]:
+              - generic "جزئیات و تاریخچه" [ref=e5333] [cursor=pointer]
+          - article [ref=e5336]:
+            - generic [ref=e5337]:
+              - heading "Adinventitias undique arma aestas aro collum." [level=3] [ref=e5340]
+              - generic [ref=e5341]: شروع نشده
+            - generic [ref=e5342]:
+              - generic [ref=e5343]: Clay Schoen
+              - generic [ref=e5347]: "مهلت: ۱۴۰۵/۱۰/۰۸"
+            - group [ref=e5348]:
+              - generic "جزئیات و تاریخچه" [ref=e5349] [cursor=pointer]
+          - article [ref=e5352]:
+            - generic [ref=e5353]:
+              - heading "Aer annus audacia terra ea." [level=3] [ref=e5360]
+              - generic [ref=e5361]: در حال انجام
+            - generic [ref=e5362]:
+              - generic [ref=e5363]: Bernadine VonRueden
+              - generic [ref=e5367]: "مهلت: ۱۴۰۵/۰۹/۲۵"
+            - group [ref=e5368]:
+              - generic "جزئیات و تاریخچه" [ref=e5369] [cursor=pointer]
+          - article [ref=e5372]:
+            - generic [ref=e5373]:
+              - heading "Decens bos ultio dolores capio cometes." [level=3] [ref=e5380]
+              - generic [ref=e5381]: در حال انجام
+            - generic [ref=e5382]:
+              - generic [ref=e5383]: Delia Ebert
+              - generic [ref=e5387]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e5388]:
+              - generic "جزئیات و تاریخچه" [ref=e5389] [cursor=pointer]
+          - article [ref=e5392]:
+            - generic [ref=e5393]:
+              - heading "Brevis animi autem tum voco amplexus." [level=3] [ref=e5396]
+              - generic [ref=e5397]: شروع نشده
+            - generic [ref=e5398]:
+              - generic [ref=e5399]: Ethyl Schuppe
+              - generic [ref=e5403]: "مهلت: ۱۴۰۵/۱۰/۰۳"
+            - group [ref=e5404]:
+              - generic "جزئیات و تاریخچه" [ref=e5405] [cursor=pointer]
+          - article [ref=e5408]:
+            - generic [ref=e5409]:
+              - heading "Crustulum canonicus cilicium vereor adinventitias." [level=3] [ref=e5412]
+              - generic [ref=e5413]: شروع نشده
+            - generic [ref=e5414]:
+              - generic [ref=e5415]: Ginger Weimann
+              - generic [ref=e5419]: "مهلت: ۱۴۰۵/۱۰/۰۴"
+            - group [ref=e5420]:
+              - generic "جزئیات و تاریخچه" [ref=e5421] [cursor=pointer]
+          - article [ref=e5424]:
+            - generic [ref=e5425]:
+              - heading "Tersus certe usitas amo praesentium validus alienus." [level=3] [ref=e5428]
+              - generic [ref=e5429]: شروع نشده
+            - generic [ref=e5430]:
+              - generic [ref=e5431]: Hope Brown
+              - generic [ref=e5435]: "مهلت: ۱۴۰۵/۱۰/۲۵"
+            - group [ref=e5436]:
+              - generic "جزئیات و تاریخچه" [ref=e5437] [cursor=pointer]
+          - article [ref=e5440]:
+            - generic [ref=e5441]:
+              - heading "Bene arguo defleo speciosus vitiosus talio adfero." [level=3] [ref=e5444]
+              - generic [ref=e5445]: IN_REVIEW
+            - generic [ref=e5446]:
+              - generic [ref=e5447]: Simon Ankunding
+              - generic [ref=e5451]: "مهلت: ۱۴۰۵/۱۰/۰۷"
+            - group [ref=e5452]:
+              - generic "جزئیات و تاریخچه" [ref=e5453] [cursor=pointer]
+          - article [ref=e5456]:
+            - generic [ref=e5457]:
+              - heading "Aperio pauper officia cur utor aeternus in." [level=3] [ref=e5464]
+              - generic [ref=e5465]: در حال انجام
+            - generic [ref=e5466]:
+              - generic [ref=e5467]: Lucius Shanahan
+              - generic [ref=e5471]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e5472]:
+              - generic "جزئیات و تاریخچه" [ref=e5473] [cursor=pointer]
+          - article [ref=e5476]:
+            - generic [ref=e5477]:
+              - heading "Libero ver statim adinventitias sunt." [level=3] [ref=e5480]
+              - generic [ref=e5481]: IN_REVIEW
+            - generic [ref=e5482]:
+              - generic [ref=e5483]: Jonathan Cole
+              - generic [ref=e5487]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e5488]:
+              - generic "جزئیات و تاریخچه" [ref=e5489] [cursor=pointer]
+          - article [ref=e5492]:
+            - generic [ref=e5493]:
+              - heading "Tamquam trucido conspergo tracto commodo tamen vorax coepi." [level=3] [ref=e5500]
+              - generic [ref=e5501]: در حال انجام
+            - generic [ref=e5502]:
+              - generic [ref=e5503]: Angelo Lubowitz-Rempel
+              - generic [ref=e5507]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e5508]:
+              - generic "جزئیات و تاریخچه" [ref=e5509] [cursor=pointer]
+          - article [ref=e5512]:
+            - generic [ref=e5513]:
+              - heading "Tego voro vitae compello aureus apto." [level=3] [ref=e5520]
+              - generic [ref=e5521]: در حال انجام
+            - generic [ref=e5522]:
+              - generic [ref=e5523]: Godfrey Simonis
+              - generic [ref=e5527]: "مهلت: ۱۴۰۵/۱۰/۲۶"
+            - group [ref=e5528]:
+              - generic "جزئیات و تاریخچه" [ref=e5529] [cursor=pointer]
+          - article [ref=e5532]:
+            - generic [ref=e5533]:
+              - heading "Cultura considero culpo attonbitus." [level=3] [ref=e5540]
+              - generic [ref=e5541]: در حال انجام
+            - generic [ref=e5542]:
+              - generic [ref=e5543]: Nathanial Tillman-Sauer
+              - generic [ref=e5547]: "مهلت: ۱۴۰۵/۰۹/۲۰"
+            - group [ref=e5548]:
+              - generic "جزئیات و تاریخچه" [ref=e5549] [cursor=pointer]
+          - article [ref=e5552]:
+            - generic [ref=e5553]:
+              - heading "Attero cursus id demulceo aggero depono vigor." [level=3] [ref=e5556]
+              - generic [ref=e5557]: شروع نشده
+            - generic [ref=e5558]:
+              - generic [ref=e5559]: Erica Welch
+              - generic [ref=e5563]: "مهلت: ۱۴۰۵/۱۰/۰۴"
+            - group [ref=e5564]:
+              - generic "جزئیات و تاریخچه" [ref=e5565] [cursor=pointer]
+          - article [ref=e5568]:
+            - generic [ref=e5569]:
+              - heading "Strues vulgus ipsa consectetur varietas aequitas vulariter coepi." [level=3] [ref=e5572]
+              - generic [ref=e5573]: IN_REVIEW
+            - generic [ref=e5574]:
+              - generic [ref=e5575]: Eduardo Nicolas
+              - generic [ref=e5579]: "مهلت: ۱۴۰۵/۰۹/۰۶"
+            - group [ref=e5580]:
+              - generic "جزئیات و تاریخچه" [ref=e5581] [cursor=pointer]
+          - article [ref=e5584]:
+            - generic [ref=e5585]:
+              - heading "Cubicularis cenaculum super dolorum id." [level=3] [ref=e5588]
+              - generic [ref=e5589]: IN_REVIEW
+            - generic [ref=e5590]:
+              - generic [ref=e5591]: Antonia Howell
+              - generic [ref=e5595]: "مهلت: ۱۴۰۵/۰۸/۲۸"
+              - generic [ref=e5596]:
+                - timer "۲۰ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e5600]: ۲۰:۳۰:۲۷
+                - generic [aria-hidden] [ref=e5601]: باقی‌مانده
+            - group [ref=e5602]:
+              - generic "جزئیات و تاریخچه" [ref=e5603] [cursor=pointer]
+          - article [ref=e5606]:
+            - generic [ref=e5607]:
+              - heading "Amitto corroboro synagoga sequi." [level=3] [ref=e5610]
+              - generic [ref=e5611]: شروع نشده
+            - generic [ref=e5612]:
+              - generic [ref=e5613]: Jadyn Quigley
+              - generic [ref=e5617]: "مهلت: ۱۴۰۵/۱۰/۲۵"
+            - group [ref=e5618]:
+              - generic "جزئیات و تاریخچه" [ref=e5619] [cursor=pointer]
+          - article [ref=e5622]:
+            - generic [ref=e5623]:
+              - heading "Suscipit beneficium vulgivagus desolo volaticus ascit tribuo." [level=3] [ref=e5630]
+              - generic [ref=e5631]: در حال انجام
+            - generic [ref=e5632]:
+              - generic [ref=e5633]: Katheryn Stanton
+              - generic [ref=e5637]: "مهلت: ۱۴۰۵/۱۰/۰۴"
+            - group [ref=e5638]:
+              - generic "جزئیات و تاریخچه" [ref=e5639] [cursor=pointer]
+          - article [ref=e5642]:
+            - generic [ref=e5643]:
+              - heading "Depopulo viridis sumo voluptatum sonitus." [level=3] [ref=e5646]
+              - generic [ref=e5647]: شروع نشده
+            - generic [ref=e5648]:
+              - generic [ref=e5649]: Lennie Towne
+              - generic [ref=e5653]: "مهلت: ۱۴۰۵/۱۰/۲۶"
+            - group [ref=e5654]:
+              - generic "جزئیات و تاریخچه" [ref=e5655] [cursor=pointer]
+          - article [ref=e5658]:
+            - generic [ref=e5659]:
+              - heading "Depulso demitto utrimque viriliter tempore depraedor aro." [level=3] [ref=e5666]
+              - generic [ref=e5667]: در حال انجام
+            - generic [ref=e5668]:
+              - generic [ref=e5669]: Kip Moore
+              - generic [ref=e5673]: "مهلت: ۱۴۰۵/۱۰/۲۰"
+            - group [ref=e5674]:
+              - generic "جزئیات و تاریخچه" [ref=e5675] [cursor=pointer]
+          - article [ref=e5678]:
+            - generic [ref=e5679]:
+              - heading "Caelum cibo voluptatum voluptates velit." [level=3] [ref=e5682]
+              - generic [ref=e5683]: شروع نشده
+            - generic [ref=e5684]:
+              - generic [ref=e5685]: Zechariah O'Conner
+              - generic [ref=e5689]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e5690]:
+              - generic "جزئیات و تاریخچه" [ref=e5691] [cursor=pointer]
+          - article [ref=e5694]:
+            - generic [ref=e5695]:
+              - heading "Temporibus beatae dignissimos circumvenio facilis minima recusandae." [level=3] [ref=e5702]
+              - generic [ref=e5703]: در حال انجام
+            - generic [ref=e5704]:
+              - generic [ref=e5705]: Tyrese Kuhic
+              - generic [ref=e5709]: "مهلت: ۱۴۰۵/۱۰/۱۵"
+            - group [ref=e5710]:
+              - generic "جزئیات و تاریخچه" [ref=e5711] [cursor=pointer]
+          - article [ref=e5714]:
+            - generic [ref=e5715]:
+              - heading "Timidus terror ara curtus crapula complectus aperte capto." [level=3] [ref=e5718]
+              - generic [ref=e5719]: شروع نشده
+            - generic [ref=e5720]:
+              - generic [ref=e5721]: Mac Gislason
+              - generic [ref=e5725]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e5726]:
+              - generic "جزئیات و تاریخچه" [ref=e5727] [cursor=pointer]
+          - article [ref=e5730]:
+            - generic [ref=e5731]:
+              - heading "Statua aspicio ubi aggero caste celer officiis texo." [level=3] [ref=e5734]
+              - generic [ref=e5735]: شروع نشده
+            - generic [ref=e5736]:
+              - generic [ref=e5737]: Dereck Will
+              - generic [ref=e5741]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e5742]:
+              - generic "جزئیات و تاریخچه" [ref=e5743] [cursor=pointer]
+          - article [ref=e5746]:
+            - generic [ref=e5747]:
+              - heading "Desparatus curis teneo caries cibus anser talus victus." [level=3] [ref=e5754]
+              - generic [ref=e5755]: در حال انجام
+            - generic [ref=e5756]:
+              - generic [ref=e5757]: Wendy Batz
+              - generic [ref=e5761]: "مهلت: ۱۴۰۵/۰۹/۱۵"
+            - group [ref=e5762]:
+              - generic "جزئیات و تاریخچه" [ref=e5763] [cursor=pointer]
+          - article [ref=e5766]:
+            - generic [ref=e5767]:
+              - heading "Accendo suggero tendo validus utroque adfero." [level=3] [ref=e5770]
+              - generic [ref=e5771]: IN_REVIEW
+            - generic [ref=e5772]:
+              - generic [ref=e5773]: London Yundt
+              - generic [ref=e5777]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e5778]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e5782]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e5783]: باقی‌مانده
+            - group [ref=e5784]:
+              - generic "جزئیات و تاریخچه" [ref=e5785] [cursor=pointer]
+          - article [ref=e5788]:
+            - generic [ref=e5789]:
+              - heading "Ceno urbs voluptatum stabilis vado antepono texo." [level=3] [ref=e5796]
+              - generic [ref=e5797]: در حال انجام
+            - generic [ref=e5798]:
+              - generic [ref=e5799]: Rigoberto Ritchie
+              - generic [ref=e5803]: "مهلت: ۱۴۰۵/۰۹/۲۸"
+            - group [ref=e5804]:
+              - generic "جزئیات و تاریخچه" [ref=e5805] [cursor=pointer]
+          - article [ref=e5808]:
+            - generic [ref=e5809]:
+              - heading "Reiciendis subito curto aveho capto derideo." [level=3] [ref=e5812]
+              - generic [ref=e5813]: IN_REVIEW
+            - generic [ref=e5814]:
+              - generic [ref=e5815]: Maegan Halvorson
+              - generic [ref=e5819]: "مهلت: ۱۴۰۵/۰۹/۲۸"
+            - group [ref=e5820]:
+              - generic "جزئیات و تاریخچه" [ref=e5821] [cursor=pointer]
+          - article [ref=e5824]:
+            - generic [ref=e5825]:
+              - heading "Clam comparo adeptio copia debeo." [level=3] [ref=e5828]
+              - generic [ref=e5829]: IN_REVIEW
+            - generic [ref=e5830]:
+              - generic [ref=e5831]: Walter Jast
+              - generic [ref=e5835]: "مهلت: ۱۴۰۵/۱۰/۰۹"
+            - group [ref=e5836]:
+              - generic "جزئیات و تاریخچه" [ref=e5837] [cursor=pointer]
+          - article [ref=e5840]:
+            - generic [ref=e5841]:
+              - heading "Addo compello voluptas cauda." [level=3] [ref=e5844]
+              - generic [ref=e5845]: شروع نشده
+            - generic [ref=e5846]:
+              - generic [ref=e5847]: Thelma Reichel
+              - generic [ref=e5851]: "مهلت: ۱۴۰۵/۱۰/۲۴"
+            - group [ref=e5852]:
+              - generic "جزئیات و تاریخچه" [ref=e5853] [cursor=pointer]
+          - article [ref=e5856]:
+            - generic [ref=e5857]:
+              - heading "Truculenter tamquam sulum tristis quidem." [level=3] [ref=e5860]
+              - generic [ref=e5861]: IN_REVIEW
+            - generic [ref=e5862]:
+              - generic [ref=e5863]: Arielle Blanda
+              - generic [ref=e5867]: "مهلت: ۱۴۰۵/۰۸/۲۸"
+              - generic [ref=e5868]:
+                - timer "۲۰ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e5872]: ۲۰:۳۰:۲۷
+                - generic [aria-hidden] [ref=e5873]: باقی‌مانده
+            - group [ref=e5874]:
+              - generic "جزئیات و تاریخچه" [ref=e5875] [cursor=pointer]
+          - article [ref=e5878]:
+            - generic [ref=e5879]:
+              - heading "Cura adversus cur theologus absorbeo absque totidem peior." [level=3] [ref=e5886]
+              - generic [ref=e5887]: در حال انجام
+            - generic [ref=e5888]:
+              - generic [ref=e5889]: Sherman Keebler
+              - generic [ref=e5893]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e5894]:
+              - generic "جزئیات و تاریخچه" [ref=e5895] [cursor=pointer]
+          - article [ref=e5898]:
+            - generic [ref=e5899]:
+              - heading "Error aggero aro vulgivagus utilis." [level=3] [ref=e5902]
+              - generic [ref=e5903]: IN_REVIEW
+            - generic [ref=e5904]:
+              - generic [ref=e5905]: Scotty Gutkowski
+              - generic [ref=e5909]: "مهلت: ۱۴۰۵/۰۹/۱۱"
+            - group [ref=e5910]:
+              - generic "جزئیات و تاریخچه" [ref=e5911] [cursor=pointer]
+          - article [ref=e5914]:
+            - generic [ref=e5915]:
+              - heading "Curo conatus deduco pectus aperio." [level=3] [ref=e5918]
+              - generic [ref=e5919]: IN_REVIEW
+            - generic [ref=e5920]:
+              - generic [ref=e5921]: Dewey Greenholt
+              - generic [ref=e5925]: "مهلت: ۱۴۰۵/۱۰/۲۱"
+            - group [ref=e5926]:
+              - generic "جزئیات و تاریخچه" [ref=e5927] [cursor=pointer]
+          - article [ref=e5930]:
+            - generic [ref=e5931]:
+              - heading "Aut curtus atque atavus." [level=3] [ref=e5938]
+              - generic [ref=e5939]: در حال انجام
+            - generic [ref=e5940]:
+              - generic [ref=e5941]: August Mann
+              - generic [ref=e5945]: "مهلت: ۱۴۰۵/۱۰/۱۱"
+            - group [ref=e5946]:
+              - generic "جزئیات و تاریخچه" [ref=e5947] [cursor=pointer]
+          - article [ref=e5950]:
+            - generic [ref=e5951]:
+              - heading "Asper territo aut adflicto." [level=3] [ref=e5958]
+              - generic [ref=e5959]: در حال انجام
+            - generic [ref=e5960]:
+              - generic [ref=e5961]: Nelda Prosacco
+              - generic [ref=e5965]: "مهلت: ۱۴۰۵/۰۹/۲۸"
+            - group [ref=e5966]:
+              - generic "جزئیات و تاریخچه" [ref=e5967] [cursor=pointer]
+          - article [ref=e5970]:
+            - generic [ref=e5971]:
+              - heading "Acidus quis tamdiu concedo." [level=3] [ref=e5974]
+              - generic [ref=e5975]: IN_REVIEW
+            - generic [ref=e5976]:
+              - generic [ref=e5977]: Celestine Harber
+              - generic [ref=e5981]: "مهلت: ۱۴۰۵/۱۰/۲۳"
+            - group [ref=e5982]:
+              - generic "جزئیات و تاریخچه" [ref=e5983] [cursor=pointer]
+          - article [ref=e5986]:
+            - generic [ref=e5987]:
+              - heading "Tremo aggero cohibeo demens expedita astrum summa." [level=3] [ref=e5994]
+              - generic [ref=e5995]: در حال انجام
+            - generic [ref=e5996]:
+              - generic [ref=e5997]: Ryley Parisian
+              - generic [ref=e6001]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e6002]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e6006]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e6007]: باقی‌مانده
+            - group [ref=e6008]:
+              - generic "جزئیات و تاریخچه" [ref=e6009] [cursor=pointer]
+          - article [ref=e6012]:
+            - generic [ref=e6013]:
+              - heading "Administratio denique doloribus taedium delectatio ducimus." [level=3] [ref=e6016]
+              - generic [ref=e6017]: IN_REVIEW
+            - generic [ref=e6018]:
+              - generic [ref=e6019]: Francesca Borer
+              - generic [ref=e6023]: "مهلت: ۱۴۰۵/۰۹/۲۲"
+            - group [ref=e6024]:
+              - generic "جزئیات و تاریخچه" [ref=e6025] [cursor=pointer]
+          - article [ref=e6028]:
+            - generic [ref=e6029]:
+              - heading "Derideo tabula vulticulus vociferor." [level=3] [ref=e6036]
+              - generic [ref=e6037]: در حال انجام
+            - generic [ref=e6038]:
+              - generic [ref=e6039]: Tanya Hamill
+              - generic [ref=e6043]: "مهلت: ۱۴۰۵/۱۰/۱۷"
+            - group [ref=e6044]:
+              - generic "جزئیات و تاریخچه" [ref=e6045] [cursor=pointer]
+          - article [ref=e6048]:
+            - generic [ref=e6049]:
+              - heading "Amplus suadeo alter ad catena valens." [level=3] [ref=e6052]
+              - generic [ref=e6053]: IN_REVIEW
+            - generic [ref=e6054]:
+              - generic [ref=e6055]: Beau Wiza
+              - generic [ref=e6059]: "مهلت: ۱۴۰۵/۱۰/۰۶"
+            - group [ref=e6060]:
+              - generic "جزئیات و تاریخچه" [ref=e6061] [cursor=pointer]
+          - article [ref=e6064]:
+            - generic [ref=e6065]:
+              - heading "Urbs minima cibo cilicium modi ars curatio compello." [level=3] [ref=e6068]
+              - generic [ref=e6069]: شروع نشده
+            - generic [ref=e6070]:
+              - generic [ref=e6071]: Dayton Zboncak
+              - generic [ref=e6075]: "مهلت: ۱۴۰۵/۰۹/۲۹"
+            - group [ref=e6076]:
+              - generic "جزئیات و تاریخچه" [ref=e6077] [cursor=pointer]
+          - article [ref=e6080]:
+            - generic [ref=e6081]:
+              - heading "Temeritas tutis distinctio spes timor pauci." [level=3] [ref=e6088]
+              - generic [ref=e6089]: در حال انجام
+            - generic [ref=e6090]:
+              - generic [ref=e6091]: Cade Brakus
+              - generic [ref=e6095]: "مهلت: ۱۴۰۵/۱۰/۲۲"
+            - group [ref=e6096]:
+              - generic "جزئیات و تاریخچه" [ref=e6097] [cursor=pointer]
+          - article [ref=e6100]:
+            - generic [ref=e6101]:
+              - heading "Conitor tandem carcer pecco aestas corroboro caritas." [level=3] [ref=e6108]
+              - generic [ref=e6109]: در حال انجام
+            - generic [ref=e6110]:
+              - generic [ref=e6111]: Torrey O'Conner
+              - generic [ref=e6115]: "مهلت: ۱۴۰۵/۰۹/۱۸"
+            - group [ref=e6116]:
+              - generic "جزئیات و تاریخچه" [ref=e6117] [cursor=pointer]
+          - article [ref=e6120]:
+            - generic [ref=e6121]:
+              - heading "Cinis beatae derideo copia defetiscor." [level=3] [ref=e6128]
+              - generic [ref=e6129]: در حال انجام
+            - generic [ref=e6130]:
+              - generic [ref=e6131]: Antonia Howell
+              - generic [ref=e6135]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e6136]:
+              - generic "جزئیات و تاریخچه" [ref=e6137] [cursor=pointer]
+          - article [ref=e6140]:
+            - generic [ref=e6141]:
+              - heading "Suggero bene cultellus tamen caritas tabella amitto." [level=3] [ref=e6144]
+              - generic [ref=e6145]: شروع نشده
+            - generic [ref=e6146]:
+              - generic [ref=e6147]: Dorcas Donnelly
+              - generic [ref=e6151]: "مهلت: ۱۴۰۵/۰۹/۰۲"
+            - group [ref=e6152]:
+              - generic "جزئیات و تاریخچه" [ref=e6153] [cursor=pointer]
+          - article [ref=e6156]:
+            - generic [ref=e6157]:
+              - heading "Villa vulgivagus astrum desidero clamo volva expedita." [level=3] [ref=e6160]
+              - generic [ref=e6161]: IN_REVIEW
+            - generic [ref=e6162]:
+              - generic [ref=e6163]: Jacquelyn Wisozk
+              - generic [ref=e6167]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e6168]:
+              - generic "جزئیات و تاریخچه" [ref=e6169] [cursor=pointer]
+          - article [ref=e6172]:
+            - generic [ref=e6173]:
+              - heading "Vinum tollo dolore natus deprimo uredo." [level=3] [ref=e6176]
+              - generic [ref=e6177]: شروع نشده
+            - generic [ref=e6178]:
+              - generic [ref=e6179]: Sally Ritchie
+              - generic [ref=e6183]: "مهلت: ۱۴۰۵/۱۰/۱۷"
+            - group [ref=e6184]:
+              - generic "جزئیات و تاریخچه" [ref=e6185] [cursor=pointer]
+          - article [ref=e6188]:
+            - generic [ref=e6189]:
+              - heading "Crur cultellus aro angustus textus eaque stillicidium crebro." [level=3] [ref=e6192]
+              - generic [ref=e6193]: شروع نشده
+            - generic [ref=e6194]:
+              - generic [ref=e6195]: Jerrell Carroll
+              - generic [ref=e6199]: "مهلت: ۱۴۰۵/۰۹/۱۲"
+            - group [ref=e6200]:
+              - generic "جزئیات و تاریخچه" [ref=e6201] [cursor=pointer]
+          - article [ref=e6204]:
+            - generic [ref=e6205]:
+              - heading "Denuo comptus vigilo ullus beatus repellendus." [level=3] [ref=e6212]
+              - generic [ref=e6213]: در حال انجام
+            - generic [ref=e6214]:
+              - generic [ref=e6215]: Eduardo Flatley
+              - generic [ref=e6219]: "مهلت: ۱۴۰۵/۰۸/۲۷"
+              - generic [ref=e6220]: مهلت تمام شد
+            - group [ref=e6226]:
+              - generic "جزئیات و تاریخچه" [ref=e6227] [cursor=pointer]
+          - article [ref=e6230]:
+            - generic [ref=e6231]:
+              - heading "Adflicto sopor textilis stillicidium viridis." [level=3] [ref=e6234]
+              - generic [ref=e6235]: IN_REVIEW
+            - generic [ref=e6236]:
+              - generic [ref=e6237]: Ramiro Padberg
+              - generic [ref=e6241]: "مهلت: ۱۴۰۵/۰۹/۲۲"
+            - group [ref=e6242]:
+              - generic "جزئیات و تاریخچه" [ref=e6243] [cursor=pointer]
+          - article [ref=e6246]:
+            - generic [ref=e6247]:
+              - heading "Substantia cunabula arceo tui voluptatum congregatio tumultus armarium." [level=3] [ref=e6254]
+              - generic [ref=e6255]: در حال انجام
+            - generic [ref=e6256]:
+              - generic [ref=e6257]: Sadie Abernathy
+              - generic [ref=e6261]: "مهلت: ۱۴۰۵/۰۹/۱۱"
+            - group [ref=e6262]:
+              - generic "جزئیات و تاریخچه" [ref=e6263] [cursor=pointer]
+          - article [ref=e6266]:
+            - generic [ref=e6267]:
+              - heading "Vetus vitiosus acidus defaeco tabella laudantium creo velociter." [level=3] [ref=e6274]
+              - generic [ref=e6275]: در حال انجام
+            - generic [ref=e6276]:
+              - generic [ref=e6277]: Keon Grimes
+              - generic [ref=e6281]: "مهلت: ۱۴۰۵/۰۹/۱۳"
+            - group [ref=e6282]:
+              - generic "جزئیات و تاریخچه" [ref=e6283] [cursor=pointer]
+          - article [ref=e6286]:
+            - generic [ref=e6287]:
+              - heading "Nostrum vulgaris laudantium curiositas." [level=3] [ref=e6294]
+              - generic [ref=e6295]: در حال انجام
+            - generic [ref=e6296]:
+              - generic [ref=e6297]: Miller Hills
+              - generic [ref=e6301]: "مهلت: ۱۴۰۵/۱۰/۰۱"
+            - group [ref=e6302]:
+              - generic "جزئیات و تاریخچه" [ref=e6303] [cursor=pointer]
+          - article [ref=e6306]:
+            - generic [ref=e6307]:
+              - heading "Decumbo adipisci ubi succurro sub derideo." [level=3] [ref=e6310]
+              - generic [ref=e6311]: شروع نشده
+            - generic [ref=e6312]:
+              - generic [ref=e6313]: Delphia Swift
+              - generic [ref=e6317]: "مهلت: ۱۴۰۵/۱۰/۱۸"
+            - group [ref=e6318]:
+              - generic "جزئیات و تاریخچه" [ref=e6319] [cursor=pointer]
+          - article [ref=e6322]:
+            - generic [ref=e6323]:
+              - heading "Turba degusto bene aperte error thymum ancilla candidus." [level=3] [ref=e6330]
+              - generic [ref=e6331]: در حال انجام
+            - generic [ref=e6332]:
+              - generic [ref=e6333]: Weston Stark
+              - generic [ref=e6337]: "مهلت: ۱۴۰۵/۰۹/۲۳"
+            - group [ref=e6338]:
+              - generic "جزئیات و تاریخچه" [ref=e6339] [cursor=pointer]
+          - article [ref=e6342]:
+            - generic [ref=e6343]:
+              - heading "انبارگردانی تجهیزات اداری" [level=3] [ref=e6346]
+              - generic [ref=e6347]: شروع نشده
+            - generic [ref=e6348]:
+              - generic [ref=e6349]: علی رضایی
+              - generic [ref=e6353]: "مهلت: ۱۴۰۵/۰۹/۲۶"
+            - group [ref=e6354]:
+              - generic "جزئیات و تاریخچه" [ref=e6355] [cursor=pointer]
+          - article [ref=e6358]:
+            - generic [ref=e6359]:
+              - heading "پیگیری فروش قراردادهای شعبهٔ تبریز" [level=3] [ref=e6366]
+              - generic [ref=e6367]: در حال انجام
+            - generic [ref=e6368]:
+              - generic [ref=e6369]: الهام جعفری
+              - generic [ref=e6373]: "مهلت: ۱۴۰۵/۰۹/۰۱"
+            - group [ref=e6374]:
+              - generic "جزئیات و تاریخچه" [ref=e6375] [cursor=pointer]
+          - article [ref=e6378]:
+            - generic [ref=e6379]:
+              - heading "بازبینی سیاست دورکاری کارکنان" [level=3] [ref=e6382]
+              - generic [ref=e6383]: شروع نشده
+            - generic [ref=e6384]:
+              - generic [ref=e6385]: محمد صادقی
+              - generic [ref=e6389]: "مهلت: ۱۴۰۵/۰۹/۱۶"
+            - group [ref=e6390]:
+              - generic "جزئیات و تاریخچه" [ref=e6391] [cursor=pointer]
+          - article [ref=e6394]:
+            - generic [ref=e6395]:
+              - heading "ارتقای زیرساخت پایگاه داده" [level=3] [ref=e6402]
+              - generic [ref=e6403]: در حال انجام
+            - generic [ref=e6404]:
+              - generic [ref=e6405]: فاطمه کریمی
+              - generic [ref=e6409]: "مهلت: ۱۴۰۵/۰۹/۱۰"
+            - group [ref=e6410]:
+              - generic "جزئیات و تاریخچه" [ref=e6411] [cursor=pointer]
+          - article [ref=e6414]:
+            - generic [ref=e6415]:
+              - heading "تکمیل مستندات پروندهٔ پرسنلی کارکنان جدید" [level=3] [ref=e6418]
+              - generic [ref=e6419]: شروع نشده
+            - generic [ref=e6420]:
+              - generic [ref=e6421]: محمد صادقی
+              - generic [ref=e6425]: "مهلت: ۱۴۰۵/۰۹/۰۳"
+            - group [ref=e6426]:
+              - generic "جزئیات و تاریخچه" [ref=e6427] [cursor=pointer]
+          - article [ref=e6430]:
+            - generic [ref=e6431]:
+              - heading "تهیهٔ گزارش حقوق و دستمزد ماهانه" [level=3] [ref=e6438]
+              - generic [ref=e6439]: در حال انجام
+            - generic [ref=e6440]:
+              - generic [ref=e6441]: نگار قاسمی
+              - generic [ref=e6445]: "مهلت: ۱۴۰۵/۰۸/۲۹"
+              - generic [ref=e6446]:
+                - timer "۴۴ ساعت و ۳۰ دقیقه و ۲۷ ثانیه باقی‌مانده" [ref=e6450]: ۴۴:۳۰:۲۷
+                - generic [aria-hidden] [ref=e6451]: باقی‌مانده
+            - group [ref=e6452]:
+              - generic "جزئیات و تاریخچه" [ref=e6453] [cursor=pointer]
+          - article [ref=e6456]:
+            - generic [ref=e6457]:
+              - heading "انجام پروژه حسابداری" [level=3] [ref=e6464]
+              - generic [ref=e6465]: در حال انجام
+            - generic [ref=e6466]: امیر مرادی
+            - group [ref=e6471]:
+              - generic "جزئیات و تاریخچه" [ref=e6472] [cursor=pointer]
+          - article [ref=e6475]:
+            - generic [ref=e6476]:
+              - heading "انجام UI سایت" [level=3] [ref=e6479]
+              - generic [ref=e6480]: شروع نشده
+            - generic [ref=e6481]: امیر مرادی
+            - group [ref=e6486]:
+              - generic "جزئیات و تاریخچه" [ref=e6487] [cursor=pointer]
+        - region "حضور امروز کارکنان" [ref=e6491]:
+          - generic [ref=e6492]:
+            - heading "حضور امروز کارکنان" [level=3] [ref=e6493]
+            - button "تازه‌سازی حضور" [disabled] [ref=e6499]
+          - generic [ref=e6505]:
+            - generic [ref=e6506]: ۰ نفر حاضر
+            - generic [ref=e6507]: ۳۴۰۶ نفر ثبت‌نشده
+          - status "در حال دریافت اطلاعات" [ref=e6508]
+  - region "پیام‌ها"
+```
+
+# Test source
+
+```ts
+  1  | import { test, expect } from '@playwright/test';
+  2  | import AxeBuilder from '@axe-core/playwright';
+  3  | 
+  4  | const routes = [
+  5  |   { path: '/login', name: 'Login', auth: false },
+  6  |   { path: '/', name: 'Dashboard', auth: true, role: 'admin' },
+  7  |   { path: '/employees', name: 'Employees', auth: true, role: 'admin' },
+  8  |   { path: '/leaves', name: 'Leaves', auth: true, role: 'admin' },
+  9  |   { path: '/payroll', name: 'Payroll', auth: true, role: 'admin' },
+  10 |   { path: '/tasks', name: 'Tasks', auth: true, role: 'admin' },
+  11 |   { path: '/contracts', name: 'Contracts', auth: true, role: 'admin' },
+  12 |   { path: '/attendance', name: 'Attendance', auth: true, role: 'admin' },
+  13 |   { path: '/shifts', name: 'Shifts', auth: true, role: 'admin' },
+  14 |   { path: '/documents', name: 'Documents', auth: true, role: 'admin' },
+  15 |   { path: '/panel', name: 'Employee Panel', auth: true, role: 'admin' },
+  16 |   { path: '/announcements', name: 'Announcements', auth: true, role: 'any' },
+  17 |   { path: '/settings', name: 'Settings', auth: true, role: 'admin' },
+  18 |   { path: '/org', name: 'Organization', auth: true, role: 'admin' },
+  19 |   { path: '/users', name: 'Users', auth: true, role: 'admin' },
+  20 |   { path: '/roles', name: 'Roles', auth: true, role: 'admin' },
+  21 |   { path: '/audit', name: 'Audit Log', auth: true, role: 'admin' },
+  22 |   { path: '/backup', name: 'Backup', auth: true, role: 'superadmin' },
+  23 |   { path: '/admin', name: 'Admin', auth: true, role: 'admin' },
+  24 |   { path: '/reports', name: 'Reports', auth: true, role: 'admin' },
+  25 |   { path: '/assets', name: 'Assets', auth: true, role: 'admin' },
+  26 |   { path: '/training', name: 'Training', auth: true, role: 'admin' },
+  27 |   { path: '/loans', name: 'Loans', auth: true, role: 'admin' },
+  28 |   { path: '/recruitment', name: 'Recruitment', auth: true, role: 'admin' },
+  29 |   { path: '/lifecycle', name: 'Lifecycle', auth: true, role: 'admin' },
+  30 |   { path: '/projects', name: 'Projects', auth: true, role: 'admin' },
+  31 |   { path: '/missions', name: 'Missions', auth: true, role: 'admin' },
+  32 |   { path: '/evaluations', name: 'Evaluations', auth: true, role: 'admin' },
+  33 |   { path: '/approvals', name: 'Approvals', auth: true, role: 'admin' },
+  34 | ];
+  35 | 
+  36 | const credentials = {
+  37 |   admin: { username: 'admin', password: 'E7HHpQcEFezE4OAa1!' },
+  38 |   employee: { username: 'mgr_hq_comp-001', password: 'SanaDemo@1404' },
+  39 | };
+  40 | 
+  41 | async function login(page, role) {
+  42 |   const creds = credentials[role] || credentials.admin;
+  43 |   await page.goto('/login');
+  44 |   await page.waitForSelector('input[placeholder="نام کاربری"]');
+  45 |   await page.fill('input[placeholder="نام کاربری"]', creds.username);
+  46 |   await page.fill('input[type="password"]', creds.password);
+  47 |   await page.click('button[type="submit"]');
+  48 |   await expect(page).toHaveURL('/');
+  49 | }
+  50 | 
+  51 | test.describe('Accessibility Audit (axe)', () => {
+  52 |   for (const route of routes) {
+  53 |     test(`${route.name} (${route.path}) - no critical/serious violations`, async ({ page }) => {
+  54 |       if (route.auth) {
+  55 |         const role = route.role === 'any' ? 'admin' : (route.role || 'admin');
+  56 |         await login(page, role);
+  57 |       } else {
+  58 |         await page.goto(route.path);
+  59 |       }
+  60 |       
+  61 |       await page.waitForLoadState('networkidle');
+  62 |       
+  63 |       // Run axe
+> 64 |       const results = await new AxeBuilder({ page })
+     |                       ^ Error: page.evaluate: Test timeout of 120000ms exceeded.
+  65 |         .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'best-practice'])
+  66 |         .analyze();
+  67 |       
+  68 |       // Filter for critical and serious violations only
+  69 |       const criticalSerious = results.violations.filter(v => 
+  70 |         v.impact === 'critical' || v.impact === 'serious'
+  71 |       );
+  72 |       
+  73 |       if (criticalSerious.length > 0) {
+  74 |         console.log(`\n❌ ${route.name} (${route.path}) - ${criticalSerious.length} critical/serious violations:`);
+  75 |         for (const v of criticalSerious) {
+  76 |           console.log(`  - ${v.id}: ${v.description} (${v.nodes.length} nodes)`);
+  77 |           for (const node of v.nodes.slice(0, 3)) {
+  78 |             console.log(`    Target: ${node.target.join(', ')}`);
+  79 |             console.log(`    HTML: ${node.html?.substring(0, 100)}...`);
+  80 |           }
+  81 |         }
+  82 |       } else {
+  83 |         console.log(`✅ ${route.name} (${route.path}) - No critical/serious violations`);
+  84 |       }
+  85 |       
+  86 |       // Fail test if critical/serious violations exist
+  87 |       expect(criticalSerious.length).toBe(0);
+  88 |     });
+  89 |   }
+  90 | });
+```

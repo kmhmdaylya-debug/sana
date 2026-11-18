@@ -17,7 +17,10 @@ export default function CompanyPicker({ value, onValueChange, disabled }: { valu
     return () => controller.abort();
   }, [attempt]);
   useEffect(() => {
-    if (!loading && !error && !value && companies.length === 1) onValueChange(companies[0].id);
+    if (!loading && !error && !value && companies.length > 0) {
+      const firstCompany = companies[0];
+      if (firstCompany) onValueChange(firstCompany.id);
+    }
   }, [companies, loading, error, value, onValueChange]);
   return <Field label="شرکت" required>
     <Select value={value} disabled={disabled || loading || !!error} required onChange={event => onValueChange(event.target.value)}>

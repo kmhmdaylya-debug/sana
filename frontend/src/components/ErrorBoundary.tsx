@@ -1,4 +1,4 @@
-import { Component, useEffect, useState } from 'react';
+import { Component } from 'react';
 
 interface ErrorInfo {
   componentStack: string;
@@ -15,12 +15,11 @@ export class ErrorBoundary extends Component<{ children: React.ReactNode; fallba
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    // در اینجا می‌توانید خطا را به سرویس مانیتورینگ (Sentry، LogRocket و غیره) ارسال کنید
   }
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;

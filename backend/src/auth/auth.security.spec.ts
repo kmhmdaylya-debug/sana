@@ -26,6 +26,7 @@ describe('Authentication security', () => {
   let db: any;
   let tokens: any[];
   let sessions: any[];
+  let blockedTokens: { tokenId: string; expiresAt: Date }[];
   let passwordHash: string;
   const password = 'Test-only!Password987';
   const headers = { 'user-agent': 'security-tests' };
@@ -62,9 +63,15 @@ describe('Authentication security', () => {
   beforeEach(async () => {
     tokens = [];
     sessions = [];
+    blockedTokens = [];
     user = { id: randomUUID(), username: 'Audit.User', passwordHash, fullName: 'Test user', status: 'ACTIVE', deletedAt: null, lockedUntil: null, failedLoginCount: 0, userRoles: [], employee: null };
     db = {
       $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn().mockResolvedValue(0),
+      accessTokenBlocklist: {
+        findUnique: jest.fn(async ({ where }) => blockedTokens.find(row => row.tokenId === where.tokenId) ?? null),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       user: {
         findFirst: jest.fn(async ({ where }) => matches(user, where) ? { ...user } : null),
         findUnique: jest.fn(async () => ({ ...user })),
@@ -125,6 +132,22 @@ describe('Authentication security', () => {
     expect(sessions[0].revokedAt).toBeInstanceOf(Date);
     await request(app.getHttpServer()).get('/auth/me').auth(response.body.accessToken, { type: 'bearer' }).expect(401);
     await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken }).expect(401);
+  });
+
+  it('rejects a blocklisted access token without revoking a different device', async () => {
+    const first = await login().expect(200);
+    const second = await login().expect(200);
+    const claims = jwt.decode(first.body.accessToken) as { jti: string };
+    blockedTokens.push({ tokenId: claims.jti, expiresAt: new Date(Date.now() + 60_000) });
+    await request(app.getHttpServer()).get('/auth/me').auth(first.body.accessToken, { type: 'bearer' }).expect(401);
+    await request(app.getHttpServer()).get('/auth/me').auth(second.body.accessToken, { type: 'bearer' }).expect(200);
+  });
+
+  it('accepts a live session when its blocklist entry has expired', async () => {
+    const response = await login().expect(200);
+    const claims = jwt.decode(response.body.accessToken) as { jti: string };
+    blockedTokens.push({ tokenId: claims.jti, expiresAt: new Date(Date.now() - 1_000) });
+    await request(app.getHttpServer()).get('/auth/me').auth(response.body.accessToken, { type: 'bearer' }).expect(200);
   });
 
   it('revokes a Bearer-only logout without a refresh cookie and leaves other devices active', async () => {
@@ -205,7 +228,7 @@ describe('Authentication security', () => {
 
   it('counts failed attempts under a user lock and rejects a locked account', async () => {
     for (let n = 0; n < 3; n++) await request(app.getHttpServer()).post('/auth/login').send({ username: user.username, password: 'incorrect' }).expect(401);
-    expect(db.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(db.$executeRaw).toHaveBeenCalledTimes(3);
     expect(user.lockedUntil).toBeInstanceOf(Date);
     await login().expect(403);
     expect(tokens).toHaveLength(0);

@@ -14,6 +14,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { swaggerAccess } from './common/guards/swagger-access';
+import { randomUUID } from 'crypto';
+
 /** مقادیر BigInt (مبالغ ریالی) در پاسخ JSON به عدد تبدیل می‌شوند */
 (BigInt.prototype as any).toJSON = function () {
   return Number(this);
@@ -30,6 +32,14 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix(config.get<string>('app.apiPrefix') ?? 'api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+
+  // Correlation ID middleware for request tracing
+  app.use((req, res, next) => {
+    const requestId = req.headers['x-request-id'] as string || randomUUID();
+    req['requestId'] = requestId;
+    res.setHeader('X-Request-ID', requestId);
+    next();
+  });
 
   app.useGlobalPipes(
     new AppValidationPipe({
@@ -48,8 +58,8 @@ async function bootstrap(): Promise<void> {
     origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Requested-With', 'X-Device-Name'],
-    exposedHeaders: ['Content-Disposition'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Requested-With', 'X-Device-Name', 'X-Request-ID'],
+    exposedHeaders: ['Content-Disposition', 'X-Request-ID'],
   });
 
   app.use(require('express').json({ limit: '10mb' }));
@@ -131,13 +141,13 @@ async function bootstrap(): Promise<void> {
   }
 
   const port = config.get<number>('app.port') ?? 4114;
-  const host = config.get<string>('app.host') ?? '127.0.0.1';
+  const host = config.get<string>('app.host') ?? '0.0.0.0';
   await app.listen(port, host);
-  // eslint-disable-next-line no-console
-  console.log(`سامانه مدیریت منابع انسانی «سنا» روی http://localhost:${port}/api اجرا شد.`);
+   
+  console.log(`سامانه مدیریت منابع انسانی «سنا» روی http://${host}:${port}/api اجرا شد.`);
   if (swaggerEnabled) {
-    // eslint-disable-next-line no-console
-    console.log(`مستندات Swagger: http://localhost:${port}/api/docs`);
+     
+    console.log(`مستندات Swagger: http://${host}:${port}/api/docs`);
   }
 }
 

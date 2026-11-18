@@ -91,6 +91,16 @@ export default function Documents() {
     },
   ];
 
+  const rowActions = (r: Doc) => {
+    const firstVersion = r.versions?.[0];
+    if (!firstVersion?.id) return null;
+    return (
+      <Button size="sm" variant="outline" onClick={() => downloadFile(`/documents/versions/${firstVersion.id}/download`, firstVersion.fileName)}>
+        <Download size={13} /> دانلود
+      </Button>
+    );
+  };
+
   return (
     <>
       <PageHeader
@@ -113,13 +123,7 @@ export default function Documents() {
             </Select>
           </ListToolbar>
         </div>
-        <DataTable error={list.error} onRetry={list.reload} columns={columns} rows={list.rows} loading={list.loading} rowActions={(r) => (
-          r.versions?.[0]?.id ? (
-            <Button size="sm" variant="outline" onClick={() => downloadFile(`/documents/versions/${r.versions[0].id}/download`, r.versions[0].fileName)}>
-              <Download size={13} /> دانلود
-            </Button>
-          ) : null
-        )} />
+        <DataTable error={list.error} onRetry={list.reload} columns={columns} rows={list.rows} loading={list.loading} rowActions={rowActions} />
         <div className="list-pagination-wrap">
           <Pagination pageSize={list.pageSize} onPageSizeChange={list.setPageSize} page={list.page} totalPages={list.totalPages} total={list.total} onChange={list.setPage} />
         </div>

@@ -7,6 +7,18 @@ const ENV_FILE_HINT = 'فایل backend\\.env (در پوشهٔ backend)';
  * کلیدهای امنیتی باید از محیط خوانده شوند و مقدار پیش‌فرض ندارند.
  * اگر کلید تنظیم نشده باشد یا مقدار نمونه باشد، برنامه اجرا نمی‌شود.
  */
+function calculateEntropy(str: string): number {
+  const freq: Record<string, number> = {};
+  for (const char of str) freq[char] = (freq[char] || 0) + 1;
+  let entropy = 0;
+  const len = str.length;
+  for (const count of Object.values(freq)) {
+    const p = count / len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
 function requiredSecret(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -23,6 +35,17 @@ function requiredSecret(name: string): string {
   if (value.length < 32) {
     throw new Error(`متغیر ${name} باید حداقل ۳۲ نویسه باشد (فعلاً ${value.length} نویسه است).`);
   }
+  
+  // Entropy estimation (Shannon entropy) - warn on low entropy
+  const entropy = calculateEntropy(value);
+  if (entropy < 3.5) {  // bits per character
+    const msg = `WARNING: ${name} has low entropy (${entropy.toFixed(2)} bits/char). Use a stronger secret.`;
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(msg);
+    }
+    console.warn(msg);
+  }
+  
   return value;
 }
 
@@ -66,7 +89,7 @@ export default registerAs('app', () => ({
     refreshExpiresDays: parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS ?? '7', 10),
     rememberMeExpiresDays: parseInt(process.env.JWT_REMEMBER_ME_EXPIRES_DAYS ?? '30', 10),
     /** بازهٔ ارفاق چرخش توکن refresh (برای درخواست‌های هم‌زمان/چند تب) — ثانیه */
-    refreshGraceSeconds: parseInt(process.env.JWT_REFRESH_GRACE_SECONDS ?? '15', 10),
+    refreshGraceSeconds: parseInt(process.env.JWT_REFRESH_GRACE_SECONDS ?? '5', 10),
     issuer: process.env.JWT_ISSUER ?? 'sana-hrms',
   },
 
@@ -115,5 +138,12 @@ export default registerAs('app', () => ({
     adminFullName: process.env.ADMIN_FULLNAME ?? 'مدیر سیستم',
     adminEmail: process.env.ADMIN_EMAIL ?? 'admin@example.com',
     demoData: (process.env.SEED_DEMO_DATA ?? 'false') === 'true',
+  },
+
+  audit: {
+    /** اگر false باشد، خطای ثبت لاگ باعث شکست عملیات می‌شود (fail-closed) */
+    failOpen: (process.env.AUDIT_FAIL_OPEN ?? 'true') === 'true',
+    /** ارسال هشدار ادمین در صورت شکست ثبت لاگ */
+    alertOnFailure: (process.env.AUDIT_ALERT_ON_FAILURE ?? 'true') === 'true',
   },
 }));

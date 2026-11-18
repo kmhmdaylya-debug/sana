@@ -20,8 +20,19 @@ export function taskDeadlineAt(value?: string | null): number | null {
   const nextDay = midnight + 24 * 60 * 60 * 1000;
   let end = nextDay;
   for (let pass = 0; pass < 2; pass += 1) {
-    const parts = Object.fromEntries(tehranClock.formatToParts(new Date(end)).map(part => [part.type, part.value]));
-    const localAsUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+    const partsArray = tehranClock.formatToParts(new Date(end));
+    const parts: Record<string, string> = {};
+    for (const part of partsArray) {
+      parts[part.type] = part.value;
+    }
+    const year = Number(parts['year']);
+    const month = Number(parts['month']);
+    const dayNum = Number(parts['day']);
+    const hour = Number(parts['hour']);
+    const minute = Number(parts['minute']);
+    const second = Number(parts['second']);
+    if (!year || !month || !dayNum || !hour || !minute || !second) return null;
+    const localAsUtc = Date.UTC(year, month - 1, dayNum, hour, minute, second);
     end = nextDay - (localAsUtc - end);
   }
   return end;

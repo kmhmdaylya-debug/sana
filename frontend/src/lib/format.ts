@@ -13,7 +13,10 @@ export function isPastDueDate(value?: string | null, now = new Date(), timeZone 
 }
 
 export function toPersianDigits(input: string | number): string {
-  return String(input).replace(/[0-9]/g, (d) => FA_DIGITS[Number(d)]);
+  return String(input).replace(/[0-9]/g, (d) => {
+    const num = Number(d);
+    return FA_DIGITS[num] ?? d;
+  });
 }
 
 export function toEnglishDigits(input: string): string {
@@ -45,16 +48,17 @@ function jalCal(jy: number) {
   const bl = breaks.length;
   const gy = jy + 621;
   let leapJ = -14;
-  let jp = breaks[0];
+  let jp = breaks[0] ?? 0;
   let jump = 0;
   for (let i = 1; i < bl; i += 1) {
     const jm = breaks[i];
+    if (jm === undefined) continue;
     jump = jm - jp;
     if (jy < jm) break;
     leapJ = leapJ + div(jump, 33) * 8 + div(mod(jump, 33), 4);
     jp = jm;
   }
-  let n = jy - jp;
+  let n = jy - (jp ?? 0);
   leapJ = leapJ + div(n, 33) * 8 + div(mod(n, 33) + 3, 4);
   if (mod(jump, 33) === 4 && jump - n === 4) leapJ += 1;
   const leapG = div(gy, 4) - div((div(gy, 100) + 1) * 3, 4) - 150;
@@ -194,7 +198,9 @@ export function parseDateInput(value: string | null | undefined): string | undef
   // قالب شمسی بدون جداکننده: ۱۴۰۴۰۱۰۱
   const compact = raw.match(/^(\d{4})(\d{2})(\d{2})$/);
   if (compact) {
-    const [, y, m, d] = compact.map((v) => Number(v));
+    const y = Number(compact[1]);
+    const m = Number(compact[2]);
+    const d = Number(compact[3]);
     return jalaliToIso(y, m, d);
   }
 

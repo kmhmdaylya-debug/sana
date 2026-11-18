@@ -6,6 +6,6 @@ export function readTheme(): Theme {
 }
 
 export function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset['theme'] = theme;
   try { localStorage.setItem('sana-theme', theme); } catch { /* Storage may be blocked by browser policy. */ }
 }

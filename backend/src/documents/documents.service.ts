@@ -356,9 +356,18 @@ export class DocumentsService {
   }
 
   private resolveDocumentFile(storedPath: string): string {
+    // Strict validation: only alphanumeric, underscore, hyphen, dot - no directory separators
     if (!/^documents\/[a-zA-Z0-9_.-]+$/.test(storedPath)) throw new NotFoundException('فایل معتبر یافت نشد.');
+    
+    // Normalize and check for traversal attempts
+    const normalized = path.normalize(storedPath);
+    if (normalized !== storedPath || normalized.startsWith('..') || path.isAbsolute(normalized)) {
+      throw new NotFoundException('فایل معتبر یافت نشد.');
+    }
+    
     if (!fs.existsSync(UPLOAD_DIR)) throw new NotFoundException('فایل یافت نشد.');
     const root = fs.realpathSync(UPLOAD_DIR);
+    
     // Retain access to files written by the old, duplicated documents directory.
     for (const candidate of [path.resolve(UPLOAD_ROOT, storedPath), path.resolve(UPLOAD_DIR, storedPath)]) {
       if (!fs.existsSync(candidate)) continue;

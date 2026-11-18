@@ -47,6 +47,7 @@ export class AuthController {
 
   @Public()
   @Post('logout')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'خروج با کوکی refresh یا توکن دسترسی معتبر؛ ابطال نشست در سرور' })
   async logout(
@@ -61,6 +62,7 @@ export class AuthController {
   }
 
   @Post('logout-all')
+  @Throttle({ default: { limit: 3, ttl: 300000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'خروج از همه دستگاه‌ها' })
   logoutAll(@CurrentUser() user: AuthenticatedUser, @Req() request: Request) {
@@ -80,6 +82,7 @@ export class AuthController {
   }
 
   @Post('change-password')
+  @Throttle({ default: { limit: 5, ttl: 300000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'تغییر رمز عبور' })
   changePassword(

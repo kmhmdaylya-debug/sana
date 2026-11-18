@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { CreateUserDto, ResetPasswordDto, UpdateUserDto, UserQueryDto } from './dto/users.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
@@ -9,6 +10,7 @@ import { IdParamDto } from '../common/dto/common.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('users')
+@Throttle({ default: { limit: 20, ttl: 60000 } })
 @Controller('users')
 export class UsersController {
   constructor(private readonly service: UsersService) {}

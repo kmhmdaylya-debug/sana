@@ -26,7 +26,8 @@ export default function TeamPresence() {
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const result = await api.get('/dashboard/attendance-today', { signal });
+      const config = signal ? { signal } : {};
+      const result = await api.get('/dashboard/attendance-today', config);
       if (!signal?.aborted) { setRows(result.data.data ?? []); setError(''); }
     } catch (e) { if (!signal?.aborted) setError(apiErrorMessage(e)); }
     finally { if (!signal?.aborted) setLoading(false); }
@@ -64,7 +65,7 @@ export default function TeamPresence() {
   return <section className="team-presence mb" aria-labelledby="team-presence-heading">
     <div className="team-presence-header"><h3 id="team-presence-heading"><Users size={18} /> حضور امروز کارکنان</h3><Button variant="outline" size="sm" title="تازه‌سازی حضور" aria-label="تازه‌سازی حضور" disabled={loading} onClick={() => void load()}><RefreshCw size={16} /></Button></div>
     {!error && <div className="team-presence-summary"><span>{toPersianDigits(present)} نفر حاضر</span><span className="text-muted">{toPersianDigits(pending)} نفر ثبت‌نشده</span>{absent > 0 && <span className="text-danger">{toPersianDigits(absent)} نفر غایب</span>}</div>}
-    <DataTable error={error} onRetry={() => void load()} columns={columns} rows={rows} loading={loading} rowActions={canEdit ? row => <Button size="sm" variant="outline" onClick={() => open(row)} aria-label={`ثبت حضور ${row.fullName}`}>{row.status === 'PENDING' ? <CalendarCheck size={14} /> : <Pencil size={14} />}{row.status === 'PENDING' ? 'ثبت حضور' : 'ویرایش'}</Button> : undefined} />
+    <DataTable error={error} onRetry={() => void load()} columns={columns} rows={rows} loading={loading} {...(canEdit ? { rowActions: (row: Entry) => <Button size="sm" variant="outline" onClick={() => open(row)} aria-label={`ثبت حضور ${row.fullName}`}>{row.status === 'PENDING' ? <CalendarCheck size={14} /> : <Pencil size={14} />}{row.status === 'PENDING' ? 'ثبت حضور' : 'ویرایش'}</Button> } : {})} />
     <Modal open={!!editing} title={`ثبت حضور — ${editing?.fullName ?? ''}`} onClose={() => { if (!saving) setEditing(null); }} width={440} footer={<><Button loading={saving} onClick={save}>ذخیره</Button><Button variant="secondary" disabled={saving} onClick={() => setEditing(null)}>انصراف</Button></>}>
       {saveError && <div className="alert alert-danger" role="alert">{saveError}</div>}
       <div className="col" style={{ gap:16 }}>

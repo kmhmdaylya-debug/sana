@@ -6,7 +6,6 @@ import {
   useMemo,
   useState,
   useId,
-  useRef,
   Children,
   cloneElement,
   isValidElement,
@@ -23,7 +22,7 @@ import { useAuth } from '../../lib/auth';
 import { Modal } from './Modal';
 export { Modal } from './Modal';
 
-const FieldContext = createContext<{ id: string; required?: boolean; error?: string; description?: string }>({ id: '' });
+const FieldContext = createContext<{ id: string; required?: boolean | undefined; error?: string | undefined; description?: string | undefined }>({ id: '' });
 
 export function Tabs({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`tabs ${className}`} role="tablist" aria-label="نماها" onKeyDown={e => {
@@ -92,7 +91,7 @@ interface FieldProps {
 export function Field({ label, required, hint, error, children }: FieldProps) {
   const id = useId();
   return (
-    <FieldContext.Provider value={{ id, required, error, description: error || hint ? `${id}-hint` : undefined }}>
+    <FieldContext.Provider value={{ id, required: required ?? undefined, error: error ?? undefined, description: (error ?? hint) ? `${id}-hint` : undefined }}>
     <div className={`form-group${error ? ' has-error' : ''}`}>
       <label className="form-label" htmlFor={id}>
         {label}
@@ -162,7 +161,7 @@ export function Badge({ kind = 'gray', children }: { kind?: string; children: Re
    ========================================================================== */
 
 
-export function ConfirmDialog({ open, title, message, confirmLabel = 'تأیید', danger, onConfirm, onClose, loading }: {
+export function ConfirmDialog({ open, title, message, confirmLabel = 'تأیید', danger, onConfirm, onClose, loading = false }: {
   open: boolean;
   title: string;
   message: string;

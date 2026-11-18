@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { KeyRound, AlertCircle, CheckCircle } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Button, Field, Input, Modal, useToast } from './ui';

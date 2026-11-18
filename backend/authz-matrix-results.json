@@ -1,0 +1,1406 @@
+[
+  {
+    "method": "POST",
+    "path": "/auth/login",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 400
+  },
+  {
+    "method": "POST",
+    "path": "/auth/login",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 429
+  },
+  {
+    "method": "POST",
+    "path": "/auth/login",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 429
+  },
+  {
+    "method": "POST",
+    "path": "/auth/login",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 429
+  },
+  {
+    "method": "POST",
+    "path": "/auth/refresh",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/auth/refresh",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/auth/refresh",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/auth/refresh",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/auth/logout",
+    "role": "superadmin",
+    "expected": "DENY",
+    "actual": "ALLOW",
+    "status": "❌ UNEXPECTED ALLOW",
+    "httpStatus": 200
+  },
+  {
+    "method": "POST",
+    "path": "/auth/logout",
+    "role": "hradmin",
+    "expected": "DENY",
+    "actual": "ALLOW",
+    "status": "❌ UNEXPECTED ALLOW",
+    "httpStatus": 200
+  },
+  {
+    "method": "POST",
+    "path": "/auth/logout",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "ALLOW",
+    "status": "❌ UNEXPECTED ALLOW",
+    "httpStatus": 200
+  },
+  {
+    "method": "POST",
+    "path": "/auth/logout",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "ALLOW",
+    "status": "❌ UNEXPECTED ALLOW",
+    "httpStatus": 200
+  },
+  {
+    "method": "GET",
+    "path": "/auth/me",
+    "role": "superadmin",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/auth/me",
+    "role": "hradmin",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/auth/me",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/auth/me",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users/1",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users/1",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/users/1",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/users",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/users",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/users",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/users",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/users/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/users/1",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/users/1",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/users/1",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/users/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/users/1",
+    "role": "hradmin",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/users/1",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/users/1",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees/1",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees/1",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/employees/1",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/employees",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/employees",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/employees",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/employees",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/employees/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/employees/1",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/employees/1",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/employees/1",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/employees/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/employees/1",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/employees/1",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/employees/1",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/requests",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/requests",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/requests",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/requests",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests/1/decide",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests/1/decide",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests/1/decide",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/leaves/requests/1/decide",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/leaves/requests/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/leaves/requests/1",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/leaves/requests/1",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "DELETE",
+    "path": "/leaves/requests/1",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/balance",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/balance",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/balance",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/leaves/balance",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/periods",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/periods",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/periods",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/periods",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/generate",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/generate",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/generate",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/generate",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/lock",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/lock",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/lock",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/payroll/periods/1/lock",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/me/payslip/1",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/me/payslip/1",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/me/payslip/1",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/payroll/me/payslip/1",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/attendance/records",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/attendance/records",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/attendance/records",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/attendance/records",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/attendance/records",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 404
+  },
+  {
+    "method": "POST",
+    "path": "/attendance/records",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 404
+  },
+  {
+    "method": "POST",
+    "path": "/attendance/records",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 404
+  },
+  {
+    "method": "POST",
+    "path": "/attendance/records",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 404
+  },
+  {
+    "method": "GET",
+    "path": "/contracts",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/contracts",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/contracts",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/contracts",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/contracts",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/contracts",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/contracts",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/contracts",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/me",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/me",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/me",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/me",
+    "role": "employee",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/management",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/management",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/management",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/management",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/team-work",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/team-work",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/team-work",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/dashboard/team-work",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/settings",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/settings",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/settings",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/settings",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/settings/:key",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/settings/:key",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/settings/:key",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "PATCH",
+    "path": "/settings/:key",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/companies",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/companies",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/companies",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/companies",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/branches",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/branches",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/branches",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/branches",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/org/org-units",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 404
+  },
+  {
+    "method": "GET",
+    "path": "/org/org-units",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 404
+  },
+  {
+    "method": "GET",
+    "path": "/org/org-units",
+    "role": "manager",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 404
+  },
+  {
+    "method": "GET",
+    "path": "/org/org-units",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 404
+  },
+  {
+    "method": "GET",
+    "path": "/audit-log",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/audit-log",
+    "role": "hradmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/audit-log",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/audit-log",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/backup/history",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/backup/history",
+    "role": "hradmin",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/backup/history",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "GET",
+    "path": "/backup/history",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/backup/run",
+    "role": "superadmin",
+    "expected": "ALLOW",
+    "actual": "DENY",
+    "status": "❌ UNEXPECTED DENY",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/backup/run",
+    "role": "hradmin",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/backup/run",
+    "role": "manager",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  },
+  {
+    "method": "POST",
+    "path": "/backup/run",
+    "role": "employee",
+    "expected": "DENY",
+    "actual": "DENY",
+    "status": "✅",
+    "httpStatus": 401
+  }
+]

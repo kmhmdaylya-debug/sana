@@ -46,7 +46,8 @@ export default function TeamWork() {
   const [creating, setCreating] = useState(false);
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const result = await api.get('/dashboard/team-work', { signal });
+      const config = signal ? { signal } : {};
+      const result = await api.get('/dashboard/team-work', config);
       if (!signal?.aborted) { setTasks(result.data.data ?? []); setError(''); }
     } catch (e) {
       if (!signal?.aborted) setError(apiErrorMessage(e));

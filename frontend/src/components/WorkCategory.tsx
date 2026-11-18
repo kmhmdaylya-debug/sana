@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { Check } from 'lucide-react';
 import { categoryStyle, getWorkCategory, WORK_CATEGORIES } from '../lib/workCategories';
 
-export function WorkCategoryTag({ value }: { value?: string | null }) {
+export function WorkCategoryTag({ value }: { value?: string | null | undefined }) {
   const category = getWorkCategory(value);
   return category ? <span className="work-category" style={categoryStyle(value)}><span aria-hidden="true" />{category.label}</span> : null;
 }

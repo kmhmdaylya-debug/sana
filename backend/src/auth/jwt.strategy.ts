@@ -12,6 +12,7 @@ export interface JwtPayload {
   username: string;
   type: 'access';
   sid: string;
+  jti: string;
 }
 
 @Injectable()
@@ -31,8 +32,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-    if (payload.type !== 'access' || !isUUID(payload.sub) || !isUUID(payload.sid)) throw new UnauthorizedException('نشست نامعتبر است؛ دوباره وارد شوید.');
+    if (payload.type !== 'access' || !isUUID(payload.sub) || !isUUID(payload.sid) || !isUUID(payload.jti)) throw new UnauthorizedException('نشست نامعتبر است؛ دوباره وارد شوید.');
     const now = new Date();
+    const blocked = await this.prisma.accessTokenBlocklist.findUnique({ where: { tokenId: payload.jti } });
+    if (blocked && blocked.expiresAt > now) throw new UnauthorizedException('توکن باطل شده است؛ دوباره وارد شوید.');
     const session = await this.prisma.userSession.findFirst({ where: { id: payload.sid, userId: payload.sub, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, select: { id: true } });
     const live = session && await this.prisma.refreshToken.findFirst({ where: { family: payload.sid, userId: payload.sub, expiresAt: { gt: now }, OR: [{ revokedAt: null }, { revokedAt: { gt: now } }] }, select: { id: true } });
     if (!live) throw new UnauthorizedException('نشست شما باطل یا منقضی شده است.');

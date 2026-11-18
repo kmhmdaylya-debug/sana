@@ -4,7 +4,7 @@ import { taskCountdown, taskDeadlineAt } from '../lib/deadline';
 import { toPersianDigits } from '../lib/format';
 import { useDeadlineClock } from '../lib/useDeadlineClock';
 
-export default function TaskCountdown({ dueDate, status }: { dueDate?: string | null; status: string }) {
+export default function TaskCountdown({ dueDate, status }: { dueDate?: string | null | undefined; status: string }) {
   const deadline = useMemo(() => taskDeadlineAt(dueDate), [dueDate]);
   const active = deadline !== null && deadline > Date.now() && !['DONE', 'CANCELLED'].includes(status);
   const now = useDeadlineClock(active);

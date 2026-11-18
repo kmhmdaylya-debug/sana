@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { SettingsService } from './settings.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import {
@@ -24,6 +25,7 @@ import { PERMISSIONS } from '../common/constants/permissions';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('settings')
+@Throttle({ default: { limit: 20, ttl: 60000 } })
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly service: SettingsService) {}
