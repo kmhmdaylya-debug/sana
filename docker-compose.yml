@@ -16,6 +16,8 @@ services:
     image: postgres:16-alpine
     container_name: sana-db
     restart: unless-stopped
+    ports:
+      - "5433:5432"
     environment:
       POSTGRES_USER: sana
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}
@@ -98,11 +100,14 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET را تنظیم کنید}
       JWT_REFRESH_GRACE_SECONDS: 5
       BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY را تنظیم کنید}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY را تنظیم کنید}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD را تنظیم کنید}
       SEED_DEMO_DATA: "false"
       SWAGGER_ENABLED: "false"
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS را تنظیم کنید}
+      # آدرس قابل‌دسترسی فرانت از داخل کانتینر backend برای /health (اطلاعاتی)
+      HEALTH_FRONTEND_URL: ${HEALTH_FRONTEND_URL:-http://frontend:8080/health}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1}
       TZ: ${TZ:-Asia/Tehran}
       # Node.js memory tuning: 1.5GB heap (75% of 2GB container)
@@ -137,7 +142,8 @@ services:
       backend:
         condition: service_started
     ports:
-      - "8080:80"
+      # nginx داخل کانتینر روی 8080 شنود می‌کند (frontend/nginx.conf) — نه 80
+      - "8080:8080"
     # nginx داخل کانتینر، /api را به backend پراکسی می‌کند
     environment:
       TZ: ${TZ:-Asia/Tehran}

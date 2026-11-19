@@ -1,23 +1,25 @@
 import { PrismaClient } from '@prisma/client';
 
-export function createPrismaMetricsMiddleware(metricsService: any) {
-  return async (params: any, next: (params: any) => Promise<any>) => {
-    const startTime = process.hrtime.bigint();
-    const model = params.model ?? 'unknown';
-    const action = params.action;
-
-    try {
-      const result = await next(params);
-      return result;
-    } finally {
-      const durationNs = Number(process.hrtime.bigint() - startTime);
-      const durationSeconds = durationNs / 1e9;
-
-      const queryType = mapActionToQueryType(action);
-      const table = model;
-
-      metricsService.observeDbQueryDuration(queryType, table, durationSeconds);
-    }
+/**
+ * Prisma 6 دیگر client middleware (پرچم `$use`) را ندارد؛ جایگزین رسمی Client Extensions است.
+ * این extension زمان اجرای عملیات مدل‌ها را می‌سنجد و به Prometheus گزارش می‌دهد.
+ */
+export function createPrismaMetricsExtension(metricsService: any) {
+  return {
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }: any) {
+          const startTime = process.hrtime.bigint();
+          try {
+            return await query(args);
+          } finally {
+            const durationNs = Number(process.hrtime.bigint() - startTime);
+            const durationSeconds = durationNs / 1e9;
+            metricsService.observeDbQueryDuration(mapActionToQueryType(operation), model ?? 'unknown', durationSeconds);
+          }
+        },
+      },
+    },
   };
 }
 
@@ -56,6 +58,16 @@ function mapActionToQueryType(action: string): string {
   }
 }
 
+/**
+ * extension را روی client اعمال می‌کند و delegateهای آن را روی همان instance می‌گذارد؛
+ * بنابراین تمام call siteهای موجود (`this.prisma.xxx` و `tx.xxx` داخل تراکنش) بدون تغییر کار می‌کنند.
+ * (Prisma 6 `$use` را حذف کرده است؛ `$extends` جایگزین رسمی آن است.)
+ */
 export function applyMetricsMiddleware(prisma: any, metricsService: any): void {
-  prisma.$use(createPrismaMetricsMiddleware(metricsService));
+  const extended = (prisma as PrismaClient).$extends(createPrismaMetricsExtension(metricsService));
+  for (const key of Object.keys(extended)) {
+    // `constructor` کلاس واقعی را بازنویسی نکند
+    if (key === 'constructor') continue;
+    prisma[key] = (extended as any)[key];
+  }
 }

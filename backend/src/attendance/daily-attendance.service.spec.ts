@@ -1,4 +1,5 @@
 import { DailyAttendanceService } from './daily-attendance.service';
+import { AuditService } from '../common/audit/audit.service';
 import { calendarDay, calendarDayStart, shiftCalendarDay } from './daily-date.util';
 
 describe('Daily attendance', () => {
@@ -7,6 +8,8 @@ describe('Daily attendance', () => {
   let db: any;
   let service: DailyAttendanceService;
   let access: any;
+  // real AuditService (no stub) so UUID validation of AuditLog.userId is exercised
+  const audit = new AuditService(null as never, null as never);
   const employee = (id: string, overrides = {}) => ({ id, attendanceRecords: [], attendances: [], projectAttendances: [], shiftAssignments: [], leaveRequests: [], missions: [], ...overrides });
 
   beforeEach(() => {
@@ -24,7 +27,7 @@ describe('Daily attendance', () => {
     };
     db.$transaction = jest.fn((fn) => fn(db));
     access = { canAccessEmployee: jest.fn().mockResolvedValue(true) };
-    service = new DailyAttendanceService(db, access);
+    service = new DailyAttendanceService(db, access, audit);
   });
 
   it('uses Tehran midnight independently of the server timezone', () => {
@@ -39,6 +42,56 @@ describe('Daily attendance', () => {
     await service.closeFinishedDays(now);
     expect(db.attendanceRecord.createMany).toHaveBeenCalledTimes(1);
     expect(db.attendanceRecord.createMany).toHaveBeenCalledWith({ data: [expect.objectContaining({ employeeId: 'absent', status: 'ABSENT', absenceMinutes: 480, absenceType: 'DAILY_NO_SHOW', workDate: new Date('2026-11-14T00:00:00Z') })], skipDuplicates: true });
+  });
+
+  it('writes the closing audit row with a null userId because AuditLog.userId is a UUID FK', async () => {
+    // regression: 'system:daily-attendance' is not a UUID; PostgreSQL rejected it and rolled back the whole day
+    await service.closeFinishedDays(now);
+    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
+    const data = db.auditLog.create.mock.calls[0][0].data;
+    expect(data.userId).toBeNull();
+    expect(data.entity).toBe('DailyAttendance');
+    expect(String(data.note)).toContain('system:daily-attendance');
+    expect(String(data.after)).toContain('system:daily-attendance');
+  });
+
+  it('keeps reruns idempotent: records, audit row and checkpoint advance exactly once', async () => {
+    await service.closeFinishedDays(now);
+    const afterFirstRun = { records: db.attendanceRecord.createMany.mock.calls.length, audits: db.auditLog.create.mock.calls.length, updates: db.setting.update.mock.calls.length };
+    expect(afterFirstRun).toEqual({ records: 1, audits: 1, updates: 1 });
+    expect(db.setting.update.mock.calls[0][0].data.value).toBe('2026-11-14');
+    // same run again: the current Tehran day is never closed, so nothing is written twice
+    await service.closeFinishedDays(now);
+    expect(db.attendanceRecord.createMany.mock.calls.length).toBe(afterFirstRun.records);
+    expect(db.auditLog.create.mock.calls.length).toBe(afterFirstRun.audits);
+    expect(db.setting.update.mock.calls.length).toBe(afterFirstRun.updates);
+  });
+
+  it('continues closing the remaining companies when one company transaction fails', async () => {
+    const failing = { ...company, id: 'broken-company' };
+    db.company.findMany.mockResolvedValue([{ id: failing.id }, { id: company.id }]);
+    db.company.findUniqueOrThrow.mockImplementation(({ where }) =>
+      Promise.resolve(where.id === failing.id ? { ...failing } : company),
+    );
+    const checkpoints: Record<string, string> = { [failing.id]: '2026-11-13', [company.id]: '2026-11-13' };
+    db.setting.upsert.mockImplementation(({ where, create }) => {
+      const id = String(where.key).split(':').pop();
+      if (id === failing.id) throw new Error('checkpoint table unavailable');
+      return { value: checkpoints[id] ?? create.value };
+    });
+    db.setting.update.mockImplementation(({ where, data }) => {
+      const id = String(where.key).split(':').pop();
+      checkpoints[id] = data.value;
+      return { value: data.value };
+    });
+    const errorSpy = jest.spyOn(service as any, 'logClosingFailure').mockImplementation(() => undefined);
+    await expect(service.closeFinishedDays(now)).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(String((errorSpy.mock.calls[0][0] as Error)?.message)).toContain('checkpoint table unavailable');
+    // the healthy company still advanced its checkpoint inside its own transaction
+    expect(db.setting.update).toHaveBeenCalled();
+    expect(db.attendanceRecord.createMany).toHaveBeenCalledTimes(1);
+    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
   });
 
   it('never marks the current local day absent', async () => {
@@ -148,7 +201,8 @@ describe('Daily attendance', () => {
   });
 
   describe('manager manual attendance', () => {
-    const manager: any = { id:'manager', permissions:['dashboard.view.management','attendance.create'], isSuperAdmin:false };
+    const MANAGER_ID = '11111111-2222-4333-8444-555555555555';
+    const manager: any = { id:MANAGER_ID, permissions:['dashboard.view.management','attendance.create'], isSuperAdmin:false };
     const dto: any = { day:'2026-11-15', status:'PRESENT', firstIn:'02:30', note:'checked by manager' };
     beforeEach(() => {
       db.employee.findUniqueOrThrow = jest.fn().mockResolvedValue({ id:'staff', companyId:company.id, status:'ACTIVE', deletedAt:null, hireDate:new Date('2026-01-01') });
@@ -160,7 +214,7 @@ describe('Daily attendance', () => {
       const result = await service.setToday('staff', dto, manager, now);
       expect(result.data).toMatchObject({ employeeId:'staff', status:'INCOMPLETE', firstIn:new Date('2026-11-14T23:00:00Z') });
       expect(db.attendanceRecord.upsert.mock.calls[0][0].where).toEqual({employeeId_workDate:{employeeId:'staff',workDate:new Date('2026-11-15T00:00:00Z')}});
-      expect(db.auditLog.create).toHaveBeenCalledWith({data:expect.objectContaining({userId:'manager',entity:'DailyAttendance',action:'CREATE'})});
+      expect(db.auditLog.create).toHaveBeenCalledWith({data:expect.objectContaining({userId:MANAGER_ID,entity:'DailyAttendance',action:'CREATE'})});
       expect(db.$transaction).toHaveBeenCalledTimes(1);
     });
 

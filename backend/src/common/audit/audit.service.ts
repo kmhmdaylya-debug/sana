@@ -20,6 +20,9 @@ export interface AuditEntry {
   note?: string;
 }
 
+/** شناسهٔ کاربر در AuditLog ستون UUID با کلید خارجی به User است. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * ثبت لاگ ممیزی. لاگ‌ها فقط‌خواندنی‌اند و قابل ویرایش یا حذف نیستند.
  * هر عملیات حساس (تغییر نقش، مشاهده حقوق، خروجی گرفتن، …) باید ثبت شود.
@@ -33,8 +36,19 @@ export class AuditService {
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * ثبت لاگ ممیزی داخل تراکنش جاری.
+   * ستون userId از نوع UUID و کلید خارجی به User است؛ بازیگران سیستمی (Jobها)
+   * ردیف کاربر ندارند، پس شناسهٔ نامعتبر به null تبدیل می‌شود تا تراکنش اصلی نشکند
+   * و هویت سیستمی در قسمت note حفظ شود.
+   */
   async recordInTransaction(db: Prisma.TransactionClient, userId: string | null, entry: AuditEntry): Promise<void> {
-    await db.auditLog.create({ data: { userId, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before: stringifyAudit(entry.before), after: stringifyAudit(entry.after) } });
+    const validUserId = userId && UUID_PATTERN.test(userId) ? userId : null;
+    if (userId && !validUserId) {
+      this.logger.warn(`Audit actor "${userId.slice(0, 64)}" is not a UUID; storing the entry with a null userId.`);
+    }
+    const note = validUserId === null && userId ? `${entry.note ?? ''} [actor: ${userId.slice(0, 60)}]`.slice(0, 500) : entry.note;
+    await db.auditLog.create({ data: { userId: validUserId, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before: stringifyAudit(entry.before), after: stringifyAudit(entry.after), note: note ?? null } });
   }
 
   /**

@@ -33,8 +33,28 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
 
   private run() {
     if (this.running) return this.running;
-    this.running = this.closeFinishedDays().catch(() => this.logger.error('Daily attendance closing failed; confidential details suppressed.')).finally(() => { this.running = null; });
+    this.running = this.closeFinishedDays()
+      .catch((error) => this.logClosingFailure(error))
+      .finally(() => { this.running = null; });
     return this.running;
+  }
+
+  /**
+   * ثبت خطای واقعی Job با جزئیات فنی (کد/پیام/استک) بدون افشای دادهٔ پرسنلی.
+   * فقط رشتهٔ اتصال پایگاه داده، ایمیل و شمارهٔ طولانی پنهان می‌شوند؛ ریشهٔ خطا حذف نمی‌شود.
+   */
+  private logClosingFailure(error: unknown, scope = 'daily attendance closing'): void {
+    const err = error as { name?: string; message?: string; code?: string; meta?: unknown; stack?: string };
+    const redact = (value: string) =>
+      value
+        .replace(/postgres(?:ql)?:\/\/[^\s'"]+/gi, 'postgresql://[redacted]')
+        .replace(/\b[\w.+-]+@[\w.-]+\.\w{2,}\b/g, '[redacted-email]')
+        .replace(/\b\d{10,}\b/g, '[redacted-number]')
+        .slice(0, 2000);
+    this.logger.error(
+      `${scope} failed (error=${err?.name ?? 'Error'}, code=${err?.code ?? 'n/a'}): ${redact(String(err?.message ?? error))}`,
+      redact(String(err?.stack ?? '')),
+    );
   }
 
   private company(companyId: string, tx: Store = this.prisma) {
@@ -175,41 +195,53 @@ export class DailyAttendanceService implements OnModuleInit, OnModuleDestroy {
   async closeFinishedDays(now = new Date()) {
     const companies = await this.prisma.company.findMany({ where: { isActive: true, deletedAt: null }, select: { id: true } });
     for (const companyRef of companies) {
-      // Limit each pass; persistent checkpoints resume longer outages on subsequent passes.
-      for (let batch = 0; batch < 31; batch++) {
-        const advanced = await this.prisma.$transaction(async (tx) => {
-          const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(7341, 2411) AS locked`;
-          if (!lock.locked) return false;
-          const company = await this.company(companyRef.id, tx);
-          const today = calendarDay(now, company.timezone);
-          const key = `attendance.daily.closedThrough:${company.id}`;
-          const checkpoint = await tx.setting.upsert({ where: { key }, update: {}, create: { key, value: shiftCalendarDay(today, -1), group: 'SYSTEM', label: 'آخرین روز پردازش حضور روزانه' } });
-          if (!checkpoint.value || !/^\d{4}-\d{2}-\d{2}$/.test(checkpoint.value)) throw new Error('Invalid daily attendance checkpoint');
-          const day = shiftCalendarDay(checkpoint.value, 1);
-          if (day >= today) return false;
-          const employees = await this.employeesForDay(tx, company.id, day, company.timezone);
-          const states = employees.map((employee) => ({ employee, state: this.dayState(employee, company, day) }));
-          if (states.some(({ state }) => state.working && state.cutoff > now)) return false;
-          const rows: Prisma.AttendanceRecordCreateManyInput[] = [];
-          for (const { employee, state } of states) {
-            if (state.record || state.present || !state.working) continue;
-            const status: AttendanceRecordStatus = state.leave ? 'LEAVE' : state.mission ? 'MISSION' : 'ABSENT';
-            rows.push({ employeeId: employee.id, workDate: new Date(`${day}T00:00:00Z`), status, absenceMinutes: status === 'ABSENT' ? state.minutes : 0, absenceType: status === 'ABSENT' ? 'DAILY_NO_SHOW' : null, note: status === 'ABSENT' ? 'غیبت خودکار: روز کاری بدون ثبت حضور' : 'وضعیت روزانه طبق درخواست تأییدشده' });
-          }
-          if (rows.length) {
-            await tx.attendanceRecord.createMany({ data: rows, skipDuplicates: true });
-            await this.audit.recordInTransaction(tx, 'system:daily-attendance', {
-              action: AuditAction.CREATE,
-              entity: 'DailyAttendance',
-              after: { companyId: company.id, day, records: rows.length },
-              note: 'بستن خودکار روز کاری',
-            });
-          }
-          await tx.setting.update({ where: { key }, data: { value: day } });
-          return true;
-        }, { timeout: 30_000 });
-        if (!advanced) break;
+      // A failing company must not block closing for the remaining companies.
+      try {
+        await this.closeCompanyDays(companyRef.id, now);
+      } catch (error) {
+        this.logClosingFailure(error, `daily attendance closing (company=${companyRef.id})`);
       }
+    }
+  }
+
+  private async closeCompanyDays(companyId: string, now: Date): Promise<void> {
+    // Limit each pass; persistent checkpoints resume longer outages on subsequent passes.
+    for (let batch = 0; batch < 31; batch++) {
+      const advanced = await this.prisma.$transaction(async (tx) => {
+        const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(7341, 2411) AS locked`;
+        if (!lock.locked) return false;
+        const company = await this.company(companyId, tx);
+        const today = calendarDay(now, company.timezone);
+        const key = `attendance.daily.closedThrough:${company.id}`;
+        const checkpoint = await tx.setting.upsert({ where: { key }, update: {}, create: { key, value: shiftCalendarDay(today, -1), group: 'SYSTEM', label: 'آخرین روز پردازش حضور روزانه' } });
+        if (!checkpoint.value || !/^\d{4}-\d{2}-\d{2}$/.test(checkpoint.value)) throw new Error('Invalid daily attendance checkpoint');
+        const day = shiftCalendarDay(checkpoint.value, 1);
+        if (day >= today) return false;
+        const employees = await this.employeesForDay(tx, company.id, day, company.timezone);
+        const states = employees.map((employee) => ({ employee, state: this.dayState(employee, company, day) }));
+        if (states.some(({ state }) => state.working && state.cutoff > now)) return false;
+        const rows: Prisma.AttendanceRecordCreateManyInput[] = [];
+        for (const { employee, state } of states) {
+          if (state.record || state.present || !state.working) continue;
+          const status: AttendanceRecordStatus = state.leave ? 'LEAVE' : state.mission ? 'MISSION' : 'ABSENT';
+          rows.push({ employeeId: employee.id, workDate: new Date(`${day}T00:00:00Z`), status, absenceMinutes: status === 'ABSENT' ? state.minutes : 0, absenceType: status === 'ABSENT' ? 'DAILY_NO_SHOW' : null, note: status === 'ABSENT' ? 'غیبت خودکار: روز کاری بدون ثبت حضور' : 'وضعیت روزانه طبق درخواست تأییدشده' });
+        }
+        if (rows.length) {
+          // skipDuplicates + unique(employeeId, workDate) keeps reruns idempotent.
+          await tx.attendanceRecord.createMany({ data: rows, skipDuplicates: true });
+          // AuditLog.userId is a UUID FK to User; system jobs have no user row, so userId must be null.
+          await this.audit.recordInTransaction(tx, null, {
+            action: AuditAction.CREATE,
+            entity: 'DailyAttendance',
+            after: { companyId: company.id, actor: 'system:daily-attendance', day, records: rows.length },
+            note: 'بستن خودکار روز کاری توسط سامانه (system:daily-attendance)',
+          });
+        }
+        // Checkpoint advances inside the same transaction: a failure rolls back both records and progress.
+        await tx.setting.update({ where: { key }, data: { value: day } });
+        return true;
+      }, { timeout: 30_000 });
+      if (!advanced) break;
     }
   }
 }

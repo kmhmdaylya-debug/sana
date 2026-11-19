@@ -1,10 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HealthIndicatorResult } from '@nestjs/terminus';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 
+/** پیام خطای دیتابیس بدون افشای رشتهٔ اتصال یا جزئیات داخلی */
+const publicErrorMessage = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/postgres(?:ql)?:\/\/[^\s'"]+/gi, 'postgresql://[redacted]')
+    .slice(0, 200);
+};
+
 @Injectable()
 export class DatabaseHealthIndicator {
+  private readonly logger = new Logger(DatabaseHealthIndicator.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -29,10 +39,11 @@ export class DatabaseHealthIndicator {
         },
       };
     } catch (error) {
+      this.logger.error(`Database health check failed: ${publicErrorMessage(error)}`);
       return {
         [key]: {
           status: 'down',
-          error: error.message,
+          error: 'database unreachable',
         },
       };
     }
@@ -40,29 +51,56 @@ export class DatabaseHealthIndicator {
 
   async migrationStatus(key: string): Promise<HealthIndicatorResult> {
     try {
-      // Check if there are pending migrations
-      const migrations = await this.prisma.$queryRaw<Array<{ name: string; applied: boolean }>>`
-        SELECT name, applied_at IS NOT NULL as applied
+      // ستون‌های واقعی جدول _prisma_migrations (نام مهاجرت + وضعیت اجرا)
+      const rows = await this.prisma.$queryRaw<
+        Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>
+      >`
+        SELECT migration_name, finished_at, rolled_back_at
         FROM "_prisma_migrations"
-        ORDER BY finished_at DESC
+        ORDER BY started_at
       `;
 
-      const pending = migrations.filter(m => !m.applied).length;
-      const isHealthy = pending === 0;
+      const applied = new Set<string>();
+      const failed: string[] = [];
+      for (const row of rows) {
+        if (row.finished_at && !row.rolled_back_at) applied.add(row.migration_name);
+        if (!row.finished_at && !row.rolled_back_at && !failed.includes(row.migration_name)) failed.push(row.migration_name);
+      }
+
+      const total = new Set(rows.map((row) => row.migration_name)).size;
+      const pending = total - applied.size;
+      const isHealthy = pending === 0 && failed.length === 0;
+
+      if (!isHealthy) {
+        this.logger.warn(`Migration health degraded: applied=${applied.size} pending=${pending} incomplete=${failed.length}`);
+      }
 
       return {
         [key]: {
           status: isHealthy ? 'up' : 'degraded',
+          appliedMigrations: applied.size,
           pendingMigrations: pending,
-          totalMigrations: migrations.length,
+          incompleteMigrations: failed.length,
+          totalMigrations: total,
         },
       };
     } catch (error) {
-      // Table might not exist in fresh DB
+      // فقط «نبودِ جدول» یعنی دیتابیس تازه؛ خطای دیگر نباید سلامت کاذب گزارش شود
+      const message = error instanceof Error ? error.message : String(error);
+      const missingTable = /_prisma_migrations/.test(message) && /does not exist|not exist|undefined/i.test(message);
+      if (missingTable) {
+        return {
+          [key]: {
+            status: 'up',
+            note: 'Migration table not found (fresh DB)',
+          },
+        };
+      }
+      this.logger.error(`Migration status check failed: ${publicErrorMessage(error)}`);
       return {
         [key]: {
-          status: 'up',
-          note: 'Migration table not found (fresh DB)',
+          status: 'down',
+          error: 'migration status unavailable',
         },
       };
     }

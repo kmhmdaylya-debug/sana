@@ -18,10 +18,14 @@ RUN addgroup -g 1000 -S sana && \
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# پیکربندی اصلی بدون دستور `user` و با pid در /tmp (کاربر غیرریشه اجازهٔ نوشتن در /run را ندارد)
+COPY nginx-main.conf /etc/nginx/nginx.conf
 
 # Create nginx directories with correct permissions
-RUN mkdir -p /var/cache/nginx /var/run /var/log/nginx && \
-    chown -R sana:sana /var/cache/nginx /var/run /var/log/nginx /usr/share/nginx/html
+# نکته: /var/run یک symlink به /run است؛ chown روی خودِ /run اعمال می‌شود نه فقط روی symlink
+RUN mkdir -p /var/cache/nginx /var/run /var/log/nginx /run && \
+    chown -R sana:sana /var/cache/nginx /var/log/nginx /run /usr/share/nginx/html && \
+    chmod -R 755 /var/log/nginx
 
 # Use non-root user
 USER sana
