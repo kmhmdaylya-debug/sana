@@ -1,12 +1,17 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { applyMetricsMiddleware } from '../monitoring/prisma-metrics.middleware';
+import { MetricsService } from '../monitoring/metrics.service';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly metricsService: MetricsService,
+  ) {
     super({
       datasources: {
         db: { url: config.get<string>('app.database.url') },
@@ -14,6 +19,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       // Prisma errors can embed query arguments, including personal data.
       log: [],
     });
+
+    // Apply metrics middleware
+    applyMetricsMiddleware(this, this.metricsService);
   }
 
   async onModuleInit(): Promise<void> {

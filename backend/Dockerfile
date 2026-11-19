@@ -24,8 +24,8 @@ ENV NODE_ENV=production
 RUN apk add --no-cache openssl postgresql-client curl
 
 # Create non-root user and group
-RUN addgroup -g 1000 -S sana && \
-    adduser -u 1000 -S sana -G sana -s /bin/sh
+RUN addgroup -S sana && \
+    adduser -S -G sana -h /home/sana -s /bin/sh sana
 
 COPY package*.json ./
 # prisma CLI، ts-node و typescript اکنون در dependencies هستند (برای migrate و seed)

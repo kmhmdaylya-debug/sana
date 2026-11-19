@@ -171,6 +171,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'تأیید
   onClose: () => void;
   loading?: boolean;
 }) {
+  const messageId = useId();
   return (
     <Modal
       open={open}
@@ -184,7 +185,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'تأیید
         </>
       }
     >
-      <p style={{ margin: 0 }}>{message}</p>
+      <p id={messageId} style={{ margin: 0 }}>{message}</p>
     </Modal>
   );
 }

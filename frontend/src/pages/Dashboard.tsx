@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Clock, Mail, MessageSquare, MoreVertical } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, CalendarDays, CheckCircle2, Clock, Mail, MessageSquare, MoreVertical } from 'lucide-react';
 import axios from 'axios';
 import { api, apiErrorMessage, createAbortController } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -77,6 +77,12 @@ function PersonalDashboard() {
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Kanban keyboard navigation state
+  const [focusedColumnIndex, setFocusedColumnIndex] = useState(0);
+  const [focusedCardIndex, setFocusedCardIndex] = useState(-1);
+  const columnRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const cardRefs = useRef<Map<number, (HTMLDivElement | null)[]>>(new Map());
+
   const canMgmt = hasPermission('dashboard.view.management');
 
   useEffect(() => {
@@ -148,6 +154,75 @@ function PersonalDashboard() {
     (mgmt?.pending.swaps ?? 0) +
     (mgmt?.pending.loans ?? 0);
 
+  // Kanban keyboard navigation handlers
+  const handleKanbanKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const colCount = columns.length;
+    const currentColumn = columns[focusedColumnIndex];
+    const cardCount = currentColumn?.cards.length ?? 0;
+
+    switch (e.key) {
+      case 'ArrowRight': // RTL: next column (lower index)
+        e.preventDefault();
+        if (focusedCardIndex >= 0) {
+          setFocusedCardIndex(-1); // Exit card, focus column header
+        } else if (focusedColumnIndex > 0) {
+          setFocusedColumnIndex(prev => prev - 1);
+        }
+        break;
+      case 'ArrowLeft': // RTL: previous column (higher index)
+        e.preventDefault();
+        if (focusedCardIndex >= 0) {
+          setFocusedCardIndex(-1);
+        } else if (focusedColumnIndex < colCount - 1) {
+          setFocusedColumnIndex(prev => prev + 1);
+        }
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        if (focusedCardIndex < 0) {
+          // Enter first card in column
+          if (cardCount > 0) setFocusedCardIndex(0);
+        } else if (focusedCardIndex < cardCount - 1) {
+          setFocusedCardIndex(prev => prev + 1);
+        }
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        if (focusedCardIndex > 0) {
+          setFocusedCardIndex(prev => prev - 1);
+        } else if (focusedCardIndex === 0) {
+          // Exit to column header
+          setFocusedCardIndex(-1);
+        }
+        break;
+      case 'Enter':
+      case ' ':
+        if (focusedCardIndex >= 0) {
+          e.preventDefault();
+          const card = currentColumn?.cards[focusedCardIndex];
+          if (card) {
+            // Navigate to task detail
+            window.location.href = `/tasks`;
+          }
+        }
+        break;
+      case 'Home':
+        e.preventDefault();
+        if (focusedCardIndex >= 0) setFocusedCardIndex(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        if (focusedCardIndex >= 0) setFocusedCardIndex(cardCount - 1);
+        break;
+      case 'Escape':
+        if (focusedCardIndex >= 0) {
+          e.preventDefault();
+          setFocusedCardIndex(-1);
+        }
+        break;
+    }
+  }, [columns, focusedColumnIndex, focusedCardIndex]);
+
   return (
     <>
       <PageHeader
@@ -211,17 +286,47 @@ function PersonalDashboard() {
           title="بوم کارها"
           className="mb"
         >
-          <div className="kanban">
-            {columns.map((col) => (
-              <div key={col.key} className="kanban-col">
+          <div
+            className="kanban"
+            role="listbox"
+            aria-label="بوم کارها - ستون‌ها"
+            onKeyDown={handleKanbanKeyDown}
+            tabIndex={0}
+          >
+            {columns.map((col, colIdx) => (
+              <div
+                key={col.key}
+                ref={el => { columnRefs.current[colIdx] = el; }}
+                className={`kanban-col${focusedColumnIndex === colIdx ? ' focused' : ''}`}
+                role="group"
+                aria-labelledby={`kanban-col-${col.key}`}
+              >
                 <div className="kanban-col-head">
-                  <span className="kanban-col-title">{col.title}</span>
+                  <span id={`kanban-col-${col.key}`} className="kanban-col-title">{col.title}</span>
                   <span className="kanban-col-count">{toPersianDigits(col.cards.length)}</span>
                   <Link className="kanban-col-menu" to="/tasks" aria-label="مشاهده task" title="مشاهده task"><ArrowLeft size={15} /></Link>
                 </div>
-                <div className="kanban-cards">
-                  {col.cards.slice(0, 8).map((t) => (
-                    <TaskCard key={t.id} task={t} />
+                <div
+                  className="kanban-cards"
+                  role="list"
+                  aria-label={`${col.title} - ${toPersianDigits(col.cards.length)} کار`}
+                >
+                  {col.cards.slice(0, 8).map((t, cardIdx) => (
+                    <TaskCard
+                      key={t.id}
+                      task={t}
+                      cardIdx={cardIdx}
+                      colIdx={colIdx}
+                      isFocused={focusedColumnIndex === colIdx && focusedCardIndex === cardIdx}
+                      onFocus={() => {
+                        setFocusedColumnIndex(colIdx);
+                        setFocusedCardIndex(cardIdx);
+                      }}
+                      cardRef={el => {
+                        if (!cardRefs.current.has(colIdx)) cardRefs.current.set(colIdx, []);
+                        cardRefs.current.get(colIdx)![cardIdx] = el;
+                      }}
+                    />
                   ))}
                   {col.cards.length === 0 && (
                     <div className="text-muted text-xs" style={{ padding: '14px 4px' }}>
@@ -280,7 +385,16 @@ function Gauge({ value }: { value: number }) {
    کارت کانبان
    ========================================================================== */
 
-function TaskCard({ task }: { task: BoardTask }) {
+interface TaskCardProps {
+  task: BoardTask;
+  cardIdx: number;
+  colIdx: number;
+  isFocused: boolean;
+  onFocus: () => void;
+  cardRef: (el: HTMLDivElement | null) => void;
+}
+
+function TaskCard({ task, cardIdx, colIdx, isFocused, onFocus, cardRef }: TaskCardProps) {
   const assignees = (task.assignees ?? []).map((a) => a.employee).filter(Boolean) as {
     id: string;
     firstName: string;
@@ -288,8 +402,25 @@ function TaskCard({ task }: { task: BoardTask }) {
   }[];
   const dark = task.priority === 'CRITICAL';
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Let parent handle navigation keys
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape', 'Enter', ' '].includes(e.key)) {
+      return; // Allow parent handler
+    }
+  };
+
   return (
-    <div style={categoryStyle(task.category)} className={`kanban-card status-${task.delayReason ? 'blocked' : task.status.toLowerCase()}${dark ? ' dark' : ''}${task.category ? ' has-category' : ''}`}>
+    <div
+      ref={cardRef}
+      onFocus={onFocus}
+      onKeyDown={handleKeyDown}
+      style={categoryStyle(task.category)}
+      className={`kanban-card status-${task.delayReason ? 'blocked' : task.status.toLowerCase()}${dark ? ' dark' : ''}${task.category ? ' has-category' : ''}${isFocused ? ' focused' : ''}`}
+      role="option"
+      aria-selected={isFocused}
+      tabIndex={isFocused ? 0 : -1}
+      aria-label={`${task.title}، ${task.status === 'NEW' ? 'جدید' : task.status === 'IN_PROGRESS' ? 'در حال انجام' : task.status === 'DONE' ? 'انجام‌شده' : 'لغوشده'}، اولویت ${task.priority}`}
+    >
       <div className="kanban-card-head">
         <TaskStatusMark status={task.status} blocked={!!task.delayReason} />
         <Link to="/tasks" className="kanban-card-title" style={{ color: 'inherit', textDecoration: 'none' }}>

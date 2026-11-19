@@ -6,6 +6,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
+import { MetricsService } from '../common/monitoring/metrics.service';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { verifyPassword } from '../common/utils/password.util';
@@ -16,7 +17,12 @@ import { runPostgresTool } from './postgres-tools';
 @Injectable()
 export class BackupService {
   private restoring = false;
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly metrics: MetricsService,
+    private readonly config: ConfigService,
+  ) {}
 
   private authorize(user: AuthenticatedUser) {
     // Full database archives contain every tenant and password hashes.
@@ -52,10 +58,19 @@ export class BackupService {
       await fs.writeFile(filePath, encrypted, { flag: 'wx', mode: 0o600 });
       const row = await this.prisma.backupHistory.create({ data: { fileName, location: filePath, size: BigInt(encrypted.length), checksum: archiveChecksum(encrypted), result: BackupResult.SUCCESS, createdById: user.id, startedAt, finishedAt: new Date() } });
       await this.audit.record(user.id, { action: AuditAction.BACKUP, entity: 'BackupHistory', entityId: row.id, after: { fileName, size: encrypted.length } });
+
+      // Update backup metrics
+      this.metrics.setBackupStatus('sana_hrms', true);
+      this.metrics.setBackupAgeHours('sana_hrms', 0);
+
       return { data: this.publicRow(row), success: true, timestamp: new Date().toISOString() };
     } catch {
       await this.prisma.backupHistory.create({ data: { fileName, result: BackupResult.FAILED, error: 'تهیه یا اعتبارسنجی آرشیو PostgreSQL ناموفق بود.', createdById: user.id, startedAt, finishedAt: new Date() } });
       await this.audit.record(user.id, { action: AuditAction.BACKUP, entity: 'BackupHistory', after: { result: 'FAILED' } });
+
+      // Update backup metrics
+      this.metrics.setBackupStatus('sana_hrms', false);
+
       throw new ServiceUnavailableException('پشتیبان‌گیری انجام نشد؛ تنظیمات ابزار PostgreSQL و فضای ذخیره‌سازی را بررسی کنید.');
     }
   }

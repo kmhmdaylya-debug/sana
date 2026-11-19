@@ -21,7 +21,30 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}
       POSTGRES_DB: sana_hrms
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
-    # پایگاه داده فقط در شبکه داخلی در دسترس است (پورت روی میزبان باز نمی‌شود)
+      # PostgreSQL tuning for production capacity
+      # max_connections increased from default 100 to 200 based on 2GB RAM analysis
+      # shared_buffers = 25% of RAM = 512MB
+      # work_mem = 16MB per operation (prevents disk spills on sorts/hashes)
+      # maintenance_work_mem = 256MB for VACUUM/INDEX
+      # effective_cache_size = 75% of RAM = 1.5GB
+      # max_worker_processes = 4 (match CPU cores)
+      # max_parallel_workers_per_gather = 2
+      # random_page_cost = 1.1 (SSD optimized)
+      # effective_io_concurrency = 200 (SSD/NVMe)
+      POSTGRES_MAX_CONNECTIONS: "200"
+      POSTGRES_SHARED_BUFFERS: "512MB"
+      POSTGRES_WORK_MEM: "16MB"
+      POSTGRES_MAINTENANCE_WORK_MEM: "256MB"
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "1536MB"
+      POSTGRES_MAX_WORKER_PROCESSES: "4"
+      POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: "2"
+      POSTGRES_RANDOM_PAGE_COST: "1.1"
+      POSTGRES_EFFECTIVE_IO_CONCURRENCY: "200"
+      POSTGRES_WAL_BUFFERS: "64MB"
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: "0.9"
+      POSTGRES_MAX_WAL_SENDERS: "10"
+      POSTGRES_WAL_KEEP_SIZE: "1GB"
+    # Database only accessible internally (port not exposed on host)
     expose:
       - "5432"
     volumes:
@@ -39,6 +62,24 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    # Use custom entrypoint to apply PostgreSQL config
+    command: >
+      sh -c "
+        echo \"max_connections = $${POSTGRES_MAX_CONNECTIONS}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"shared_buffers = $${POSTGRES_SHARED_BUFFERS}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"work_mem = $${POSTGRES_WORK_MEM}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"maintenance_work_mem = $${POSTGRES_MAINTENANCE_WORK_MEM}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"effective_cache_size = $${POSTGRES_EFFECTIVE_CACHE_SIZE}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"max_worker_processes = $${POSTGRES_MAX_WORKER_PROCESSES}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"max_parallel_workers_per_gather = $${POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"random_page_cost = $${POSTGRES_RANDOM_PAGE_COST}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"effective_io_concurrency = $${POSTGRES_EFFECTIVE_IO_CONCURRENCY}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"wal_buffers = $${POSTGRES_WAL_BUFFERS}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"checkpoint_completion_target = $${POSTGRES_CHECKPOINT_COMPLETION_TARGET}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"max_wal_senders = $${POSTGRES_MAX_WAL_SENDERS}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        echo \"wal_keep_size = $${POSTGRES_WAL_KEEP_SIZE}\" >> /var/lib/postgresql/data/postgresql.conf &&
+        exec docker-entrypoint.sh postgres
+      "
 
   backend:
     build: ./backend
@@ -51,7 +92,8 @@ services:
       NODE_ENV: production
       PORT: 4114
       HOST: 0.0.0.0
-      DATABASE_URL: postgresql://sana:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}@db:5432/sana_hrms?schema=public
+      # Prisma connection pool: limit 20 per instance, timeout 10s
+      DATABASE_URL: postgresql://sana:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD را تنظیم کنید}@db:5432/sana_hrms?schema=public&connection_limit=20&pool_timeout=10
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET را تنظیم کنید}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET را تنظیم کنید}
       JWT_REFRESH_GRACE_SECONDS: 5
@@ -63,6 +105,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS را تنظیم کنید}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1}
       TZ: ${TZ:-Asia/Tehran}
+      # Node.js memory tuning: 1.5GB heap (75% of 2GB container)
+      NODE_OPTIONS: "--max-old-space-size=1536"
     # فقط از طریق nginx (فرانت) در دسترس است؛ پورت API روی میزبان باز نمی‌شود
     expose:
       - "4114"
@@ -80,7 +124,7 @@ services:
       resources:
         limits:
           cpus: '2'
-          memory: 1G
+          memory: 2G
         reservations:
           cpus: '0.25'
           memory: 256M

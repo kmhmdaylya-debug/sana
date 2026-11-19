@@ -31,10 +31,13 @@
 .kanban { gap: 18px; }
 .kanban-col { background: transparent; border: 0; border-radius: 0; padding: 0; }
 .kanban-col-head { border-bottom: 1px solid var(--border); padding: 8px 0 14px; }
+.kanban-col.focused { outline: 2px solid var(--primary-text); outline-offset: 4px; border-radius: var(--radius); }
 .kanban-card, .kanban-card.dark { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; box-shadow: none; }
 .kanban-card.dark { border-inline-start: 3px solid var(--red-600); }
 .kanban-card.dark .kanban-card-desc, .kanban-card.dark .kanban-meta { color: var(--text-muted); }
 .kanban-card:hover { transform: none; box-shadow: none; border-color: var(--border-strong); }
+.kanban-card:focus-visible { outline: 2px solid var(--primary-text); outline-offset: 2px; }
+.kanban-card.focused { outline: 2px solid var(--primary-text); outline-offset: 2px; box-shadow: 0 0 0 2px var(--focus); }
 .kanban-card-head { align-items: center; gap: 10px; }
 .kanban-card-title { font-size: 12px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .kanban-card-desc { font-size: 11px; }
@@ -81,6 +84,46 @@
 .team-presence-header h3 { font-size: 14px; font-weight: 600; }
 .team-presence-summary { padding: 0 0 14px; gap: 16px; font-size: 11px; }
 .employee-panel-nav { padding-block: 0 18px; }
+.employee-panel-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px;
+  margin-bottom: 16px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.employee-panel-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 13px;
+  transition: background var(--transition), color var(--transition);
+  min-height: 44px;
+}
+.employee-panel-tab:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.employee-panel-tab.active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.employee-panel-tab:focus-visible {
+  outline: 2px solid var(--primary-text);
+  outline-offset: 2px;
+}
 .employee-work-section { padding: 0; border: 0; background: none; box-shadow: none; }
 .employee-work-heading { font-size: 14px; font-weight: 600; }
 .employee-tasks-header { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
@@ -133,7 +176,7 @@
 .employee-task-row.is-complete .task-status-mark { width: 26px; height: 26px; flex-basis: 26px; }
 .task-table-title { display: flex; align-items: center; gap: 10px; min-width: 160px; }
 .task-table-title .task-status-mark { width: 26px; height: 26px; flex-basis: 26px; }
-.employee-task-header-actions { display: flex; align-items: center; gap: 12px; }
+.employee-task-header-actions { display: flex; align-items: center; gap: 12px; margin-inline-start: auto; }
 .employee-task-header-actions .btn { width: 34px; height: 34px; padding: 0; }
 .task-retry-pending, .task-retry-rejected { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-bottom: 0; }
 .task-retry-pending { color: var(--text-muted); }

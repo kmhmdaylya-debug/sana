@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Check, ClipboardList, FolderKanban, Receipt, Wallet, CalendarDays, ChevronDown, Pin, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { Check, FolderKanban, Receipt, Wallet, CalendarDays, ChevronDown, Pin, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
-import { useAuth } from '../lib/auth';
 import { useList } from '../lib/useList';
 import TaskCountdown from '../components/TaskCountdown';
 import TaskStatusMark from '../components/TaskStatusMark';
@@ -15,7 +14,6 @@ import { DatePicker,
   DataTable,
   Field,
   Modal,
-  PageHeader,
   Select,
   Textarea,
   useToast,
@@ -172,7 +170,6 @@ const toDate = (v: string) => new Date(v);
 
 export default function EmployeePanel() {
   const toast = useToast();
-  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const requestedView = searchParams.get('view');
   const tab = ['projects', 'leaves', 'missions', 'payroll', 'profile'].includes(requestedView ?? '') ? requestedView : 'tasks';
@@ -254,13 +251,8 @@ export default function EmployeePanel() {
 
   return (
     <>
-      <PageHeader
-        title="task"
-        subtitle={[user?.fullName, user?.employee?.position?.title, user?.employee?.orgUnit?.name].filter(Boolean).join(' · ')}
-      />
-
       {tab === 'tasks' ? <MyTasks /> : tab === 'projects' ? (
-          <section className="employee-work-section" aria-labelledby="my-projects-heading">
+          <section id="panel-projects" className="employee-work-section" aria-labelledby="my-projects-heading">
             <h3 id="my-projects-heading" className="employee-work-heading"><FolderKanban size={18} /> پروژه‌های من {!loading && !loadError && <Badge kind="gray">{toPersianDigits(projects.length)}</Badge>}</h3>
             {loading ? <div className="skeleton" style={{ height: 180 }} /> : loadError ? <div className="alert alert-danger" role="alert">{loadError} <Button variant="secondary" onClick={load}>تلاش دوباره</Button></div> : <ProjectsTab projects={projects} />}
           </section>
@@ -399,9 +391,8 @@ function MyTasks() {
     }
   };
   return (
-    <section className="employee-work-section employee-tasks" aria-labelledby="my-tasks-heading">
+    <section className="employee-work-section employee-tasks" aria-label="فهرست کارها">
       <div className="employee-tasks-header">
-        <h3 id="my-tasks-heading" className="employee-work-heading"><ClipboardList size={18} /> task من</h3>
         <div className="employee-task-header-actions">{!list.loading && !list.error && <span className="employee-tasks-count">{toPersianDigits(list.total)} task</span>}<Button variant="outline" size="sm" title="تازه‌سازی task" aria-label="تازه‌سازی task" disabled={list.loading || !!savingId} onClick={list.reload}><RefreshCw size={15} /></Button></div>
       </div>
       {!list.loading && !list.error && list.rows.length > 0 && <div className="employee-task-overview">

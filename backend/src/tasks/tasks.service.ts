@@ -120,7 +120,11 @@ export class TasksService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
+        orderBy: [
+          { slaHours: { sort: 'asc', nulls: 'last' } },
+          { dueDate: { sort: 'asc', nulls: 'last' } },
+          { priority: 'desc' },
+        ],
         include: {
           assignees: {
             include: {
@@ -292,6 +296,8 @@ export class TasksService {
       // بازگشایی task تکمیل‌شده مجاز است
     }
 
+    const isMarkedNotDone = dto.status === TaskStatus.IN_PROGRESS && dto.delayReason !== undefined && dto.delayReason !== null && dto.delayReason.trim() !== '';
+
     const task = await this.prisma.task.update({
       where: { id },
       data: {
@@ -312,6 +318,7 @@ export class TasksService {
         ...(dto.status === TaskStatus.DONE ? { completedAt: before?.completedAt ?? new Date(), progress: 100, delayReason: null } : {}),
         ...(dto.status && dto.status !== TaskStatus.DONE ? { completedAt: null } : {}),
         ...((dto.status && dto.status !== before?.status) || resolved ? { retryStatus: null, retryRequestedAt: null, retryRequestedById: null, delayReason: null } : {}),
+        ...(isMarkedNotDone ? { slaHours: null, dueDate: null } : {}),
       },
       include: { assignees: { include: { employee: { select: { userId: true } } } } },
     });

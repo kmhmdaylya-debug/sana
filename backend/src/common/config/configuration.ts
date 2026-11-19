@@ -125,6 +125,8 @@ export default registerAs('app', () => ({
     dir: process.env.BACKUP_DIR ?? './backups',
     /** کلید رمزنگاری فایل‌های پشتیبان (AES-256-GCM) — حداقل ۳۲ نویسه */
     encryptionKey: requiredSecret('BACKUP_ENCRYPTION_KEY'),
+    /** کلید رمزنگاری فیلدهای حساس PII/PHI (AES-256-GCM) — حداقل ۳۲ نویسه */
+    fieldEncryptionKey: requiredSecret('FIELD_ENCRYPTION_KEY'),
     maxFiles: parseInt(process.env.BACKUP_MAX_FILES ?? '10', 10),
     pgDumpPath: process.env.PG_DUMP_PATH ?? 'pg_dump',
     pgRestorePath: process.env.PG_RESTORE_PATH ?? 'pg_restore',

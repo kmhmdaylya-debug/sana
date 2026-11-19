@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import configuration from './common/config/configuration';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { AccessModule } from './common/access/access.module';
 import { AuditModule } from './common/audit/audit.module';
 import { NotificationModule } from './common/notifications/notification.module';
+import { MetricsModule } from './common/monitoring/metrics.module';
+import { EncryptionModule } from './common/encryption/encryption.module';
+import { MetricsInterceptor } from './common/monitoring/metrics.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { HealthModule } from './health/health.module';
@@ -58,6 +61,8 @@ import { BackupModule } from './backup/backup.module';
     AccessModule,
     AuditModule,
     NotificationModule,
+    MetricsModule,
+    EncryptionModule,
     HealthModule,
 
     AuthModule,
@@ -95,6 +100,7 @@ import { BackupModule } from './backup/backup.module';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
   ],
 })
 export class AppModule {}

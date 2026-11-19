@@ -365,13 +365,21 @@ test('employee task redesign renders real progress and retains all task actions 
       useToast: () => () => {}, Modal: () => null,
       DatePicker: () => null, Select: () => null, Textarea: () => null,
       Field: ({ children }) => React.createElement('div', null, children),
-      PageHeader: ({ title }) => React.createElement('h1', null, title),
+      PageHeader: ({ title, subtitle }) => React.createElement('header', null,
+        React.createElement('h1', null, title),
+        React.createElement('p', null, subtitle)),
       Button: ({ children, variant, loading, size, ...props }) => React.createElement('button', props, children),
     },
   }).default;
   const render = () => renderToStaticMarkup(React.createElement(Panel));
   const html = render();
-  assert.match(html, /<h1>task<\/h1>/);
+  const document = new JSDOM(html).window.document;
+  assert.equal(document.querySelector('h1, .employee-panel-tabs, [role="tablist"], #my-tasks-heading'), null);
+  assert.equal(document.querySelector('[aria-labelledby="my-tasks-heading"]'), null);
+  assert.doesNotMatch(document.body.textContent, /task من|کارمند نمونه/);
+  assert.ok(document.querySelector('section[aria-label="فهرست کارها"]'));
+  assert.ok(document.querySelector('button[aria-label="تازه‌سازی task"]'));
+  assert.equal(document.querySelector('.employee-tasks-count').textContent, '۵ task');
   assert.match(html, /aria-label="پیشرفت task"[^>]+aria-valuenow="25"/);
   assert.match(html, /<dt>کار باز<\/dt><dd>۳<\/dd>/);
   assert.match(html, /<dt>در حال انجام<\/dt><dd>۱<\/dd>/);

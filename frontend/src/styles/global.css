@@ -603,6 +603,111 @@ a:hover {
   justify-content: flex-start;
 }
 
+/* ------------------------------ Table View Toggle ------------------------------ */
+.table-view-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.view-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.view-btn.active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.view-btn:focus-visible {
+  outline: 2px solid var(--primary-text);
+  outline-offset: 2px;
+}
+
+/* ------------------------------ Mobile Card View ------------------------------ */
+.data-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.data-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.data-card-body {
+  padding: 16px;
+}
+.data-card-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.data-card-field:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.data-card-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.data-card-value {
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  word-break: break-word;
+  flex: 1;
+}
+.data-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.data-card-actions .btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 767px) {
+  .table-wrap {
+    overflow-x: visible;
+  }
+  .data-table {
+    min-width: 100%;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}
+
 /* ------------------------------ نشان ------------------------------ */
 .badge {
   display: inline-flex;
